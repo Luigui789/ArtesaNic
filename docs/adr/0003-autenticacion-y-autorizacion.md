@@ -14,8 +14,8 @@
 
 El prototipo **no tiene autenticación**: tiene la apariencia de tenerla.
 
-- [`src/hooks/use-session.tsx`](../../apps/frontend/src/hooks/use-session.tsx) define dos objetos constantes (`COMPRADOR` y `ARTESANO`) y los guarda en `localStorage`. No hay token, ni expiración, ni credenciales.
-- [`src/routes/auth.tsx`](../../apps/frontend/src/routes/auth.tsx) valida con Zod el formato del teléfono y la contraseña, y a continuación **descarta ambos**: la llamada efectiva es `ingresar(rol, nombre)`. Cualquier teléfono de 8 dígitos con cualquier contraseña de 6 caracteres inicia sesión, y **el rol lo elige quien se autentica** desde un selector del formulario.
+- [`src/hooks/use-session.tsx`](../../apps/frontend/src/features/auth/use-session.tsx) define dos objetos constantes (`COMPRADOR` y `ARTESANO`) y los guarda en `localStorage`. No hay token, ni expiración, ni credenciales.
+- [`src/routes/auth.tsx`](../../apps/frontend/src/features/auth/pages/acceso.tsx) valida con Zod el formato del teléfono y la contraseña, y a continuación **descarta ambos**: la llamada efectiva es `ingresar(rol, nombre)`. Cualquier teléfono de 8 dígitos con cualquier contraseña de 6 caracteres inicia sesión, y **el rol lo elige quien se autentica** desde un selector del formulario.
 - No existe ninguna guarda de ruta. Todas las pantallas de `/panel/*` se renderizan para cualquier visitante.
 - `DEMO_ARTISAN_ID` (la constante `"art-1"` exportada desde `mock-api.ts`) aparece en **ocho archivos** y es la fuente real de la identidad del taller.
 

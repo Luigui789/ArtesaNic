@@ -14,3 +14,4 @@ Numeración única. El 006 permanece reservado. Los estados históricos no se tr
 | 008 | [Entorno local anterior](0008-entorno-de-desarrollo-local.md) | Propuesta histórica; entorno sustituido por ADR-010 |
 | 009 | [Fuente del contrato](0009-fuente-del-contrato-de-api.md) | Propuesta preservada; ubicación central por ADR-010 |
 | 010 | [Monorepo y desarrollo](0010-monorepo-y-entorno-de-desarrollo.md) | Aceptada por el usuario; validación en informe de migración |
+| 011 | [Frontend por dominio](0011-frontend-por-dominio.md) | Aceptada por el responsable; revisión del equipo en su PR |

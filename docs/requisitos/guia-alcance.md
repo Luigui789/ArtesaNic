@@ -13,7 +13,7 @@ Esta línea de integración conserva el commit documental `3bbbb07` y los 17 com
 | [Requisitos](requisitos.md) | Las 39 fichas, sus versiones, autores, responsables, dependencias y estados |
 | [Módulos y reglas](modulos-y-reglas.md) | Roles, transiciones, pagos, entregas, cancelaciones, reservas e inventario |
 | [Matriz de alineación](../trazabilidad/alineacion-main-456f613.md) | Requisito → archivos afectados → cambio necesario; modelo objetivo, servicios propuestos, fases y escenarios de verificación |
-| [Rutas](../../apps/frontend/src/routes/README.md) | Rutas existentes y rutas propuestas, con el enrutador realmente usado |
+| [Rutas](../../apps/frontend/src/features/README.md) | Rutas existentes y rutas propuestas, con el enrutador realmente usado |
 
 Las fichas de Drive gobiernan el alcance funcional. Las guías derivan sus reglas y señalan las decisiones técnicas pendientes. Las desviaciones del mock se documentan sin cambiar la especificación para acomodarlas. La versión anterior del README se conserva en el historial Git.
 
@@ -41,7 +41,7 @@ La administración corresponde a **Django Admin**, fuera de la interfaz React. N
 | Persistencia de la demo | IndexedDB; sesión simulada en localStorage |
 | Dependencias reproducibles | pnpm 10.30.3 y `pnpm-lock.yaml` |
 
-La persistencia de la demo conserva los cambios de un navegador y protege instantáneas ilegibles. No acredita sincronización entre dispositivos, autorización real ni transacciones del backend. Fuentes: [package.json](../../apps/frontend/package.json), [Vite](../../apps/frontend/vite.config.ts), [rutas](../../apps/frontend/src/routes/README.md) y [ADR-001](../adr/0001-sistema-de-routing.md).
+La persistencia de la demo conserva los cambios de un navegador y protege instantáneas ilegibles. No acredita sincronización entre dispositivos, autorización real ni transacciones del backend. Fuentes: [package.json](../../apps/frontend/package.json), [Vite](../../apps/frontend/vite.config.ts), [rutas](../../apps/frontend/src/features/README.md) y [ADR-001](../adr/0001-sistema-de-routing.md).
 
 ## Modelo comercial objetivo
 

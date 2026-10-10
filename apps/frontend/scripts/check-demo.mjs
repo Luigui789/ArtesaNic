@@ -12,7 +12,7 @@ const result = await build({
   build: {
     write: false,
     minify: false,
-    lib: { entry: "src/services/mock-api.ts", formats: ["es"] },
+    lib: { entry: "src/mocks/index.ts", formats: ["es"] },
   },
 });
 const output = (Array.isArray(result) ? result[0] : result).output.find((o) => o.type === "chunk");
