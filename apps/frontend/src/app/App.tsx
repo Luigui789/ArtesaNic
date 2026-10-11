@@ -1,27 +1,27 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router";
-import { SessionProvider } from "@/hooks/use-session";
+import { SessionProvider } from "@/features/auth/use-session";
 import { CurrencyProvider } from "@/hooks/use-currency";
-import { NotificationsProvider } from "@/hooks/use-notifications";
+import { NotificationsProvider } from "@/features/notificaciones/use-notifications";
 import { Toaster } from "@/components/ui/sonner";
 import { AppErrorBoundary } from "./error-boundary";
 import { ScrollToTop } from "./scroll-to-top";
 import { NotFound } from "./not-found";
 
-import Index from "@/routes/index";
-import Auth from "@/routes/auth";
-import Catalogo from "@/routes/catalogo";
-import Producto from "@/routes/producto.$id";
-import Artesano from "@/routes/artesano.$id";
-import Solicitar from "@/routes/solicitar.$productId";
-import PedidosIndex from "@/routes/pedidos.index";
-import PedidosDetalle from "@/routes/pedidos.$id";
-import Mensajes from "@/routes/mensajes";
-import PanelIndex from "@/routes/panel.index";
-import PanelPerfil from "@/routes/panel.perfil";
-import PanelProductos from "@/routes/panel.productos";
-import PanelPedidosIndex from "@/routes/panel.pedidos.index";
-import PanelPedidosDetalle from "@/routes/panel.pedidos.$id";
+import Index from "@/features/catalogo/pages/inicio";
+import Auth from "@/features/auth/pages/acceso";
+import Catalogo from "@/features/catalogo/pages/catalogo";
+import Producto from "@/features/catalogo/pages/producto";
+import Artesano from "@/features/talleres/pages/artesano";
+import Solicitar from "@/features/pedidos/pages/solicitar";
+import PedidosIndex from "@/features/pedidos/pages/pedidos";
+import PedidosDetalle from "@/features/pedidos/pages/pedido-detalle";
+import Mensajes from "@/features/mensajes/pages/mensajes";
+import PanelIndex from "@/features/talleres/pages/panel-inicio";
+import PanelPerfil from "@/features/talleres/pages/panel-perfil";
+import PanelProductos from "@/features/catalogo/pages/panel-productos";
+import PanelPedidosIndex from "@/features/pedidos/pages/panel-pedidos";
+import PanelPedidosDetalle from "@/features/pedidos/pages/panel-pedido-detalle";
 
 const queryClient = new QueryClient();
 

@@ -1,6 +1,13 @@
 # Contribuir a ArtesaNic
 
-Trabajar desde `main` integrado y usar ramas `feature/*`, `fix/*` o `docs/*`; esta reorganización utiliza `chore/monorepo-migration`. Los PR de consolidación y migración se revisan por separado. No borrar ramas ni archivar repositorios sin confirmación del responsable.
+## Ramas
+
+- `develop` es la rama de integración. Cada trabajo sale de `develop` en una rama `feature/*`, `fix/*`, `refactor/*` o `docs/*`, y vuelve a `develop` mediante un PR revisado por otra persona del equipo.
+- `main` contiene solo versiones estables: se actualiza con un PR de `develop` a `main` cuando el equipo da por estable una versión.
+- No hacer commits directos en `develop` ni en `main`. Antes de abrir un PR, traer los últimos cambios de `develop` a la rama de trabajo.
+- No borrar ramas ni archivar repositorios sin confirmación del responsable.
+
+En el frontend, cada dominio tiene su carpeta en `apps/frontend/src/features/`; trabajar dentro del dominio propio reduce los conflictos. [Organización del frontend](apps/frontend/src/features/README.md).
 
 ## Dependencias y alcance
 

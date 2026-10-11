@@ -73,7 +73,7 @@
 
 ## Dónde vive `CATEGORY_IMAGE` — decidido
 
-Hoy está en [`seed.ts:10`](../../apps/frontend/src/data/seed.ts) y la portada lo importa directamente desde ahí ([`index.tsx:5`](../../apps/frontend/src/routes/index.tsx)), lo que ya contradice la regla del proyecto de que los componentes no dependan de estructuras internas del seed.
+Hoy está en [`seed.ts:10`](../../apps/frontend/src/mocks/seed.ts) y la portada lo importa directamente desde ahí ([`index.tsx:5`](../../apps/frontend/src/features/catalogo/pages/inicio.tsx)), lo que ya contradice la regla del proyecto de que los componentes no dependan de estructuras internas del seed.
 
 El problema de fondo: son *assets* locales de presentación que **el contrato no contempla en ningún punto**, de modo que deben sobrevivir a la desaparición del mock. Si se quedan en `seed.ts`, morirán con él.
 

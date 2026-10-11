@@ -1,4 +1,4 @@
-import { getPersistenceStatus, resetDemo } from "@/services/mock-api";
+import { getPersistenceStatus, resetDemo } from "@/mocks";
 import { useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Link, NavLink, useLocation, useNavigate } from "react-router";
@@ -17,8 +17,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { CurrencySwitcher } from "@/components/common/currency-switcher";
-import { useSession } from "@/hooks/use-session";
-import { useNotifications } from "@/hooks/use-notifications";
+import { useSession } from "@/features/auth/use-session";
+import { useNotifications } from "@/features/notificaciones/use-notifications";
 import { ROLE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types";

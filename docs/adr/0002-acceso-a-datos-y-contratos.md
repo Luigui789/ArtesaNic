@@ -15,7 +15,7 @@
 
 ## Contexto
 
-El frontend obtiene hoy todos sus datos de [`src/services/mock-api.ts`](../../apps/frontend/src/services/mock-api.ts), un módulo que simula una API REST (latencia artificial, errores provocados, mutaciones) sobre un almacén en memoria construido desde [`src/data/seed.ts`](../../apps/frontend/src/data/seed.ts). El sistema final consumirá una API REST provista por Django REST Framework sobre SQL Server, desarrollada en un repositorio separado.
+El frontend obtiene hoy todos sus datos de [`src/services/mock-api.ts`](../../apps/frontend/src/mocks/index.ts), un módulo que simula una API REST (latencia artificial, errores provocados, mutaciones) sobre un almacén en memoria construido desde [`src/data/seed.ts`](../../apps/frontend/src/mocks/seed.ts). El sistema final consumirá una API REST provista por Django REST Framework sobre SQL Server, desarrollada en un repositorio separado.
 
 Un análisis del código real arrojó los siguientes hallazgos:
 
