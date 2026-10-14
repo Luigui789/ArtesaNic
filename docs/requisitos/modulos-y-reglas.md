@@ -1,172 +1,53 @@
-# Módulos y reglas del alcance objetivo
+# Módulos y reglas del alcance V1
 
-**Revisión:** 8 de octubre de 2026. **Fuente:** [fichas de requisitos](requisitos.md), transcritas de RF/RNF.docx. Esta organización es una guía derivada para el frontend; no se presenta como una sección de módulos copiada literalmente del archivo de Drive ni como aprobación del equipo.
+**Revisión:** 12 de octubre de 2026 (America/Managua). **Fuente vigente:** [fichas RF/RNF](requisitos.md) y [catálogo de reglas RN](reglas-de-negocio.md), basados exclusivamente en la especificación suministrada en esta conversación.
 
-**Estado del código:** [matriz de alineación](../trazabilidad/alineacion-main-456f613.md). Todas las reglas descritas aquí son objetivo de adaptación salvo que la matriz identifique una simulación ya presente.
+**Alcance V1: 21 RF activos y 15 RNF activos.** Se conservan RF-001 a RF-024 y RNF-001 a RNF-015. RF-002 deja de ser independiente y se integra en RF-001/RNF-005; RF-012 y RF-024 están postergados fuera de V1.
+
+Esta guía organiza la especificación y remite al catálogo RN sin añadir reglas ni acreditar implementación. La revisión anterior se conserva en [módulos del 8 de octubre](historico/modulos-2026-10-08.md).
 
 ## Módulos
 
-| Módulo | Funciones objetivo | Trazabilidad |
+| Módulo | Funciones V1 | Trazabilidad |
 |---|---|---|
-| Usuarios, acceso y perfiles | Registro/inicio con teléfono, edición propia, cierre de sesión, perfil público del taller y separación de datos privados; servidor asigna permisos y aprueba taller | RF-004, RF-008; RNF-001, RNF-004, RNF-013 |
-| Catálogo y publicaciones | Cuatro grupos esenciales de producto, modalidades condicionales, imágenes, categorías, filtros/paginación, tasa informativa y despublicación con historia conservada | RF-001, RF-002, RF-003, RF-007, RF-017, RF-019; RNF-002, RNF-003, RNF-007 |
-| Solicitudes y pedidos | Composición local por taller, cotización visible, aceptación integral, reservas, producción según modalidad, plan/registro de entregas, cancelación y cierre parcial | RF-005, RF-006, RF-009, RF-010, RF-015, RF-016, RF-018; RNF-008, RNF-011, RNF-014 |
-| Pagos y reembolsos | Pago externo total, intentos y correcciones, observación y plazos, conciliación tras cancelación, obligación y evidencia de devolución | RF-006, RF-011, RF-021; RNF-004, RNF-008, RNF-011, RNF-013 |
-| Mensajería | Texto por pedido entre sus partes, acceso por estado, historial y polling incremental | RF-014; RNF-004, RNF-010, RNF-013 |
-| Notificaciones | Eventos persistentes, plazos de pago y recogida, avisos propios y marcado como leído | RF-020; RNF-004, RNF-008, RNF-014 |
-| Trazabilidad | Actor, acción, motivo, tiempo, estados, cantidades/importes y referencias; eventos sin edición ordinaria | RF-010, RF-011, RF-015, RF-021, RF-023; RNF-008, RNF-011, RNF-015 |
-| Inventario y Costos | Existencia inicial, entradas, ajustes, reservas, clasificación, consumo, bajas, historial, costos y valorización básica | RF-017, RF-022, RF-023, RF-024; RNF-007, RNF-008, RNF-011, RNF-015 |
-| Administración | Django Admin: talleres, cuentas, moderación, tasa y supervisión autorizada en solo lectura | RF-004, RF-007, RF-013, RF-019; RNF-004, RNF-013 |
+| Usuarios, acceso y taller | Registro con teléfono, rol único, autenticación, bloqueo hasta aprobación y perfil público | RF-004, RF-008, RF-013; RNF-004, RNF-013; RN-001, RN-002, RN-006 |
+| Catálogo y publicaciones | Gestión de productos e imágenes, modalidades disponibles, consulta, búsqueda, filtros, orden, paginación, conversión informativa y despublicación | RF-001, RF-003, RF-007, RF-017, RF-019; RNF-001, RNF-003, RNF-005, RNF-007; RN-003, RN-004, RN-010 |
+| Solicitudes, propuesta y pedidos | Renglones de un taller, revisión individual del artesano y aceptación final completa por el comprador | RF-005, RF-006, RF-009, RF-010, RF-015, RF-016, RF-018; RN-005, RN-007, RN-008, RN-009, RN-010, RN-011, RN-015, RN-016, RN-017, RN-018, RN-019 |
+| Pagos y reembolsos | Registro de pago externo total, confirmación manual, observación, corrección, vencimiento automático y devolución externa | RF-011, RF-015, RF-021; RNF-004, RNF-008, RNF-011; RN-012, RN-013, RN-014, RN-017, RN-019 |
+| Inventario | Existencias, disponibilidad, reservas, entradas, ajustes, consumos, liberación, clasificación e historial | RF-017, RF-022, RF-023; RNF-008, RNF-011, RNF-014; RN-011, RN-021, RN-022, RN-023, RN-024 |
+| Mensajería y notificaciones | Conversación del pedido confirmado y avisos internos persistentes | RF-014, RF-020; RNF-004, RNF-010, RNF-013; RN-006, RN-020 |
+| Administración | Aprobación de talleres, cuentas, moderación, tasa de conversión y supervisión de estados e importes | RF-013, RF-007, RF-019; RNF-004, RNF-013; RN-002, RN-003, RN-006, RN-010 |
 
-Los RNF-005, RNF-006, RNF-009, RNF-012 y RNF-014 también afectan transversalmente arquitectura, disponibilidad, compatibilidad, recuperación y conectividad. RF-012 reserva la pasarela futura y no forma un módulo de esta versión.
+Los 15 RNF permanecen activos. Sus criterios completos y métodos de verificación están en las [fichas RNF](requisitos.md#requisitos-no-funcionales), incluidas las obligaciones transversales de responsividad, disponibilidad, compatibilidad, respaldo, resiliencia y mantenibilidad.
 
-## Roles y permisos
+## Secuencia comercial
 
-| Actor | Acciones |
+| Momento | Referencia normativa |
 |---|---|
-| Visitante | Consulta catálogo y perfiles públicos de talleres aprobados y productos publicados |
-| Comprador | Compone/envía solicitudes de un taller; consulta sus pedidos y cotización; registra/corrige evidencia de pago cuando corresponde; cancela Pendiente/Aceptado; coordina por chat; confirma o discrepa entregas; solicita cierre parcial después de una entrega parcial |
-| Artesano del pedido | Cotiza, acepta/rechaza integralmente, verifica fondos, produce cuando corresponde, planifica y registra entregas, cancela por las causas autorizadas y resuelve solicitudes de cierre parcial |
-| Artesano del producto | Publica/edita/despublica, administra inventario y costos de su taller, clasifica unidades y registra devolución externa |
-| Administrador | Opera Django Admin con autorización por rol y objeto; no modifica renglones ni acuerdos, y no accede al contenido de chats ni comprobantes |
+| Preparar y enviar una solicitud de un único taller con modalidad por renglón | RF-009, RF-017, RF-018; [RN-004](reglas-de-negocio.md#rn-004), [RN-005](reglas-de-negocio.md#rn-005), [RN-007](reglas-de-negocio.md#rn-007) |
+| Resolver cada renglón y presentar la propuesta final, sin contraofertas de cantidad | RF-005, RF-018; [RN-008](reglas-de-negocio.md#rn-008) |
+| Revisar cotización y plan; aceptar o rechazar la propuesta completa | RF-005, RF-006, RF-016; [RN-009](reglas-de-negocio.md#rn-009), [RN-010](reglas-de-negocio.md#rn-010) |
+| Confirmar, congelar importes y reservar stock conjuntamente | RF-005, RF-006, RF-022; [RN-011](reglas-de-negocio.md#rn-011) |
+| Pagar externamente, registrar el pago y esperar confirmación manual | RF-011; [RN-012](reglas-de-negocio.md#rn-012) |
+| Gestionar falta de registro o comprobante observado | RF-011, RF-015; [RN-013](reglas-de-negocio.md#rn-013), [RN-014](reglas-de-negocio.md#rn-014) |
+| Iniciar producción, personalización o preparación según cada renglón | RF-010, RF-017; [RN-015](reglas-de-negocio.md#rn-015) |
+| Registrar entregas por renglón y evidencia de recepción | RF-010, RF-022; [RN-018](reglas-de-negocio.md#rn-018), [RN-022](reglas-de-negocio.md#rn-022) |
+| Cancelar, vencer o tramitar cierre parcial y reembolso cuando corresponda | RF-015, RF-021; [RN-013](reglas-de-negocio.md#rn-013), [RN-016](reglas-de-negocio.md#rn-016), [RN-017](reglas-de-negocio.md#rn-017), [RN-019](reglas-de-negocio.md#rn-019), [RN-024](reglas-de-negocio.md#rn-024) |
 
-El selector de actor es una herramienta de demo, no autorización. Los servicios mock deben representar restricciones y el servidor futuro debe garantizarlas.
+La resolución del artesano se registra **por renglón**. La aceptación de la **propuesta final completa** corresponde al comprador. El cumplimiento conserva la modalidad individual de cada renglón, incluso si el pedido combina modalidades.
 
-## Composición, cotización y aceptación
+## Inventario y operaciones
 
-1. El borrador se guarda en el dispositivo. No se sincroniza entre dispositivos y todavía no es un pedido Pendiente del servidor.
-2. Cada renglón tiene producto, modalidad habilitada, cantidad y, cuando corresponde, personalización/observaciones. Todos pertenecen al mismo taller.
-3. Enviar crea el pedido Pendiente. El artesano propone el desglose económico, la distribución de cargos compartidos y el plan de una o varias entregas; el comprador puede verlos y cancelar.
-4. Al aceptar, comprobar de nuevo todas las cantidades estándar. Agrupar cantidades de renglones del mismo producto al verificar disponibilidad para no reservar dos veces la misma última unidad.
-5. Solo si todos los renglones cumplen las condiciones, reservar todas las unidades estándar, generar los movimientos y congelar importes/distribución. Un fallo conserva el pedido Pendiente y no deja reservas parciales.
-6. Rechazar exige motivo y es terminal, sin conversación. Las reservas no vencen automáticamente.
-
-## Transiciones del pedido
-
-El estado de pago se conserva por separado. Las transiciones se validan por estado, actor, modalidad, fondos y entregas; una lista de estados por sí sola no basta.
-
-| Desde | Acción / actor | Hacia | Condiciones y efectos |
-|---|---|---|---|
-| Pendiente | Aceptar / artesano | Aceptado | Cotización y plan definidos; reserva integral atómica y congelación de importes |
-| Pendiente | Rechazar / artesano | Rechazado | Motivo; terminal; sin chat |
-| Pendiente | Cancelar solicitud / comprador | Cancelado | Motivo y aviso; sin chat, reserva ni reembolso |
-| Aceptado | Avanzar / artesano, pedido totalmente estándar | Listo para entrega | Pago confirmado; todos los productos listos |
-| Aceptado | Iniciar producción / artesano, personalizado o mixto | En producción | Pago confirmado |
-| En producción | Marcar listo / artesano | Listo para entrega | Todos los renglones listos; conservar Pago confirmado |
-| Aceptado | Cancelar / comprador | Cancelado | Antes de producción/Listo; auditar y resolver fondos y unidades según RF-021/RF-022 |
-| Aceptado, En producción o Listo para entrega | Cancelar por imposibilidad / artesano | Cancelado | Antes de cualquier entrega; motivo y reembolso total de fondos recibidos |
-| Aceptado | Cancelar por falta de pago / artesano | Cancelado | Manual; ≥48 h desde aceptación; sin plazo de corrección vigente ni revisión de fondos sin resolver |
-| Listo para entrega | Registrar entrega parcial / artesano | Listo para entrega | Fecha y cantidades por renglón; consumir solo unidades entregadas y conservar costo |
-| Listo para entrega | Registrar entrega que completa todas las cantidades / artesano | Entregado | Consumo de unidades restantes; terminal operativo |
-| Listo para entrega con entregas parciales | Cerrar por imposibilidad / artesano | Cerrado parcialmente | Motivo; conservar entregas; devolver lo no entregado/servicios no prestados y resolver unidades restantes |
-| Listo para entrega con entregas parciales | Solicitar cierre / comprador | Listo para entrega | La solicitud no cambia estado, reserva ni reembolso |
-| Listo para entrega con entregas parciales | Aceptar solicitud de cierre / artesano | Cerrado parcialmente | Motivo; mismo tratamiento de importes y unidades pendientes |
-| Listo para entrega con entregas parciales | Rechazar solicitud de cierre / artesano | Listo para entrega | Motivo y aviso al comprador; conservar solicitud y respuesta |
-
-**Terminales operativos:** Entregado, Rechazado, Cancelado y Cerrado parcialmente. No se reabren por corregir evidencia, clasificar unidades o registrar devoluciones. Conciliación de pagos anteriores, evidencia del comprador, clasificación y reembolsos pueden seguir pendientes por separado.
-
-El comprador no cancela unilateralmente En producción ni Listo. El cierre parcial del comprador requiere respuesta del artesano y está previsto después de una entrega parcial; no se convierte automáticamente en Cancelado.
-
-## Pagos y correcciones
-
-Un pago económico del 100 % puede tener varios intentos de registro/corrección; no son cuotas ni cobros múltiples. Registrar el pago expresa conformidad con el total congelado en córdobas. Corregir un comprobante no exige repetir la transferencia.
-
-| Desde | Operación | Hacia | Regla |
-|---|---|---|---|
-| Pendiente de pago | Registrar / comprador | Pago registrado | Pedido Aceptado, total congelado; método, referencia y comprobante cuando corresponda |
-| Pago registrado | Observar / artesano | Pago observado | Motivo, notificación registrada y límite de corrección de 48 h desde esa notificación |
-| Pago observado | Corregir / comprador | Pago registrado | Mismo intento, historial conservado; pedido Aceptado y plazo de corrección aplicable |
-| Pago registrado o Pago observado | Confirmar fondos / artesano | Pago confirmado | Verificar recepción; si pedido Cancelado, generar obligación de reembolso sin reabrirlo |
-| Pago registrado o Pago observado | Resolver revisión / artesano | Pago no recibido | Verificar ausencia de fondos y motivo; no cancelar pedido ni acortar plazo de corrección |
-| Pago no recibido | Registrar nuevo intento / comprador | Pago registrado | Pedido Aceptado, sin fondos confirmados; conservar intento anterior |
-
-Después de cancelar no se admiten nuevos intentos ni correcciones; sí se resuelven revisiones anteriores. Pago confirmado no se revierte editando un comprobante. La revisión debe conservar evidencia y plazos; no se presume que faltan fondos solo porque no estén confirmados.
-
-No se introduce una transición automática al vencer un plazo: los avisos no cancelan pedidos. El diseño detallado de expiración/revisión y emisión de avisos se ratifica antes de implementar.
-
-## Entregas, recepción y recogida atrasada
-
-El comprador expresa preferencia por recoger en taller, punto de encuentro, entrega del artesano u otra modalidad detallada. El artesano registra el plan y los costos antes de aceptar. Después se coordinan fechas/lugar sin modificar el total congelado. Las fechas acordadas no acreditan entregas efectuadas.
-
-Cada entrega efectiva conserva fecha, artesano y cantidades por renglón. Todos los productos deben estar listos antes de la primera. Las cantidades acumuladas no exceden las solicitadas. Registrar la entrega estándar descuenta existencia física y reserva simultáneamente y genera consumo de inventario con costo histórico.
-
-El comprador confirma recepción o registra discrepancia de esa entrega, incluso después del cierre operativo. Ese hecho se muestra separado del registro del artesano: no revierte automáticamente unidades, entrega ni estado, no consume otra vez y no introduce arbitraje.
-
-Tras siete días desde Listo sin recoger en taller las cantidades pendientes, marcar recogida atrasada y avisar a las partes. El pedido permanece pagado y Listo, las reservas permanecen y puede acordarse otra fecha. No hay liberación, reventa, cancelación ni reembolso automático. El tratamiento de recepción fallida fuera del taller y cualquier cargo por tardanza siguen pendientes.
-
-## Reembolsos
-
-Estados: **Pendiente** y **Realizado**. Crear obligación por el total recibido al cancelar antes de entregas, incluido el pago registrado cuyos fondos se confirman tras Cancelado. Tras cierre parcial se devuelve lo no entregado y los servicios no prestados según el desglose y distribución congelados.
-
-Conservar importe y cálculo; la cotización original no se reescribe. El artesano registra fecha, importe y referencia de la devolución externa y se notifica al comprador. El sistema no transfiere dinero. La suma de devoluciones no supera fondos confirmados; el reenvío de una acción no duplica la obligación. El cierre operativo puede terminar con reembolso Pendiente.
-
-## Inventario y Costos
-
-Aplica a unidades estándar. La personalización bajo demanda no exige stock ni genera existencias automáticamente; el artesano puede incorporar posteriormente unidades estándar mediante una entrada expresa.
-
-```text
-disponibles = existenciasFisicas − reservadas − porClasificar
-
-existenciasFisicas ≥ 0
-reservadas ≥ 0
-porClasificar ≥ 0
-disponibles ≥ 0
-```
-
-| Operación | Efecto sobre cantidades | Evidencia |
-|---|---|---|
-| Existencia inicial / entrada | Incrementa físicas; disponibles se recalcula | Existencia inicial / entrada; costo cuando corresponda |
-| Ajuste positivo / negativo | Corrige físicas con motivo y mantiene invariantes | Nuevo movimiento; no sobrescribir historia |
-| Aceptación integral | Incrementa reservadas; físicas no cambia | Reserva por producto y referencia al pedido |
-| Entrega estándar | Reduce físicas y reservadas por las unidades entregadas | Consumo por entrega, referencias y costo aplicado |
-| Cancelación / cierre que requiere clasificación | Traslada unidades de reservadas a porClasificar; físicas no cambia | Pendiente de clasificación; siguen fuera de venta |
-| Clasificación reutilizable | Reduce porClasificar; físicas no cambia; aumenta disponibilidad calculada | Reincorporación |
-| Clasificación para baja | Reduce porClasificar y físicas; disponibles se recalcula | Baja con motivo y costo histórico |
-| Liberación válida de reserva | Reduce reservadas; físicas no cambia | Liberación de reserva vinculada a su causa |
-| Baja manual | Reduce físicas sin afectar indebidamente reservas ni pendientes | Baja con motivo y costo aplicado |
-
-Las reservas no son editables manualmente. Nunca liberar como disponibles unidades que aún requieren clasificación. Una cancelación autorizada del comprador se completa aunque quede clasificación pendiente. La resolución conserva destino y cubre todas las unidades pendientes: suma de reincorporación y baja igual a la cantidad que se clasifica.
-
-Tipos mínimos de movimiento: existencia inicial, entrada, ajuste positivo, ajuste negativo, reserva, liberación de reserva, consumo por entrega, pendiente de clasificación, reincorporación y baja. Cada uno conserva producto, fecha/hora, responsable, cantidad, motivo cuando corresponde, valores relevantes antes/después y referencias. En servidor se registra en la misma transacción que su operación; cualquier corrección crea un movimiento nuevo.
-
-Los costos de entrada alimentan el promedio ponderado; entregas y bajas congelan su costo aplicado. Mostrar costo vigente, valor físico/disponible y, si hay datos suficientes, costos entregados y margen estimado. La base del promedio, inicialización, ajustes y redondeo requieren la decisión indicada en [alineación](../trazabilidad/alineacion-main-456f613.md#costos-y-valorización). No equivale a contabilidad general.
-
-## Pantallas y formularios objetivo
-
-| Vista | Contenido / acciones |
+| Operación | Referencia normativa |
 |---|---|
-| Inicio / catálogo / perfil público | Categorías, productos, taller, filtros, paginación y oferta comercial |
-| Producto | Unidades estándar disponibles y personalización independiente; limitar cantidades estándar y volver a verificar al aceptar |
-| Solicitud | Composición de renglones por taller; modalidad por renglón, cantidad y personalización condicional |
-| Pedidos comprador/artesano | Renglones, cotización, estados separados, intentos, entregas/evidencia, chat, devoluciones y auditoría |
-| Panel del artesano | Solicitudes/pedidos/pagos, acceso a Inventario y pendientes de clasificación; indicadores sencillos |
-| Mis productos | Información comercial simple y «Ver inventario»; gestión de movimientos en Inventario |
-| Inventario | Lista responsive: físicas, reservadas, por clasificar, disponibles, promedio y valorización |
-| Detalle de inventario | Resumen; movimientos, reservas, costos y pendientes; registrar entrada, ajuste, baja y clasificación |
-| Notificaciones | Eventos propios persistentes y lectura; plazos no cambian estados por sí solos |
+| Revalidar y reservar al confirmar la propuesta | [RN-011](reglas-de-negocio.md#rn-011) |
+| Mantener separadas existencia física y disponibilidad; registrar entradas, ajustes e historial | [RN-021](reglas-de-negocio.md#rn-021) |
+| Descontar físicamente stock normal al registrar entrega | [RN-022](reglas-de-negocio.md#rn-022) |
+| Consumir una unidad estándar base al comenzar su transformación | [RN-023](reglas-de-negocio.md#rn-023) |
+| Liberar directamente unidades no manipuladas; clasificar solo según condición | [RN-024](reglas-de-negocio.md#rn-024) |
 
-El formulario simplificado conserva fotografía, nombre/precio, categoría y descripción, con opciones condicionales de modalidad. No se le agregan indiscriminadamente movimientos y gestión económica.
+## Referencias históricas y límites
 
-Usar RHF/Zod para formularios y revalidar en el servicio: cantidades enteras >0, costos ≥0, clasificación ≤pendiente y total clasificado consistente, motivos obligatorios donde corresponde, stock no negativo y pertenencia. Costos internos del taller no se exponen al catálogo público.
+RF-002 se conserva como ficha histórica integrada; la carga de imágenes pertenece a RF-001 y las condiciones técnicas a RNF-005. La pasarela RF-012 y los costos, valorización y márgenes RF-024 permanecen fuera de V1.
 
-## Mensajería, notificaciones y auditoría
-
-| Estado de pedido | Chat |
-|---|---|
-| Pendiente | Sin conversación |
-| Rechazado | Sin conversación |
-| Cancelado desde Pendiente | Sin conversación |
-| Aceptado, En producción, Listo para entrega | Escritura solo entre las partes |
-| Entregado, Cerrado parcialmente o Cancelado con chat existente | Historial de solo lectura |
-
-Polling incremental aproximadamente cada 15 s con mensajes reproducibles en la demo. El contrato futuro debe garantizar que el cursor no omita mensajes confirmados por concurrencia; solo fecha o ID no basta sin esa garantía.
-
-RF-020 exige notificaciones persistentes de solicitud, aceptación/rechazo, pagos y correcciones/observaciones, fondos no recibidos, Listo, entregas y recepción/discrepancia, cancelación, solicitud/respuesta de cierre parcial, cierre y reembolso. También avisos de pago tras 48 h y recogida atrasada en taller tras siete días. Cada usuario consulta avisos propios y los marca leídos. Evitar duplicados. Avisos por cada chat y por cada movimiento interno no forman parte del mínimo.
-
-Auditoría conserva responsable, operación, fecha/hora, motivo y estados/cantidades/importes pertinentes. Reembolsos, entregas e inventario amplían el evento antiguo de pedido/pago. El servidor persiste eventos junto con la operación y no permite edición ordinaria. La administración consulta solo evidencia autorizada, sin contenido de chats ni comprobantes.
-
-## Decisiones pendientes y frontera mock/backend
-
-No se crea un ADR-006 aprobado mediante esta guía. Emisión de avisos por consulta o tarea programada, cursor de chat, recuperación asistida, restitución de publicaciones, fallos de recepción fuera del taller y políticas de respaldo/medición requieren ratificación.
-
-El mock simulará reglas e idempotencia en su servicio, con escenarios reproducibles. La seguridad real, persistencia durable, ACID y concurrencia entre procesos/dispositivos son obligaciones de Django/DRF/PostgreSQL. Simularlas no acredita su cumplimiento.
+Los diagramas, planes, contratos propuestos y matrices anteriores son evidencia histórica o propuestas de implementación. Cuando difieran de estas fichas, prevalece la especificación del 12 de octubre. Las inconsistencias pendientes se registran en la [revisión documental](../trazabilidad/actualizacion-requisitos-2026-10-12.md); no se resuelven mediante cambios funcionales en esta actualización.

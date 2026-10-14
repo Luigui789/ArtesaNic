@@ -8,7 +8,7 @@ El frontend conserva sus flujos con **mocks**, sesión simulada e IndexedDB. El 
 
 React 19 / React Router 8 / TanStack Query → servicios mock actuales. Arquitectura futura: servicios HTTP → Django REST Framework → PostgreSQL 17. Se conservan Tailwind, shadcn/ui, React Hook Form y Zod.
 
-La especificación objetivo tiene **24 RF y 15 RNF**, pendientes de homologación según sus fichas. RF-012 permanece postergado. Publicar la documentación no acredita implementación. [Documentación e índice](docs/README.md).
+La especificación V1 acordada el 12 de octubre de 2026 tiene **21 RF activos y 15 RNF activos**, con un catálogo separado de **24 reglas de negocio**. Se conservan RF-001 a RF-024 y RNF-001 a RNF-015: RF-002 queda integrado en RF-001/RNF-005; RF-012 y RF-024 están postergados fuera de V1. Publicar la documentación no acredita implementación. [Documentación e índice](docs/README.md).
 
 ## Estructura
 
