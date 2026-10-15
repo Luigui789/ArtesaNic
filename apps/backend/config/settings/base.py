@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "apps.accounts",
+    "apps.talleres",
 ]
 
 MIDDLEWARE = [
@@ -206,4 +207,6 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "SCHEMA_PATH_PREFIX": r"/api/v[0-9]+",
     "COMPONENT_SPLIT_REQUEST": True,
+    # Nombre estable: otros dominios tendrán también un campo «estado».
+    "ENUM_NAME_OVERRIDES": {"EstadoTallerEnum": "apps.talleres.models.EstadoTaller"},
 }

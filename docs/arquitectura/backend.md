@@ -11,11 +11,17 @@ Back-Artesanic/
 │   │   ├── base.py             Común, con valores por defecto seguros; todo lo variable sale del entorno
 │   │   ├── local.py            Desarrollo: DEBUG, orígenes de Vite y cookies sin Secure
 │   │   └── test.py             Pruebas: hash de contraseñas rápido
-│   ├── urls.py                 /admin/, /api/v1/salud/, /api/v1/auth/
+│   ├── urls.py                 /admin/, /api/v1/salud/, /api/v1/auth/, /api/v1/talleres/
 │   ├── health.py               Sonda de disponibilidad (RNF-006)
 │   ├── wsgi.py, asgi.py
 │   └── tests/                  Salud, orígenes (CORS y CSRF) y esquema OpenAPI
 ├── apps/
+│   ├── talleres/               Taller del artesano y su aprobación (RF-008, RF-013; AUD-02)
+│   │   ├── models.py           Taller, EstadoTaller y restricciones de sus datos
+│   │   ├── services.py         Alta pendiente, perfil, aprobar y rechazar
+│   │   ├── admin.py            Revisión en Django Admin (permiso revisar_taller)
+│   │   ├── api/                Perfil público y taller propio (docs/api/talleres.md)
+│   │   └── tests/
 │   └── accounts/               Identidad, cuentas y sesión (RF-004, RF-013)
 │       ├── models.py           Usuario, Rol y restricciones de sus datos
 │       ├── managers.py         Creación de usuarios y superusuarios
@@ -81,7 +87,7 @@ Las reglas tienen un único lugar: la normalización del teléfono está en `pho
 
 | Dónde | Qué |
 |---|---|
-| `apps/workshops/` (nueva) | Perfil del taller (RF-008) vinculado a la cuenta de artesano; estado de aprobación (RF-013) y su gestión en Django Admin. Decidir antes D13 (taller rechazado) y si el alta del taller ocurre en el registro (ADR-003, cuestión 5). |
+| `apps/talleres/` (AUD-02, implementada) | Perfil del taller (RF-008) vinculado a la cuenta de artesano; aprobación (RF-013) en Django Admin. El alta ocurre en el registro del artesano; estados y rubro según D-AUD02-01 a 03 ([talleres](../api/talleres.md#3-decisiones-aplicadas-en-aud-02)). |
 | `apps/catalog/` (nueva) | Categorías (RF-003), productos (RF-001, RF-017), imágenes (RF-002) y unidades estándar (RF-022). Decidir antes la política de imágenes y D14 (retiro frente a moderación). |
 | `apps/accounts/api/serializers.py` | Añadir `artesano_id` y `artesano_estado` al perfil cuando exista el taller. |
 | `apps/accounts/api/permissions.py` | Un permiso de «taller aprobado» para publicar; los modelos con dueño implementan `pertenece_a(usuario)`. |

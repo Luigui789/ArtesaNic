@@ -19,9 +19,15 @@ def datos(**cambios):
     return {"nombre": "Ana Lucía Delgado", "telefono": "8555 1234", "password": PASSWORD} | cambios
 
 
+def datos_artesano(**cambios):
+    """El artesano envía además los datos iniciales de su taller (AUD-02)."""
+    taller = {"nombre": "Cerámica López", "rubro": "Cerámica", "direccion_completa": "Masaya"}
+    return datos(taller=taller, **cambios)
+
+
 class RegistroValidoTests(AuthAPITestCase):
-    def assertRegistroCorrecto(self, url, rol):
-        respuesta = self.post_con_csrf(url, datos())
+    def assertRegistroCorrecto(self, url, rol, cuerpo=None):
+        respuesta = self.post_con_csrf(url, cuerpo or datos())
 
         self.assertEqual(respuesta.status_code, 201, respuesta.content)
         usuario = Usuario.objects.get()
@@ -47,8 +53,10 @@ class RegistroValidoTests(AuthAPITestCase):
         self.assertRegistroCorrecto(URL_REGISTRO_COMPRADOR, Rol.COMPRADOR)
 
     def test_registra_artesano_sin_aprobar_taller(self):
-        respuesta = self.assertRegistroCorrecto(URL_REGISTRO_ARTESANO, Rol.ARTESANO)
-        # Esta fase no crea talleres: la respuesta no inventa un taller ni su estado.
+        respuesta = self.assertRegistroCorrecto(
+            URL_REGISTRO_ARTESANO, Rol.ARTESANO, datos_artesano()
+        )
+        # El taller nace pendiente (apps.talleres); la respuesta de registro no lo incluye.
         self.assertNotIn("artesano_id", respuesta.json()["usuario"])
         self.assertNotIn("artesano_estado", respuesta.json()["usuario"])
 
@@ -63,7 +71,9 @@ class TelefonoDuplicadoTests(AuthAPITestCase):
         crear_usuario("85551234")
         for variante in ["85551234", "8555-1234", "+505 8555 1234", "505 85551234"]:
             with self.subTest(variante=variante):
-                respuesta = self.post_con_csrf(URL_REGISTRO_ARTESANO, datos(telefono=variante))
+                respuesta = self.post_con_csrf(
+                    URL_REGISTRO_ARTESANO, datos_artesano(telefono=variante)
+                )
                 self.assertEqual(respuesta.status_code, 400)
                 self.assertEqual(
                     respuesta.json(), {"telefono": ["Ya existe una cuenta con este teléfono."]}

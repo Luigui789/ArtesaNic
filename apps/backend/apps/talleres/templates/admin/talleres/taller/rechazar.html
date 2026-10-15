@@ -1,0 +1,31 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<p>Se rechazarán los siguientes talleres. Solo se resuelven los pendientes; un taller ya rechazado no cambia.</p>
+<ul>
+  {% for taller in talleres %}
+  <li>{{ taller.nombre }} — {{ taller.get_estado_display }}</li>
+  {% endfor %}
+</ul>
+<form method="post">
+  {% csrf_token %}
+  {% for taller in talleres %}
+  <input type="hidden" name="{{ action_checkbox_name }}" value="{{ taller.pk }}">
+  {% endfor %}
+  <input type="hidden" name="action" value="rechazar">
+  <input type="hidden" name="confirmar" value="1">
+  {{ form.as_p }}
+  <input type="submit" value="Rechazar">
+  <a href="{% url opts|admin_urlname:'changelist' %}" class="button cancel-link">Cancelar</a>
+</form>
+{% endblock %}
