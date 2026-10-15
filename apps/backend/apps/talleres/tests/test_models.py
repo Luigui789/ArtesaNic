@@ -33,11 +33,24 @@ class RubroTests(TestCase):
         self.assertEqual(Taller._meta.get_field("rubro").get_internal_type(), "CharField")
 
     def test_no_depende_de_categorias(self):
-        """Las únicas relaciones del taller son con cuentas: ni categorías ni productos."""
-        relacionados = {
-            campo.related_model for campo in Taller._meta.get_fields() if campo.is_relation
+        """El taller solo apunta a cuentas; su rubro no es una categoría (D-AUD02-03).
+
+        Los productos del catálogo apuntan al taller (relación inversa), no al revés.
+        """
+        propios = {
+            campo.related_model
+            for campo in Taller._meta.get_fields()
+            if campo.is_relation and campo.concrete
         }
-        self.assertEqual(relacionados, {Usuario})
+        self.assertEqual(propios, {Usuario})
+        self.assertNotIn(
+            "catalogo.categoria",
+            {
+                campo.related_model._meta.label_lower
+                for campo in Taller._meta.get_fields()
+                if campo.is_relation
+            },
+        )
 
 
 class RestriccionesTests(TestCase):

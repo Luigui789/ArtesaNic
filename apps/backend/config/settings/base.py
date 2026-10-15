@@ -63,6 +63,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "apps.accounts",
     "apps.talleres",
+    "apps.catalogo",
 ]
 
 MIDDLEWARE = [
@@ -208,5 +209,8 @@ SPECTACULAR_SETTINGS = {
     "SCHEMA_PATH_PREFIX": r"/api/v[0-9]+",
     "COMPONENT_SPLIT_REQUEST": True,
     # Nombre estable: otros dominios tendrán también un campo «estado».
-    "ENUM_NAME_OVERRIDES": {"EstadoTallerEnum": "apps.talleres.models.EstadoTaller"},
+    "ENUM_NAME_OVERRIDES": {
+        "EstadoTallerEnum": "apps.talleres.models.EstadoTaller",
+        "ModalidadEnum": "apps.catalogo.models.Modalidad",
+    },
 }
