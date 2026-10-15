@@ -90,7 +90,7 @@ RF-004 y RN-002: el artesano no aprobado no accede a las funciones operativas. L
 | `EsArtesano` | Sesión y rol artesano | Gestión de la solicitud: `GET` y `PATCH /api/v1/talleres/mi-taller/` |
 | `EsArtesanoAprobado` | Lo anterior y taller propio con `estado = aprobado` | Toda función operativa del artesano (catálogo, pedidos y demás fases) |
 
-`EsArtesanoAprobado` responde `401` sin sesión y `403` a un comprador o a un artesano con taller pendiente, rechazado o inexistente (`"Tu taller todavía no está aprobado: …"`). Solo consulta el taller propio, y se evalúa en cada petición: una aprobación surte efecto en la siguiente petición, sin renovar la sesión. El taller queda en caché en `request.user.taller`, que la vista reutiliza sin otra consulta. Hoy ningún endpoint lo usa porque todavía no hay funciones operativas.
+`EsArtesanoAprobado` responde `401` sin sesión y `403` a un comprador o a un artesano con taller pendiente, rechazado o inexistente (`"Tu taller todavía no está aprobado: …"`). Solo consulta el taller propio, y se evalúa en cada petición: una aprobación surte efecto en la siguiente petición, sin renovar la sesión. El taller queda en caché en `request.user.taller`, que la vista reutiliza sin otra consulta. Lo exigen las funciones operativas del catálogo: alta, edición, publicación y despublicación de productos ([catálogo](catalogo.md)).
 
 ## 4. Decisiones aplicadas en AUD-02
 
