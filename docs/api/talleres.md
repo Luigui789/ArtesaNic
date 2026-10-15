@@ -8,7 +8,7 @@
 
 **Requisitos:** RF-004, RF-008, RF-013; RN-002, RN-006; RNF-004, RNF-008, RNF-013. Decisiones de la tarea: D-AUD02-01 a D-AUD02-03 (al final).
 
-El registro del artesano, que crea el taller, está descrito en [autenticación](autenticacion.md#post-apiv1authregistrocomprador-y-post-apiv1authregistroartesano). Esta implementación no gobierna aún el acceso del artesano pendiente: ese bloqueo corresponde a AUD-03.
+El registro del artesano, que crea el taller, está descrito en [autenticación](autenticacion.md#post-apiv1authregistrocomprador-y-post-apiv1authregistroartesano). La habilitación operativa del artesano se describe en la [sección 3](#3-habilitación-operativa-del-artesano).
 
 ---
 
@@ -81,7 +81,18 @@ Modifica solo los campos enviados del perfil. Editar el perfil no cambia el esta
 
 `estado`, `propietario`, `revisado_por`, `revisado_en`, `motivo_rechazo`, `creado_en`, `id` y cualquier otro campo se rechazan con `400` (`{"estado": ["Campo no permitido."]}`). Mismos errores `401`, `403` y `404` que la consulta.
 
-## 3. Decisiones aplicadas en AUD-02
+## 3. Habilitación operativa del artesano
+
+RF-004 y RN-002: el artesano no aprobado no accede a las funciones operativas. La cuenta **no se desactiva** (`is_active` sigue en `true`): el artesano pendiente o rechazado inicia sesión, consulta su estado y el motivo de rechazo y mantiene su perfil. Se separan dos permisos:
+
+| Permiso | Exige | Uso |
+|---|---|---|
+| `EsArtesano` | Sesión y rol artesano | Gestión de la solicitud: `GET` y `PATCH /api/v1/talleres/mi-taller/` |
+| `EsArtesanoAprobado` | Lo anterior y taller propio con `estado = aprobado` | Toda función operativa del artesano (catálogo, pedidos y demás fases) |
+
+`EsArtesanoAprobado` responde `401` sin sesión y `403` a un comprador o a un artesano con taller pendiente, rechazado o inexistente (`"Tu taller todavía no está aprobado: …"`). Solo consulta el taller propio, y se evalúa en cada petición: una aprobación surte efecto en la siguiente petición, sin renovar la sesión. El taller queda en caché en `request.user.taller`, que la vista reutiliza sin otra consulta. Hoy ningún endpoint lo usa porque todavía no hay funciones operativas.
+
+## 4. Decisiones aplicadas en AUD-02
 
 Pendientes de formalizar en una tarea documental separada; no modifican las fichas RF/RNF.
 

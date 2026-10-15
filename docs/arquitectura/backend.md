@@ -87,10 +87,10 @@ Las reglas tienen un único lugar: la normalización del teléfono está en `pho
 
 | Dónde | Qué |
 |---|---|
-| `apps/talleres/` (AUD-02, implementada) | Perfil del taller (RF-008) vinculado a la cuenta de artesano; aprobación (RF-013) en Django Admin. El alta ocurre en el registro del artesano; estados y rubro según D-AUD02-01 a 03 ([talleres](../api/talleres.md#3-decisiones-aplicadas-en-aud-02)). |
+| `apps/talleres/` (AUD-02, implementada) | Perfil del taller (RF-008) vinculado a la cuenta de artesano; aprobación (RF-013) en Django Admin. El alta ocurre en el registro del artesano; estados y rubro según D-AUD02-01 a 03 ([talleres](../api/talleres.md#4-decisiones-aplicadas-en-aud-02)). |
 | `apps/catalog/` (nueva) | Categorías (RF-003), productos (RF-001, RF-017), imágenes (RF-002) y unidades estándar (RF-022). Decidir antes la política de imágenes y D14 (retiro frente a moderación). |
 | `apps/accounts/api/serializers.py` | Añadir `artesano_id` y `artesano_estado` al perfil cuando exista el taller. |
-| `apps/accounts/api/permissions.py` | Un permiso de «taller aprobado» para publicar; los modelos con dueño implementan `pertenece_a(usuario)`. |
+| `apps/talleres/api/permissions.py` | `EsArtesanoAprobado` (implementado): toda función operativa del artesano lo exige; los modelos con dueño implementan `pertenece_a(usuario)`. |
 | `config/settings/base.py` | Almacenamiento de archivos: imágenes públicas del catálogo separadas de los comprobantes privados, que llegarán con los pagos. |
 
 Las aplicaciones se crean cuando su fase empieza. La lista prevista (`workshops`, `catalog`, `orders`, `payments`, `messaging`, `notifications`, `audit`) es orientativa: no tiene que coincidir con los ocho módulos de la especificación, y la administración es una capacidad de cada dominio, no una aplicación aparte.

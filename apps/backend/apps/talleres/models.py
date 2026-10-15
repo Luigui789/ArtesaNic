@@ -145,6 +145,11 @@ class Taller(models.Model):
     def es_publico(self) -> bool:
         return self.estado == EstadoTaller.APROBADO
 
+    @property
+    def habilita_operacion(self) -> bool:
+        """RN-002: solo un taller aprobado habilita las funciones operativas del artesano."""
+        return self.estado == EstadoTaller.APROBADO
+
     def pertenece_a(self, usuario) -> bool:
         """Contrato de ``EsPropietario``: solo el artesano dueño accede a su taller."""
         return usuario.is_authenticated and self.propietario_id == usuario.pk

@@ -241,6 +241,7 @@ Se guarda con el hash de Django (PBKDF2 por defecto; RNF-004) y se valida con `A
 | Todo endpoint exige autenticación salvo declaración expresa | `DEFAULT_PERMISSION_CLASSES` |
 | `EsComprador` / `EsArtesano`: `401` si es anónimo, `403` si el rol no corresponde | `apps/accounts/api/permissions.py` |
 | `EsPropietario`: el objeto declara `pertenece_a(usuario)`; un objeto ajeno responde `404` | `apps/accounts/api/permissions.py` |
+| `EsArtesanoAprobado`: como `EsArtesano`, y además el taller propio debe estar aprobado; `403` si está pendiente, rechazado o no existe (RF-004, RN-002). Exigido por toda función operativa del artesano | `apps/talleres/api/permissions.py` ([talleres §3](talleres.md#3-habilitación-operativa-del-artesano)) |
 | El rol se lee de la cuenta en el servidor; parámetros, cuerpo o cabeceras con un rol no conceden nada | Probado en `test_permissions.py` |
 | Cuentas de administración: no se autentican en la API | `puede_autenticarse` y `Usuario.puede_usar_api` |
 
