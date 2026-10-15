@@ -1,4 +1,4 @@
-import { useParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { Clock, Facebook, Instagram, MapPin, Phone, MessageCircle } from "lucide-react";
 import { SiteLayout } from "@/components/layout/site-layout";
@@ -6,7 +6,7 @@ import { ProductCard, ProductCardSkeleton } from "@/features/catalogo/components
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { getArtisan } from "@/features/talleres/api";
-import { listMyProducts } from "@/features/catalogo/api";
+import { listCatalog } from "@/features/catalogo/api";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { parseRouteId } from "@/lib/route-id";
 import { NotFound } from "@/app/not-found";
@@ -37,7 +37,8 @@ export default function PerfilArtesano() {
   });
   const productos = useQuery({
     queryKey: ["productos-artesano", id],
-    queryFn: () => listMyProducts(id!),
+    // RF-003: el perfil público muestra el catálogo publicado del taller, paginado.
+    queryFn: () => listCatalog({ artesanoId: id!, pageSize: 12 }),
     enabled: id !== undefined,
   });
 
@@ -178,7 +179,7 @@ export default function PerfilArtesano() {
                 <ProductCardSkeleton key={i} />
               ))}
             </div>
-          ) : productos.data.length === 0 ? (
+          ) : productos.data.items.length === 0 ? (
             <div className="mt-4">
               <EmptyState
                 titulo="Este taller aún no tiene productos publicados"
@@ -186,11 +187,21 @@ export default function PerfilArtesano() {
               />
             </div>
           ) : (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {productos.data.slice(0, 12).map((p) => (
-                <ProductCard key={p.id} product={p} />
-              ))}
-            </div>
+            <>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {productos.data.items.map((p) => (
+                  <ProductCard key={p.id} product={p} />
+                ))}
+              </div>
+              {productos.data.totalPages > 1 ? (
+                <Link
+                  to={`/catalogo?artesanoId=${id}`}
+                  className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
+                >
+                  Ver los {productos.data.total} productos en el catálogo
+                </Link>
+              ) : null}
+            </>
           )}
         </section>
       </div>

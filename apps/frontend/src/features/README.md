@@ -77,4 +77,6 @@ Hoy cada `api.ts` reexporta funciones de `src/mocks/`. Para integrar un dominio:
 3. Las páginas no cambian; si una firma tiene que cambiar (por ejemplo, ya no se envía el rol porque lo deriva el token), TypeScript señala cada lugar afectado.
 4. Cuando ningún `api.ts` use un archivo de `src/mocks/`, eliminarlo junto con su parte de `scripts/check-demo.mjs`.
 
+**Catálogo (AUD-04):** `catalogo/api.ts` elige entre el servidor simulado y `catalogo/http.ts` con `VITE_CATALOGO_API` (`mock` por defecto, `real`). Sus firmas cambiaron a la forma V1 del contrato (modalidades, publicación, paginación del listado propio); las lecturas `getProduct`/`listProducts` del mock se conservan para los dominios todavía simulados. Ver [catálogo](../../../../docs/api/catalogo.md#10-frontend).
+
 El mock comparte un único almacén entre dominios (aceptar un pedido reserva unidades del producto). Mientras un dominio siga simulado, sus datos no conocen los del dominio ya conectado; conviene conectar en el orden de dependencia: auth → talleres → catálogo → pedidos → pagos y mensajes.

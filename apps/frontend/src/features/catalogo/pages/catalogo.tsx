@@ -16,8 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { listArtisans } from "@/features/talleres/api";
-import { listCategories, listProducts } from "@/features/catalogo/api";
+import { listCatalog, listCategories, listTalleresCatalogo } from "@/features/catalogo/api";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { parseRouteId } from "@/lib/route-id";
 
@@ -87,11 +86,11 @@ export default function Catalogo() {
   });
 
   const categorias = useQuery({ queryKey: ["categorias"], queryFn: listCategories });
-  const artesanos = useQuery({ queryKey: ["artesanos"], queryFn: listArtisans });
+  const talleres = useQuery({ queryKey: ["talleres-catalogo"], queryFn: listTalleresCatalogo });
   const productos = useQuery({
     queryKey: ["catalogo", search],
     queryFn: () =>
-      listProducts({
+      listCatalog({
         q: search.q,
         categoria: search.categoria,
         precioMin: search.precioMin,
@@ -112,9 +111,6 @@ export default function Catalogo() {
     setTexto("");
     setSearchParams(buildSearchParams({}));
   };
-
-  const nombreArtesano = (id: number) =>
-    artesanos.data?.find((a) => a.id === id)?.nombreTaller ?? "";
 
   const Filtros = (
     <div className="space-y-6">
@@ -191,9 +187,9 @@ export default function Catalogo() {
           </SelectTrigger>
           <SelectContent className="max-h-72">
             <SelectItem value="todos">Todos los talleres</SelectItem>
-            {artesanos.data?.map((a) => (
-              <SelectItem key={a.id} value={String(a.id)}>
-                {a.nombreTaller}
+            {talleres.data?.map((t) => (
+              <SelectItem key={t.id} value={String(t.id)}>
+                {t.nombre}
               </SelectItem>
             ))}
           </SelectContent>
@@ -315,11 +311,7 @@ export default function Catalogo() {
               <>
                 <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                   {productos.data.items.map((p) => (
-                    <ProductCard
-                      key={p.id}
-                      product={p}
-                      artisanName={nombreArtesano(p.artesanoId)}
-                    />
+                    <ProductCard key={p.id} product={p} />
                   ))}
                 </div>
 

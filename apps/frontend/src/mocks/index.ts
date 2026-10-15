@@ -14,13 +14,20 @@ export {
 export type { PersistenceStatus } from "./core";
 export {
   countByCategory,
+  createOwnProduct,
   createProduct,
   featuredProducts,
+  getCatalogProduct,
   getProduct,
+  listCatalog,
   listCategories,
   listMyProducts,
+  listOwnProducts,
   listProducts,
   processImage,
+  publishOwnProduct,
+  unpublishOwnProduct,
+  updateOwnProduct,
   updateProduct,
 } from "./catalogo";
 export { listUnitMovements } from "./inventario";

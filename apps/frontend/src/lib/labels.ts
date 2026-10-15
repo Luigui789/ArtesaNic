@@ -9,6 +9,7 @@ import type {
   AuditEvent,
   Category,
   DeliveryMode,
+  Modalidad,
   OrderOption,
   OrderStatus,
   PaymentMethod,
@@ -45,6 +46,12 @@ export const DELIVERY_MODE_LABELS: Record<DeliveryMode, string> = {
   punto_de_encuentro: "Punto de encuentro",
   entrega_directa: "Entrega por el artesano",
   otra: "Otra modalidad",
+};
+
+export const MODALIDAD_LABELS: Record<Modalidad, string> = {
+  stock: "Venta desde stock",
+  produccion: "Producción por cantidad",
+  personalizacion: "Personalización",
 };
 
 export const UNIT_TYPE_LABELS: Record<UnitType, string> = {
