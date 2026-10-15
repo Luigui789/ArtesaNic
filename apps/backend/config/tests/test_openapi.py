@@ -1,5 +1,7 @@
 """El esquema OpenAPI se genera desde el código y coincide con las rutas reales."""
 
+import re
+
 import yaml
 from django.conf import settings
 from django.test import SimpleTestCase
@@ -25,6 +27,8 @@ def rutas_de_la_api(patrones=None, prefijo=""):
             rutas |= rutas_de_la_api(patron.url_patterns, ruta)
         elif ruta.startswith("api/"):
             vista = patron.callback.view_class
+            # "<int:taller_id>" del URLconf es "{taller_id}" en OpenAPI.
+            ruta = re.sub(r"<(?:\w+:)?(\w+)>", r"{\1}", ruta)
             rutas["/" + ruta] = {metodo for metodo in METODOS_HTTP if hasattr(vista, metodo)}
     return rutas
 

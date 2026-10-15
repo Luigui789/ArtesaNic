@@ -7,6 +7,8 @@ petición lo determina.
 from django.contrib.auth import authenticate
 from django.db import IntegrityError, transaction
 
+from apps.talleres import services as talleres
+
 from .models import Rol, Usuario
 from .phone import normalizar_telefono
 
@@ -27,13 +29,17 @@ def registrar_comprador(*, nombre: str, telefono: str, password: str) -> Usuario
     return _registrar(Rol.COMPRADOR, nombre=nombre, telefono=telefono, password=password)
 
 
-def registrar_artesano(*, nombre: str, telefono: str, password: str) -> Usuario:
-    """Crea la cuenta del artesano.
+def registrar_artesano(*, nombre: str, telefono: str, password: str, taller: dict) -> Usuario:
+    """Crea la cuenta del artesano y su taller pendiente en una sola transacción.
 
-    El taller, su perfil y su aprobación (RF-008, RF-013) pertenecen a la fase
-    siguiente: crear la cuenta no aprueba ningún taller.
+    ``taller`` son los datos iniciales del perfil (RF-008). Si el taller no puede
+    crearse, la cuenta tampoco queda: nunca existe un artesano registrado sin taller.
+    El taller nace pendiente; solo la administración lo aprueba (RF-013, RN-002).
     """
-    return _registrar(Rol.ARTESANO, nombre=nombre, telefono=telefono, password=password)
+    with transaction.atomic():
+        usuario = _registrar(Rol.ARTESANO, nombre=nombre, telefono=telefono, password=password)
+        talleres.crear_taller_pendiente(propietario=usuario, **taller)
+    return usuario
 
 
 def _registrar(rol: Rol, *, nombre: str, telefono: str, password: str) -> Usuario:

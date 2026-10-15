@@ -1,6 +1,7 @@
 """Endpoints de cuentas y sesión. Contrato: docs/api/autenticacion.md."""
 
 from django.contrib.auth import user_logged_in
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
@@ -16,6 +17,8 @@ from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
+
+from apps.talleres.api.serializers import RegistroArtesanoSerializer
 
 from .. import services
 from . import tokens
@@ -74,6 +77,24 @@ RESPUESTA_429 = OpenApiResponse(
 EJEMPLO_REGISTRO = OpenApiExample(
     "Registro",
     value={"nombre": "Ana Lucía Delgado", "telefono": "8555 1234", "password": "…"},
+    request_only=True,
+)
+EJEMPLO_REGISTRO_ARTESANO = OpenApiExample(
+    "Registro de artesano",
+    value={
+        "nombre": "Ana Lucía Delgado",
+        "telefono": "8555 1234",
+        "password": "…",
+        "taller": {
+            "nombre": "Cerámica López",
+            "rubro": "Cerámica artesanal",
+            "direccion_completa": "Barrio San Juan, de la iglesia 2 c. al sur, Masaya",
+            "historia": "Taller familiar fundado en 1985.",
+            "horario": "Lunes a sábado, 8:00 a 17:00",
+            "whatsapp_publico": "8777 6655",
+            "instagram_url": "https://instagram.com/ceramicalopez",
+        },
+    },
     request_only=True,
 )
 
@@ -136,21 +157,31 @@ class CSRFView(APIView):
 class _RegistroView(_VistaDeSesion):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = "registro"
+    entrada_serializer = RegistroSerializer
 
     def registrar(self, **datos):
         raise NotImplementedError
 
     def post(self, request):
-        entrada = RegistroSerializer(data=request.data)
+        entrada = self.entrada_serializer(data=request.data)
         entrada.is_valid(raise_exception=True)
         try:
             usuario = self.registrar(**entrada.validated_data)
         except services.TelefonoYaRegistrado:
             raise exceptions.ValidationError({"telefono": [MENSAJE_TELEFONO_REGISTRADO]}) from None
+        except DjangoValidationError as exc:
+            # El taller no superó la validación del modelo: la transacción ya deshizo la cuenta.
+            raise exceptions.ValidationError({"taller": exc.message_dict}) from None
         return _respuesta_de_sesion(request, usuario, status.HTTP_201_CREATED)
 
 
-def _documentar_registro(rol: str, operation_id: str, descripcion: str):
+def _documentar_registro(
+    rol: str,
+    operation_id: str,
+    descripcion: str,
+    entrada=RegistroSerializer,
+    ejemplo=EJEMPLO_REGISTRO,
+):
     return extend_schema_view(
         post=extend_schema(
             tags=[TAG],
@@ -161,14 +192,14 @@ def _documentar_registro(rol: str, operation_id: str, descripcion: str):
             "sesión: devuelve el token de acceso y fija la cookie de renovación.",
             auth=[],
             parameters=[CABECERA_CSRF],
-            request=RegistroSerializer,
+            request=entrada,
             responses={
                 201: SesionSerializer,
                 400: RESPUESTA_400,
                 403: RESPUESTA_403_CSRF,
                 429: RESPUESTA_429,
             },
-            examples=[EJEMPLO_REGISTRO, _ejemplo_de_sesion(rol)],
+            examples=[ejemplo, _ejemplo_de_sesion(rol)],
         )
     )
 
@@ -182,9 +213,16 @@ class RegistroCompradorView(_RegistroView):
 @_documentar_registro(
     "artesano",
     "registrar_artesano",
-    "Crea una cuenta de artesano. No crea ni aprueba el taller (fase siguiente).",
+    "Crea la cuenta de artesano y, en la misma operación, su taller en estado pendiente "
+    "con los datos iniciales de `taller`. Si el taller no es válido no se crea ninguno de "
+    "los dos. El teléfono de la cuenta es privado: los contactos públicos del taller son "
+    "solo los que se envían en `taller`. La aprobación es exclusiva de la administración.",
+    entrada=RegistroArtesanoSerializer,
+    ejemplo=EJEMPLO_REGISTRO_ARTESANO,
 )
 class RegistroArtesanoView(_RegistroView):
+    entrada_serializer = RegistroArtesanoSerializer
+
     def registrar(self, **datos):
         return services.registrar_artesano(**datos)
 

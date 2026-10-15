@@ -194,9 +194,13 @@ paths:
   /api/v1/auth/registro/artesano/:
     post:
       operationId: registrar_artesano
-      description: 'Crea una cuenta de artesano. No crea ni aprueba el taller (fase
-        siguiente). El rol lo asigna el servidor; los campos no declarados se rechazan.
-        Inicia la sesión: devuelve el token de acceso y fija la cookie de renovación.'
+      description: 'Crea la cuenta de artesano y, en la misma operación, su taller
+        en estado pendiente con los datos iniciales de `taller`. Si el taller no es
+        válido no se crea ninguno de los dos. El teléfono de la cuenta es privado:
+        los contactos públicos del taller son solo los que se envían en `taller`.
+        La aprobación es exclusiva de la administración. El rol lo asigna el servidor;
+        los campos no declarados se rechazan. Inicia la sesión: devuelve el token
+        de acceso y fija la cookie de renovación.'
       summary: Registrar una cuenta de artesano
       parameters:
       - in: header
@@ -212,13 +216,23 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/RegistroRequest'
+              $ref: '#/components/schemas/RegistroArtesanoRequest'
             examples:
-              Registro:
+              RegistroDeArtesano:
                 value:
                   nombre: Ana Lucía Delgado
                   telefono: 8555 1234
                   password: …
+                  taller:
+                    nombre: Cerámica López
+                    rubro: Cerámica artesanal
+                    direccion_completa: Barrio San Juan, de la iglesia 2 c. al sur,
+                      Masaya
+                    historia: Taller familiar fundado en 1985.
+                    horario: Lunes a sábado, 8:00 a 17:00
+                    whatsapp_publico: 8777 6655
+                    instagram_url: https://instagram.com/ceramicalopez
+                summary: Registro de artesano
         required: true
       responses:
         '201':
@@ -350,6 +364,139 @@ paths:
               schema:
                 $ref: '#/components/schemas/Salud'
           description: ''
+  /api/v1/talleres/:
+    get:
+      operationId: listar_talleres
+      description: Perfiles públicos de los talleres aprobados, por nombre. Los pendientes
+        y los rechazados no aparecen.
+      summary: Listar los talleres aprobados
+      tags:
+      - Talleres
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TallerPublico'
+          description: ''
+  /api/v1/talleres/{taller_id}/:
+    get:
+      operationId: consultar_taller
+      summary: Consultar el perfil público de un taller
+      parameters:
+      - in: path
+        name: taller_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Talleres
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TallerPublico'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'No existe, o está pendiente o rechazado: solo se publican
+            los talleres aprobados.'
+  /api/v1/talleres/mi-taller/:
+    get:
+      operationId: consultar_mi_taller
+      description: Taller del artesano autenticado, en cualquier estado, con el resultado
+        de su revisión.
+      summary: Consultar el taller propio
+      tags:
+      - Talleres
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TallerPropio'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o token no válido.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: La cuenta no es de artesano.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Esta cuenta no tiene un taller registrado.
+    patch:
+      operationId: actualizar_mi_taller
+      description: 'Modifica solo los campos enviados del perfil público (RF-008).
+        Estado, propietario y revisión no son modificables: enviarlos responde 400.
+        Editar el perfil no cambia el estado de aprobación.'
+      summary: Actualizar el perfil del taller propio
+      tags:
+      - Talleres
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPerfilTallerEntradaRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TallerPropio'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+              examples:
+                Validación:
+                  value:
+                    telefono:
+                    - Ya existe una cuenta con este teléfono.
+          description: 'Errores de validación: cada campo con su lista de mensajes.'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o token no válido.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: La cuenta no es de artesano.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Esta cuenta no tiene un taller registrado.
 components:
   schemas:
     Error:
@@ -360,6 +507,16 @@ components:
           type: string
       required:
       - detail
+    EstadoTallerEnum:
+      enum:
+      - pendiente
+      - aprobado
+      - rechazado
+      type: string
+      description: |-
+        * `pendiente` - Pendiente de aprobación
+        * `aprobado` - Aprobado
+        * `rechazado` - Rechazado
     LoginRequest:
       type: object
       description: Credenciales de acceso. El rol no se envía; cualquier otro campo
@@ -377,6 +534,161 @@ components:
           minLength: 1
       required:
       - password
+      - telefono
+    PatchedPerfilTallerEntradaRequest:
+      type: object
+      description: |-
+        Datos del perfil que escribe el artesano (RF-008).
+
+        Propietario, estado y revisión no son campos de entrada: enviarlos responde 400.
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          title: Nombre del taller
+          maxLength: 120
+        historia:
+          type: string
+          maxLength: 2000
+        rubro:
+          type: string
+          minLength: 1
+          maxLength: 80
+        direccion_completa:
+          type: string
+          minLength: 1
+          title: Dirección completa
+          maxLength: 255
+        horario:
+          type: string
+          title: Horario de atención
+          maxLength: 200
+        telefono_publico:
+          type: string
+          description: 'Teléfono de contacto público, opcional. No es el teléfono
+            de acceso: este nunca se publica si el artesano no lo escribe aquí.'
+          maxLength: 32
+        whatsapp_publico:
+          type: string
+          description: WhatsApp de contacto público, opcional.
+          maxLength: 32
+        facebook_url:
+          title: Facebook
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 200
+          - type: string
+            maxLength: 0
+        instagram_url:
+          title: Instagram
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 200
+          - type: string
+            maxLength: 0
+        sitio_web:
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 200
+          - type: string
+            maxLength: 0
+    PerfilTallerEntradaRequest:
+      type: object
+      description: |-
+        Datos del perfil que escribe el artesano (RF-008).
+
+        Propietario, estado y revisión no son campos de entrada: enviarlos responde 400.
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          title: Nombre del taller
+          maxLength: 120
+        historia:
+          type: string
+          maxLength: 2000
+        rubro:
+          type: string
+          minLength: 1
+          maxLength: 80
+        direccion_completa:
+          type: string
+          minLength: 1
+          title: Dirección completa
+          maxLength: 255
+        horario:
+          type: string
+          title: Horario de atención
+          maxLength: 200
+        telefono_publico:
+          type: string
+          description: 'Teléfono de contacto público, opcional. No es el teléfono
+            de acceso: este nunca se publica si el artesano no lo escribe aquí.'
+          maxLength: 32
+        whatsapp_publico:
+          type: string
+          description: WhatsApp de contacto público, opcional.
+          maxLength: 32
+        facebook_url:
+          title: Facebook
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 200
+          - type: string
+            maxLength: 0
+        instagram_url:
+          title: Instagram
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 200
+          - type: string
+            maxLength: 0
+        sitio_web:
+          oneOf:
+          - type: string
+            format: uri
+            maxLength: 200
+          - type: string
+            maxLength: 0
+      required:
+      - direccion_completa
+      - nombre
+      - rubro
+    RegistroArtesanoRequest:
+      type: object
+      description: Cuenta del artesano más los datos iniciales de su taller.
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          description: Nombre completo.
+          maxLength: 150
+        telefono:
+          type: string
+          minLength: 1
+          description: 'Teléfono de Nicaragua: 8 dígitos, con o sin separadores y
+            con o sin prefijo +505.'
+          maxLength: 32
+        password:
+          type: string
+          writeOnly: true
+          minLength: 1
+          description: Mínimo 8 caracteres; no puede ser común, solo numérica ni parecida
+            al nombre o al teléfono.
+        taller:
+          allOf:
+          - $ref: '#/components/schemas/PerfilTallerEntradaRequest'
+          description: 'Datos iniciales del taller. Obligatorios: nombre, rubro y
+            direccion_completa. El taller se crea pendiente de aprobación.'
+      required:
+      - nombre
+      - password
+      - taller
       - telefono
     RegistroRequest:
       type: object
@@ -431,6 +743,152 @@ components:
       required:
       - access
       - usuario
+    TallerPropio:
+      type: object
+      description: 'Taller del artesano autenticado: el perfil y el resultado de su
+        revisión.'
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          readOnly: true
+          title: Nombre del taller
+        historia:
+          type: string
+          readOnly: true
+        rubro:
+          type: string
+          readOnly: true
+        direccion_completa:
+          type: string
+          readOnly: true
+          title: Dirección completa
+        horario:
+          type: string
+          readOnly: true
+          title: Horario de atención
+        telefono_publico:
+          type: string
+          readOnly: true
+          title: Teléfono público
+        whatsapp_publico:
+          type: string
+          readOnly: true
+          title: WhatsApp público
+        facebook_url:
+          type: string
+          format: uri
+          readOnly: true
+          title: Facebook
+        instagram_url:
+          type: string
+          format: uri
+          readOnly: true
+          title: Instagram
+        sitio_web:
+          type: string
+          format: uri
+          readOnly: true
+        estado:
+          allOf:
+          - $ref: '#/components/schemas/EstadoTallerEnum'
+          readOnly: true
+        motivo_rechazo:
+          type: string
+          readOnly: true
+          title: Motivo del rechazo
+        revisado_en:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        creado_en:
+          type: string
+          format: date-time
+          readOnly: true
+        actualizado_en:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actualizado_en
+      - creado_en
+      - direccion_completa
+      - estado
+      - facebook_url
+      - historia
+      - horario
+      - id
+      - instagram_url
+      - motivo_rechazo
+      - nombre
+      - revisado_en
+      - rubro
+      - sitio_web
+      - telefono_publico
+      - whatsapp_publico
+    TallerPublico:
+      type: object
+      description: Perfil público del taller aprobado. Sin propietario, estado ni
+        datos de la cuenta.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          readOnly: true
+          title: Nombre del taller
+        historia:
+          type: string
+          readOnly: true
+        rubro:
+          type: string
+          readOnly: true
+        direccion_completa:
+          type: string
+          readOnly: true
+          title: Dirección completa
+        horario:
+          type: string
+          readOnly: true
+          title: Horario de atención
+        telefono_publico:
+          type: string
+          readOnly: true
+          title: Teléfono público
+        whatsapp_publico:
+          type: string
+          readOnly: true
+          title: WhatsApp público
+        facebook_url:
+          type: string
+          format: uri
+          readOnly: true
+          title: Facebook
+        instagram_url:
+          type: string
+          format: uri
+          readOnly: true
+          title: Instagram
+        sitio_web:
+          type: string
+          format: uri
+          readOnly: true
+      required:
+      - direccion_completa
+      - facebook_url
+      - historia
+      - horario
+      - id
+      - instagram_url
+      - nombre
+      - rubro
+      - sitio_web
+      - telefono_publico
+      - whatsapp_publico
     TokenAcceso:
       type: object
       properties:
