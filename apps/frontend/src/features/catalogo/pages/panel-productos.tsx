@@ -4,7 +4,6 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useState } from "react";
 import { toast } from "sonner";
 import { ArrowLeft, Eye, EyeOff, Pencil, Plus } from "lucide-react";
-import { z } from "zod";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { ImageUploader } from "@/features/catalogo/components/image-uploader";
@@ -41,33 +40,13 @@ import {
   updateOwnProduct,
 } from "@/features/catalogo/api";
 import type { OwnProduct, ProductInput } from "@/features/catalogo/api";
+import { LIMITES_PRODUCTO, esquemaProducto } from "@/features/catalogo/validacion";
 import { useCurrency } from "@/hooks/use-currency";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { MODALIDADES } from "@/types";
 import type { Modalidad, UnitType } from "@/types";
 
 const PAGE_SIZE = 12;
-
-const esquema = z.object({
-  nombre: z
-    .string()
-    .trim()
-    .min(3, "El nombre debe tener al menos 3 caracteres.")
-    .max(80, "Máximo 80 caracteres."),
-  precio: z
-    .number({ message: "Ingresa un precio válido." })
-    .positive("El precio debe ser mayor que cero.")
-    .max(500000, "Precio demasiado alto."),
-  // El rubro deja de tener valor por defecto, así que pasa a validarse.
-  categoria: z.string().min(1, "Selecciona un rubro."),
-  descripcion: z
-    .string()
-    .trim()
-    .min(20, "Describe el producto con al menos 20 caracteres.")
-    .max(600, "Máximo 600 caracteres."),
-  // RN-004: al menos una modalidad; se combinan libremente y ninguna exige existencias.
-  modalidades: z.array(z.enum(MODALIDADES)).min(1, "Selecciona al menos una modalidad de venta."),
-});
 
 const MODALIDAD_AYUDA: Record<Modalidad, string> = {
   stock: "Vendes unidades que ya tienes hechas.",
@@ -197,7 +176,7 @@ export default function MisProductos() {
 
   const enviar = (e: React.FormEvent) => {
     e.preventDefault();
-    const r = esquema.safeParse({
+    const r = esquemaProducto.safeParse({
       nombre,
       precio: Number(precio),
       categoria,
@@ -362,7 +341,7 @@ export default function MisProductos() {
               <Input
                 id="p-nombre"
                 className="min-h-11"
-                maxLength={80}
+                maxLength={LIMITES_PRODUCTO.nombre}
                 value={nombre}
                 onChange={(e) => setNombre(e.target.value)}
                 aria-invalid={!!errores["nombre"]}
@@ -382,6 +361,7 @@ export default function MisProductos() {
                   type="number"
                   inputMode="decimal"
                   min={0.01}
+                  max={LIMITES_PRODUCTO.precioMaximo}
                   step={0.01}
                   className="min-h-11"
                   value={precio}
@@ -425,7 +405,7 @@ export default function MisProductos() {
               <Textarea
                 id="p-descripcion"
                 rows={5}
-                maxLength={600}
+                maxLength={LIMITES_PRODUCTO.descripcion}
                 value={descripcion}
                 onChange={(e) => setDescripcion(e.target.value)}
                 aria-invalid={!!errores["descripcion"]}

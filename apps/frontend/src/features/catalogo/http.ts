@@ -48,7 +48,10 @@ export function reintentarSalvoErrorDelCliente(intentos: number, error: Error): 
   return !delCliente && intentos < 3;
 }
 
-async function aError(respuesta: Response): Promise<ApiError> {
+async function aError(
+  respuesta: Response,
+  mensajes: Partial<Record<number, string>> = {},
+): Promise<ApiError> {
   let cuerpo: unknown;
   try {
     cuerpo = await respuesta.json();
@@ -73,7 +76,10 @@ async function aError(respuesta: Response): Promise<ApiError> {
   const mensaje =
     respuesta.status === 403 && detalle
       ? detalle
-      : (MENSAJES[respuesta.status] ?? detalle ?? "El servidor no pudo completar la operación.");
+      : (mensajes[respuesta.status] ??
+        MENSAJES[respuesta.status] ??
+        detalle ??
+        "El servidor no pudo completar la operación.");
   return new ApiError(respuesta.status, mensaje);
 }
 
@@ -89,13 +95,22 @@ export function configurarTokenDeAcceso(proveedor: () => string | null): void {
   obtenerToken = proveedor;
 }
 
-interface Opciones {
+export interface Opciones {
   metodo?: "GET" | "POST" | "PATCH";
   cuerpo?: unknown;
   autenticada?: boolean;
+  /** Mensajes propios del recurso por código de estado (por ejemplo, el 404 de un taller). */
+  mensajes?: Partial<Record<number, string>>;
 }
 
-async function solicitar<T>(ruta: string, { metodo = "GET", cuerpo, autenticada }: Opciones = {}) {
+/**
+ * Petición JSON a la API. Lo usan también otros dominios que ya leen de Django
+ * (perfil público del taller) hasta que exista el cliente común de AUD-18.
+ */
+export async function solicitar<T>(
+  ruta: string,
+  { metodo = "GET", cuerpo, autenticada, mensajes }: Opciones = {},
+) {
   const cabeceras: Record<string, string> = { Accept: "application/json" };
   if (cuerpo !== undefined) cabeceras["Content-Type"] = "application/json";
   if (autenticada) {
@@ -112,7 +127,7 @@ async function solicitar<T>(ruta: string, { metodo = "GET", cuerpo, autenticada 
   } catch {
     throw new ApiError(0, "No pudimos conectar con el servidor. Revisa tu conexión.");
   }
-  if (!respuesta.ok) throw await aError(respuesta);
+  if (!respuesta.ok) throw await aError(respuesta, mensajes);
   return (await respuesta.json()) as T;
 }
 

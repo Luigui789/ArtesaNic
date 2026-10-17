@@ -1,25 +1,9 @@
 // Verifica el cliente HTTP del catálogo (src/features/catalogo/http.ts) contra el contrato
 // de docs/api/catalogo.md, con un fetch simulado y sin añadir un framework de pruebas.
 import assert from "node:assert/strict";
-import { build } from "vite";
-import { fileURLToPath } from "node:url";
+import { cargarModulo } from "./cargar-modulo.mjs";
 
-const root = fileURLToPath(new URL("../", import.meta.url));
-const result = await build({
-  configFile: false,
-  root,
-  logLevel: "error",
-  resolve: { alias: { "@": fileURLToPath(new URL("../src", import.meta.url)) } },
-  build: {
-    write: false,
-    minify: false,
-    lib: { entry: "src/features/catalogo/http.ts", formats: ["es"] },
-  },
-});
-const output = (Array.isArray(result) ? result[0] : result).output.find((o) => o.type === "chunk");
-const http = await import(
-  `data:text/javascript;base64,${Buffer.from(output.code).toString("base64")}`
-);
+const http = await cargarModulo("src/features/catalogo/http.ts");
 
 // ---------- fetch simulado ----------
 
