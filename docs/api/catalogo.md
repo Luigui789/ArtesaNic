@@ -124,6 +124,8 @@ Se combinan libremente; al menos una es obligatoria. La API valida la lista (`40
 
 Los parámetros con formato inválido responden `400` por campo. Cada orden desempata por identificador, así que las páginas no repiten ni pierden productos.
 
+En el OpenAPI la respuesta es el componente `PaginatedProductoPublicoList` (`count`, `next`, `previous` y `results` de `ProductoPublico`), generado desde el paginador de la vista junto con los parámetros `page` y `page_size`. Una prueba compara ese esquema con la respuesta real.
+
 ```json
 200 {
   "count": 30,
@@ -141,7 +143,7 @@ Un producto publicado de un taller aprobado. Si no existe, no está publicado o 
 
 ### `GET /api/v1/productos/mios/`
 
-Productos del taller propio, publicados y no publicados, del más reciente al más antiguo, con la misma paginación (`page`, `page_size`). No admite parámetro de taller.
+Productos del taller propio, publicados y no publicados, del más reciente al más antiguo, con la misma paginación (`page`, `page_size`). No admite parámetro de taller. En el OpenAPI: `PaginatedProductoPropioList`, con `results` de `ProductoPropio`.
 
 ### Errores de la gestión
 
@@ -207,7 +209,9 @@ Por defecto sigue el simulado porque pedidos, solicitudes y mensajes todavía so
 
 - la gestión del artesano responde `401` hasta que exista la sesión real (AUD-18 registra el token con `configurarTokenDeAcceso`);
 - el botón *Solicitar pedido* queda deshabilitado;
-- el perfil del taller enlazado sigue siendo simulado (dominio talleres);
+- el perfil público del taller (`/artesano/{id}`) lee `GET /api/v1/talleres/{id}/` (`talleres/http.ts`), así que el `taller.id` del producto abre el taller real. Como la API pública no publica al responsable ni tiene fotografías del taller, la página no los muestra. El panel, los pedidos y los mensajes siguen usando los talleres simulados;
 - no hay fotografías (DR-01).
 
 El inventario simulado (existencias) solo aparece en el formulario del modo simulado y solo con la modalidad `stock`.
+
+La validación temprana del formulario (`catalogo/validacion.ts`) aplica los mismos límites que la [sección 3](#escritura-post-y-patch): nombre y descripción no vacíos (máximo 120 y 2000 caracteres), precio mayor que cero con hasta dos decimales y como máximo 99 999 999,99, categoría y al menos una modalidad. No impone mínimos ni máximos propios.
