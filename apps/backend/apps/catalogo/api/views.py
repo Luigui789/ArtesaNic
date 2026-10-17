@@ -10,6 +10,8 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import exceptions, status
+from rest_framework.generics import GenericAPIView
+from rest_framework.mixins import ListModelMixin
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
@@ -44,11 +46,45 @@ RESPUESTA_404_PROPIO = OpenApiResponse(
 
 
 class PaginacionCatalogo(PageNumberPagination):
-    """Paginación de los listados de productos: ``page`` y ``page_size`` (por defecto 12)."""
+    """Paginación de los listados de productos: ``page`` y ``page_size`` (por defecto 12).
+
+    Las vistas que la usan son ``ListModelMixin``: drf-spectacular documenta entonces la
+    respuesta real de DRF (``count``, ``next``, ``previous`` y ``results``).
+    """
 
     page_size = 12
     page_size_query_param = "page_size"
     max_page_size = 48
+
+    def get_paginated_response_schema(self, schema):
+        """La respuesta siempre trae las cuatro claves; ``next`` y ``previous`` pueden ser null."""
+        esquema = super().get_paginated_response_schema(schema)
+        esquema["required"] = ["count", "next", "previous", "results"]
+        propiedades = esquema["properties"]
+        propiedades["count"]["example"] = 30
+        propiedades["next"]["example"] = "https://host/api/v1/productos/?page=3&page_size=12"
+        propiedades["previous"]["example"] = "https://host/api/v1/productos/?page=1&page_size=12"
+        return esquema
+
+    def get_schema_operation_parameters(self, view):
+        parametros = super().get_schema_operation_parameters(view)
+        for parametro in parametros:
+            if parametro["name"] == self.page_query_param:
+                parametro["description"] = (
+                    "Número de página, desde 1. Una página inexistente responde 404."
+                )
+                parametro["schema"] |= {"minimum": 1, "default": 1}
+            elif parametro["name"] == self.page_size_query_param:
+                parametro["description"] = (
+                    f"Resultados por página: {self.page_size} por defecto, "
+                    f"{self.max_page_size} como máximo."
+                )
+                parametro["schema"] |= {
+                    "minimum": 1,
+                    "maximum": self.max_page_size,
+                    "default": self.page_size,
+                }
+        return parametros
 
 
 class _VistaPublica(APIView):
@@ -78,20 +114,16 @@ class CategoriasView(_VistaPublica):
         return Response(CategoriaSerializer(Categoria.objects.all(), many=True).data)
 
 
-class CatalogoView(_VistaPublica):
-    @extend_schema(
-        tags=[TAG_CATALOGO],
-        operation_id="listar_catalogo",
-        summary="Consultar el catálogo público",
-        description="Productos publicados de talleres aprobados, paginados. Búsqueda por "
-        "nombre; filtros por categoría, rango de precio y taller; orden por fecha, precio o "
-        "nombre. Un parámetro con formato inválido responde 400.",
-        auth=[],
-        parameters=[FiltrosCatalogoSerializer],
-        responses={200: ProductoPublicoSerializer(many=True), 400: RESPUESTA_400},
-    )
-    def get(self, request):
-        filtros = FiltrosCatalogoSerializer(data=request.query_params)
+class CatalogoView(ListModelMixin, GenericAPIView):
+    # Lectura anónima: un token caducado en la petición no debe impedirla.
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    serializer_class = ProductoPublicoSerializer
+    pagination_class = PaginacionCatalogo
+
+    def get_queryset(self):
+        """Filtros, búsqueda y orden en PostgreSQL; un parámetro inválido responde 400."""
+        filtros = FiltrosCatalogoSerializer(data=self.request.query_params)
         filtros.is_valid(raise_exception=True)
         datos = filtros.validated_data
         productos = Producto.objects.catalogo().select_related("taller", "categoria")
@@ -105,11 +137,21 @@ class CatalogoView(_VistaPublica):
             productos = productos.filter(precio__lte=datos["precio_max"])
         if "taller" in datos:
             productos = productos.filter(taller_id=datos["taller"])
-        productos = productos.order_by(*FiltrosCatalogoSerializer.ORDENES[datos["orden"]])
+        return productos.order_by(*FiltrosCatalogoSerializer.ORDENES[datos["orden"]])
 
-        paginador = PaginacionCatalogo()
-        pagina = paginador.paginate_queryset(productos, request, view=self)
-        return paginador.get_paginated_response(ProductoPublicoSerializer(pagina, many=True).data)
+    @extend_schema(
+        tags=[TAG_CATALOGO],
+        operation_id="listar_catalogo",
+        summary="Consultar el catálogo público",
+        description="Productos publicados de talleres aprobados, paginados. Búsqueda por "
+        "nombre; filtros por categoría, rango de precio y taller; orden por fecha, precio o "
+        "nombre. Un parámetro con formato inválido responde 400.",
+        auth=[],
+        parameters=[FiltrosCatalogoSerializer],
+        responses={200: ProductoPublicoSerializer(many=True), 400: RESPUESTA_400},
+    )
+    def get(self, request):
+        return self.list(request)
 
 
 class ProductoPublicoView(_VistaPublica):
@@ -133,7 +175,7 @@ class ProductoPublicoView(_VistaPublica):
         return Response(ProductoPublicoSerializer(producto).data)
 
 
-class _GestionView(APIView):
+class _GestionMixin:
     """Productos del taller del artesano autenticado y aprobado.
 
     El taller sale de la identidad: el queryset se limita a él y ``EsPropietario``
@@ -143,6 +185,9 @@ class _GestionView(APIView):
     permission_classes = [EsArtesanoAprobado, EsPropietario]
 
     def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):
+            # drf-spectacular inspecciona la vista sin una petición autenticada.
+            return Producto.objects.none()
         return Producto.objects.del_taller(self.request.user.taller).select_related(
             "taller", "categoria"
         )
@@ -153,8 +198,18 @@ class _GestionView(APIView):
         return producto
 
 
+class _GestionView(_GestionMixin, APIView):
+    pass
+
+
 @method_decorator(never_cache, name="dispatch")
-class MisProductosView(_GestionView):
+class MisProductosView(_GestionMixin, ListModelMixin, GenericAPIView):
+    serializer_class = ProductoPropioSerializer
+    pagination_class = PaginacionCatalogo
+
+    def filter_queryset(self, queryset):
+        return queryset.order_by("-creado_en", "-id")
+
     @extend_schema(
         tags=[TAG_GESTION],
         operation_id="listar_mis_productos",
@@ -168,10 +223,7 @@ class MisProductosView(_GestionView):
         },
     )
     def get(self, request):
-        productos = self.get_queryset().order_by("-creado_en", "-id")
-        paginador = PaginacionCatalogo()
-        pagina = paginador.paginate_queryset(productos, request, view=self)
-        return paginador.get_paginated_response(ProductoPropioSerializer(pagina, many=True).data)
+        return self.list(request)
 
     @extend_schema(
         tags=[TAG_GESTION],

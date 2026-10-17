@@ -399,6 +399,23 @@ paths:
           * `precio_asc` - precio_asc
           * `precio_desc` - precio_desc
           * `nombre` - nombre
+      - name: page
+        required: false
+        in: query
+        description: Número de página, desde 1. Una página inexistente responde 404.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        required: false
+        in: query
+        description: 'Resultados por página: 12 por defecto, 48 como máximo.'
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 48
+          default: 12
       - in: query
         name: precio_max
         schema:
@@ -432,9 +449,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ProductoPublico'
+                $ref: '#/components/schemas/PaginatedProductoPublicoList'
           description: ''
         '400':
           content:
@@ -482,6 +497,24 @@ paths:
       description: Publicados y despublicados, del más reciente al más antiguo, paginados.
         El taller se deriva del token.
       summary: Listar los productos del taller propio
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Número de página, desde 1. Una página inexistente responde 404.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        required: false
+        in: query
+        description: 'Resultados por página: 12 por defecto, 48 como máximo.'
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 48
+          default: 12
       tags:
       - Productos propios
       security:
@@ -491,9 +524,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ProductoPropio'
+                $ref: '#/components/schemas/PaginatedProductoPropioList'
           description: ''
         '401':
           content:
@@ -959,6 +990,56 @@ components:
         * `stock` - Venta desde stock
         * `produccion` - Producción por cantidad
         * `personalizacion` - Personalización
+    PaginatedProductoPropioList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - results
+      properties:
+        count:
+          type: integer
+          example: 30
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: https://host/api/v1/productos/?page=3&page_size=12
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: https://host/api/v1/productos/?page=1&page_size=12
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductoPropio'
+    PaginatedProductoPublicoList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - results
+      properties:
+        count:
+          type: integer
+          example: 30
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: https://host/api/v1/productos/?page=3&page_size=12
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: https://host/api/v1/productos/?page=1&page_size=12
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductoPublico'
     PatchedPerfilTallerEntradaRequest:
       type: object
       description: |-
