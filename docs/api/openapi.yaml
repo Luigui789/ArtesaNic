@@ -351,6 +351,432 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Demasiados intentos. La cabecera Retry-After indica la espera.
+  /api/v1/categorias/:
+    get:
+      operationId: listar_categorias
+      description: Colección completa, por nombre y sin paginar.
+      summary: Listar las categorías
+      tags:
+      - Catálogo
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Categoria'
+          description: ''
+  /api/v1/productos/:
+    get:
+      operationId: listar_catalogo
+      description: Productos publicados de talleres aprobados, paginados. Búsqueda
+        por nombre; filtros por categoría, rango de precio y taller; orden por fecha,
+        precio o nombre. Un parámetro con formato inválido responde 400.
+      summary: Consultar el catálogo público
+      parameters:
+      - in: query
+        name: categoria
+        schema:
+          type: string
+          maxLength: 50
+        description: Código de categoría.
+      - in: query
+        name: orden
+        schema:
+          enum:
+          - recientes
+          - precio_asc
+          - precio_desc
+          - nombre
+          type: string
+          default: recientes
+          minLength: 1
+        description: |-
+          recientes (por defecto), precio_asc, precio_desc o nombre.
+
+          * `recientes` - recientes
+          * `precio_asc` - precio_asc
+          * `precio_desc` - precio_desc
+          * `nombre` - nombre
+      - name: page
+        required: false
+        in: query
+        description: Número de página, desde 1. Una página inexistente responde 404.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        required: false
+        in: query
+        description: 'Resultados por página: 12 por defecto, 48 como máximo.'
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 48
+          default: 12
+      - in: query
+        name: precio_max
+        schema:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        description: Precio máximo.
+      - in: query
+        name: precio_min
+        schema:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+        description: Precio mínimo.
+      - in: query
+        name: q
+        schema:
+          type: string
+          maxLength: 120
+        description: Búsqueda por nombre (contiene, sin mayúsculas).
+      - in: query
+        name: taller
+        schema:
+          type: integer
+          minimum: 1
+        description: Identificador del taller.
+      tags:
+      - Catálogo
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProductoPublicoList'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+              examples:
+                Validación:
+                  value:
+                    telefono:
+                    - Ya existe una cuenta con este teléfono.
+          description: 'Errores de validación: cada campo con su lista de mensajes.'
+  /api/v1/productos/{producto_id}/:
+    get:
+      operationId: consultar_producto
+      summary: Consultar un producto del catálogo
+      parameters:
+      - in: path
+        name: producto_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Catálogo
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductoPublico'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe, no está publicado o su taller no está aprobado.
+  /api/v1/productos/mios/:
+    get:
+      operationId: listar_mis_productos
+      description: Publicados y despublicados, del más reciente al más antiguo, paginados.
+        El taller se deriva del token.
+      summary: Listar los productos del taller propio
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Número de página, desde 1. Una página inexistente responde 404.
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: page_size
+        required: false
+        in: query
+        description: 'Resultados por página: 12 por defecto, 48 como máximo.'
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 48
+          default: 12
+      tags:
+      - Productos propios
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedProductoPropioList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o token no válido.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: La cuenta no es de artesano o su taller no está aprobado (RN-002).
+    post:
+      operationId: crear_producto
+      description: Crea el producto sin publicar; se publica con la acción publicar.
+        Todos los campos son obligatorios. Taller, publicación y cualquier otro campo
+        se rechazan con 400. La fotografía principal está pendiente de la decisión
+        DR-01.
+      summary: Registrar un producto en el taller propio
+      tags:
+      - Productos propios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProductoEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductoPropio'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+              examples:
+                Validación:
+                  value:
+                    telefono:
+                    - Ya existe una cuenta con este teléfono.
+          description: 'Errores de validación: cada campo con su lista de mensajes.'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o token no válido.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: La cuenta no es de artesano o su taller no está aprobado (RN-002).
+  /api/v1/productos/mios/{producto_id}/:
+    get:
+      operationId: consultar_mi_producto
+      description: |-
+        Productos del taller del artesano autenticado y aprobado.
+
+        El taller sale de la identidad: el queryset se limita a él y ``EsPropietario``
+        lo comprueba de nuevo por objeto. Un producto ajeno responde 404, como uno inexistente.
+      summary: Consultar un producto del taller propio
+      parameters:
+      - in: path
+        name: producto_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Productos propios
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductoPropio'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o token no válido.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: La cuenta no es de artesano o su taller no está aprobado (RN-002).
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o pertenece a otro taller.
+    patch:
+      operationId: actualizar_mi_producto
+      description: 'Modifica solo los campos enviados. `modalidades` reemplaza la
+        lista completa. No cambia taller, publicación ni fecha de alta: enviarlos
+        responde 400. Editar no altera pedidos confirmados, que conservarán sus propios
+        datos (RN-003).'
+      summary: Editar un producto del taller propio
+      parameters:
+      - in: path
+        name: producto_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Productos propios
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedProductoEntradaRequest'
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductoPropio'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+              examples:
+                Validación:
+                  value:
+                    telefono:
+                    - Ya existe una cuenta con este teléfono.
+          description: 'Errores de validación: cada campo con su lista de mensajes.'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o token no válido.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: La cuenta no es de artesano o su taller no está aprobado (RN-002).
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o pertenece a otro taller.
+  /api/v1/productos/mios/{producto_id}/despublicar/:
+    post:
+      operationId: despublicar_mi_producto
+      description: Lo retira del catálogo público y de nuevas solicitudes sin borrarlo
+        (RF-019). Idempotente. Sin cuerpo.
+      summary: Despublicar un producto del taller propio
+      parameters:
+      - in: path
+        name: producto_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Productos propios
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductoPropio'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o token no válido.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: La cuenta no es de artesano o su taller no está aprobado (RN-002).
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o pertenece a otro taller.
+  /api/v1/productos/mios/{producto_id}/publicar/:
+    post:
+      operationId: publicar_mi_producto
+      description: 'Lo muestra en el catálogo público. Idempotente: publicar un producto
+        ya publicado responde 200 sin cambios. Sin cuerpo.'
+      summary: Publicar un producto del taller propio
+      parameters:
+      - in: path
+        name: producto_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Productos propios
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductoPropio'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o token no válido.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: La cuenta no es de artesano o su taller no está aprobado (RN-002).
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o pertenece a otro taller.
   /api/v1/salud/:
     get:
       operationId: consultar_salud
@@ -499,6 +925,25 @@ paths:
           description: Esta cuenta no tiene un taller registrado.
 components:
   schemas:
+    Categoria:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        codigo:
+          type: string
+          readOnly: true
+          title: Código
+          description: Identificador estable que usa la API. No se modifica una vez
+            creado.
+        nombre:
+          type: string
+          readOnly: true
+      required:
+      - codigo
+      - id
+      - nombre
     Error:
       type: object
       description: Forma de los errores que no son de validación de campos.
@@ -535,6 +980,66 @@ components:
       required:
       - password
       - telefono
+    ModalidadEnum:
+      enum:
+      - stock
+      - produccion
+      - personalizacion
+      type: string
+      description: |-
+        * `stock` - Venta desde stock
+        * `produccion` - Producción por cantidad
+        * `personalizacion` - Personalización
+    PaginatedProductoPropioList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - results
+      properties:
+        count:
+          type: integer
+          example: 30
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: https://host/api/v1/productos/?page=3&page_size=12
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: https://host/api/v1/productos/?page=1&page_size=12
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductoPropio'
+    PaginatedProductoPublicoList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - results
+      properties:
+        count:
+          type: integer
+          example: 30
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: https://host/api/v1/productos/?page=3&page_size=12
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: https://host/api/v1/productos/?page=1&page_size=12
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductoPublico'
     PatchedPerfilTallerEntradaRequest:
       type: object
       description: |-
@@ -595,6 +1100,37 @@ components:
             maxLength: 200
           - type: string
             maxLength: 0
+    PatchedProductoEntradaRequest:
+      type: object
+      description: |-
+        Datos que escribe el artesano. Taller, publicación y fechas no son campos de entrada:
+        enviarlos responde 400. La fotografía principal está pendiente de DR-01.
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+        descripcion:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        precio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Precio en córdobas, con hasta dos decimales. Mayor que cero.
+        categoria:
+          type: string
+          minLength: 1
+          title: Código
+          description: Código de una categoría de GET /api/v1/categorias/.
+        modalidades:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModalidadEnum'
+          description: 'Modalidades de venta que admite el producto, solas o combinadas:
+            stock, produccion, personalizacion.'
+          minItems: 1
     PerfilTallerEntradaRequest:
       type: object
       description: |-
@@ -659,6 +1195,154 @@ components:
       - direccion_completa
       - nombre
       - rubro
+    ProductoEntradaRequest:
+      type: object
+      description: |-
+        Datos que escribe el artesano. Taller, publicación y fechas no son campos de entrada:
+        enviarlos responde 400. La fotografía principal está pendiente de DR-01.
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          maxLength: 120
+        descripcion:
+          type: string
+          minLength: 1
+          maxLength: 2000
+        precio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Precio en córdobas, con hasta dos decimales. Mayor que cero.
+        categoria:
+          type: string
+          minLength: 1
+          title: Código
+          description: Código de una categoría de GET /api/v1/categorias/.
+        modalidades:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModalidadEnum'
+          description: 'Modalidades de venta que admite el producto, solas o combinadas:
+            stock, produccion, personalizacion.'
+          minItems: 1
+      required:
+      - categoria
+      - descripcion
+      - modalidades
+      - nombre
+      - precio
+    ProductoPropio:
+      type: object
+      description: 'Producto del taller propio: añade su estado de publicación y última
+        edición.'
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          readOnly: true
+        descripcion:
+          type: string
+          readOnly: true
+          title: Descripción
+        precio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+          title: Precio (C$)
+          description: Precio vigente en córdobas. Los pedidos futuros congelarán
+            su propio importe.
+        categoria:
+          allOf:
+          - $ref: '#/components/schemas/Categoria'
+          readOnly: true
+        modalidades:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModalidadEnum'
+          readOnly: true
+          description: 'Modalidades de venta que admite, en orden: stock, produccion,
+            personalizacion.'
+        taller:
+          allOf:
+          - $ref: '#/components/schemas/TallerResumen'
+          readOnly: true
+        publicado:
+          type: boolean
+          readOnly: true
+        creado_en:
+          type: string
+          format: date-time
+          readOnly: true
+        actualizado_en:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actualizado_en
+      - categoria
+      - creado_en
+      - descripcion
+      - id
+      - modalidades
+      - nombre
+      - precio
+      - publicado
+      - taller
+    ProductoPublico:
+      type: object
+      description: Producto del catálogo público. Solo productos publicados de talleres
+        aprobados.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          readOnly: true
+        descripcion:
+          type: string
+          readOnly: true
+          title: Descripción
+        precio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+          title: Precio (C$)
+          description: Precio vigente en córdobas. Los pedidos futuros congelarán
+            su propio importe.
+        categoria:
+          allOf:
+          - $ref: '#/components/schemas/Categoria'
+          readOnly: true
+        modalidades:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModalidadEnum'
+          readOnly: true
+          description: 'Modalidades de venta que admite, en orden: stock, produccion,
+            personalizacion.'
+        taller:
+          allOf:
+          - $ref: '#/components/schemas/TallerResumen'
+          readOnly: true
+        creado_en:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - categoria
+      - creado_en
+      - descripcion
+      - id
+      - modalidades
+      - nombre
+      - precio
+      - taller
     RegistroArtesanoRequest:
       type: object
       description: Cuenta del artesano más los datos iniciales de su taller.
@@ -889,6 +1573,19 @@ components:
       - sitio_web
       - telefono_publico
       - whatsapp_publico
+    TallerResumen:
+      type: object
+      description: 'Referencia al perfil público del taller: ``GET /api/v1/talleres/{id}/``.'
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          readOnly: true
+      required:
+      - id
+      - nombre
     TokenAcceso:
       type: object
       properties:

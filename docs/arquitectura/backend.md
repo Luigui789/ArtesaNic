@@ -11,11 +11,19 @@ Back-Artesanic/
 │   │   ├── base.py             Común, con valores por defecto seguros; todo lo variable sale del entorno
 │   │   ├── local.py            Desarrollo: DEBUG, orígenes de Vite y cookies sin Secure
 │   │   └── test.py             Pruebas: hash de contraseñas rápido
-│   ├── urls.py                 /admin/, /api/v1/salud/, /api/v1/auth/, /api/v1/talleres/
+│   ├── urls.py                 /admin/, /api/v1/salud/, /api/v1/auth/, /api/v1/talleres/,
+│   │                           /api/v1/categorias/, /api/v1/productos/
 │   ├── health.py               Sonda de disponibilidad (RNF-006)
 │   ├── wsgi.py, asgi.py
 │   └── tests/                  Salud, orígenes (CORS y CSRF) y esquema OpenAPI
 ├── apps/
+│   ├── catalogo/               Categorías y productos con modalidades V1 (RF-001, RF-003, RF-017, RF-019; AUD-04)
+│   │   ├── models.py           Categoria, Producto, Modalidad y sus restricciones (al menos una modalidad)
+│   │   ├── services.py         Alta, edición, publicar y despublicar; exige taller aprobado
+│   │   ├── admin.py            Categorías en Django Admin (código estable)
+│   │   ├── fixtures/           Categorías de desarrollo, no normativas
+│   │   ├── api/                Catálogo público y productos propios (docs/api/catalogo.md)
+│   │   └── tests/
 │   ├── talleres/               Taller del artesano y su aprobación (RF-008, RF-013; AUD-02)
 │   │   ├── models.py           Taller, EstadoTaller y restricciones de sus datos
 │   │   ├── services.py         Alta pendiente, perfil, aprobar y rechazar
@@ -88,7 +96,7 @@ Las reglas tienen un único lugar: la normalización del teléfono está en `pho
 | Dónde | Qué |
 |---|---|
 | `apps/talleres/` (AUD-02, implementada) | Perfil del taller (RF-008) vinculado a la cuenta de artesano; aprobación (RF-013) en Django Admin. El alta ocurre en el registro del artesano; estados y rubro según D-AUD02-01 a 03 ([talleres](../api/talleres.md#4-decisiones-aplicadas-en-aud-02)). |
-| `apps/catalog/` (nueva) | Categorías (RF-003), productos (RF-001, RF-017), imágenes (RF-002) y unidades estándar (RF-022). Decidir antes la política de imágenes y D14 (retiro frente a moderación). |
+| `apps/catalogo/` (AUD-04, implementada salvo imagen) | Categorías, productos con modalidades combinables, publicación y catálogo público paginado ([catálogo](../api/catalogo.md)). Pendiente: fotografía principal (DR-01) y moderación administrativa con actor y motivo (AUD-14). Las unidades estándar e inventario (RF-022) serán un dominio aparte. |
 | `apps/accounts/api/serializers.py` | Añadir `artesano_id` y `artesano_estado` al perfil cuando exista el taller. |
 | `apps/talleres/api/permissions.py` | `EsArtesanoAprobado` (implementado): toda función operativa del artesano lo exige; los modelos con dueño implementan `pertenece_a(usuario)`. |
 | `config/settings/base.py` | Almacenamiento de archivos: imágenes públicas del catálogo separadas de los comprobantes privados, que llegarán con los pagos. |

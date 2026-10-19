@@ -352,6 +352,8 @@ export function buildProducts(artisans: Artisan[]): Product[] {
       artesanoId: artesano.id,
       disponible: r() > 0.08,
       creadoEn,
+      modalidades: personaliza ? ["stock", "personalizacion"] : ["stock"],
+      publicado: true,
       tipoUnidades: tipo,
       admitePersonalizacion: personaliza,
       existenciasFisicas: existencias,

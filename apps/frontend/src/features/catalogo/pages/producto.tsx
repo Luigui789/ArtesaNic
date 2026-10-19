@@ -1,7 +1,5 @@
-import { UnitAvailability } from "@/features/catalogo/components/unit-availability";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
 import { ArrowRight, Clock, MapPin, Phone } from "lucide-react";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { CurrencySwitcher } from "@/components/common/currency-switcher";
@@ -17,7 +15,13 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { getArtisan } from "@/features/talleres/api";
-import { getProduct } from "@/features/catalogo/api";
+import {
+  ApiError,
+  catalogoReal,
+  getCatalogProduct,
+  reintentarSalvoErrorDelCliente,
+} from "@/features/catalogo/api";
+import { ModalidadesTexto, ProductImage } from "@/features/catalogo/components/product-card";
 import { useCurrency } from "@/hooks/use-currency";
 import { TASA_CAMBIO } from "@/lib/format";
 import { useDocumentHead } from "@/hooks/use-document-head";
@@ -28,7 +32,6 @@ export default function DetalleProducto() {
   const { id: idParam } = useParams<{ id: string }>();
   const id = parseRouteId(idParam);
   const { format } = useCurrency();
-  const [imagen, setImagen] = useState(0);
 
   useDocumentHead({
     title: "Producto artesanal | Artesanías de Masaya",
@@ -47,16 +50,21 @@ export default function DetalleProducto() {
 
   const producto = useQuery({
     queryKey: ["producto", id],
-    queryFn: () => getProduct(id!),
+    queryFn: () => getCatalogProduct(id!),
     enabled: id !== undefined,
+    // Un 404 (despublicado o de un taller no aprobado) no se reintenta.
+    retry: reintentarSalvoErrorDelCliente,
   });
+  // Los datos ampliados del taller siguen en el servidor simulado (dominio talleres).
   const artesano = useQuery({
-    queryKey: ["artesano", producto.data?.artesanoId],
-    queryFn: () => getArtisan(producto.data!.artesanoId),
-    enabled: !!producto.data,
+    queryKey: ["artesano", producto.data?.taller.id],
+    queryFn: () => getArtisan(producto.data!.taller.id),
+    enabled: !!producto.data && !catalogoReal,
   });
 
   if (id === undefined) return <NotFound />;
+
+  if (producto.error instanceof ApiError && producto.error.status === 404) return <NotFound />;
 
   if (producto.isError) {
     return (
@@ -113,34 +121,9 @@ export default function DetalleProducto() {
 
         <div className="mt-6 grid gap-8 lg:grid-cols-2">
           <div>
-            <div className="aspect-[4/3] overflow-hidden rounded-xl border bg-surface">
-              <img
-                src={p.imagenes[imagen]}
-                alt={p.nombre}
-                width={1024}
-                height={768}
-                className="h-full w-full object-cover"
-              />
+            <div className="overflow-hidden rounded-xl border">
+              <ProductImage src={p.imagen} alt={p.nombre} className="aspect-[4/3]" />
             </div>
-            {p.imagenes.length > 1 ? (
-              <ul className="mt-3 flex gap-3">
-                {p.imagenes.map((img, i) => (
-                  <li key={img}>
-                    <button
-                      type="button"
-                      onClick={() => setImagen(i)}
-                      aria-label={`Ver imagen ${i + 1} de ${p.nombre}`}
-                      aria-pressed={imagen === i}
-                      className={`size-20 overflow-hidden rounded-lg border-2 ${
-                        imagen === i ? "border-primary" : "border-border"
-                      }`}
-                    >
-                      <img src={img} alt="" loading="lazy" className="h-full w-full object-cover" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
           </div>
 
           <div>
@@ -149,7 +132,7 @@ export default function DetalleProducto() {
             </Badge>
             <h1 className="mt-3 font-display text-3xl font-bold">{p.nombre}</h1>
 
-            <UnitAvailability product={p} />
+            <ModalidadesTexto modalidades={p.modalidades} className="mt-2" />
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <p className="text-3xl font-bold text-primary">{format(p.precio)}</p>
               <CurrencySwitcher />
@@ -166,23 +149,24 @@ export default function DetalleProducto() {
             </div>
 
             <div className="mt-8">
-              {p.unidadesDisponibles > 0 ? (
+              {catalogoReal ? (
+                // Las solicitudes todavía son simuladas y no conocen los productos de Django.
+                <>
+                  <Button size="lg" disabled aria-describedby="sin-solicitudes">
+                    Solicitar pedido
+                  </Button>
+                  <p id="sin-solicitudes" className="mt-2 text-sm">
+                    Las solicitudes de pedido todavía no están conectadas con este catálogo.
+                  </p>
+                </>
+              ) : (
+                // La solicitud simulada comprueba las unidades disponibles del inventario.
                 <Button asChild size="lg" className="w-full touch-target text-base sm:w-auto">
                   <Link to={`/solicitar/${p.id}`}>
                     Solicitar pedido
                     <ArrowRight className="size-5" aria-hidden="true" />
                   </Link>
                 </Button>
-              ) : (
-                <>
-                  <Button size="lg" disabled aria-describedby="no-units">
-                    Solicitar pedido
-                  </Button>
-                  <p id="no-units" className="mt-2 text-sm">
-                    Sin unidades disponibles. Las reservas y las unidades por clasificar no pueden
-                    solicitarse.
-                  </p>
-                </>
               )}
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
                 Enviarás una solicitud al taller. El artesano la revisa y, si la acepta, coordinan
@@ -190,7 +174,20 @@ export default function DetalleProducto() {
               </p>
             </div>
 
-            {artesano.data ? (
+            {catalogoReal ? (
+              <section className="mt-8 rounded-xl border bg-card p-5" aria-labelledby="taller">
+                <h2 id="taller" className="text-base font-semibold">
+                  Elaborado por
+                </h2>
+                <p className="mt-2 font-medium">{p.taller.nombre}</p>
+                <Link
+                  to={`/artesano/${p.taller.id}`}
+                  className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
+                >
+                  Ver perfil del taller
+                </Link>
+              </section>
+            ) : artesano.data ? (
               <section className="mt-8 rounded-xl border bg-card p-5" aria-labelledby="taller">
                 <h2 id="taller" className="text-base font-semibold">
                   Elaborado por

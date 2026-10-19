@@ -27,10 +27,53 @@ const input = {
   precio: 100,
   categoria: "cuero_y_calzado",
   descripcion: "Producto para la verificación funcional de la demo.",
-  tipoUnidades: "pieza_unica",
-  existenciasFisicas: 1,
-  admitePersonalizacion: true,
+  modalidades: ["stock", "personalizacion"],
+  inventarioDemo: { tipoUnidades: "pieza_unica", existenciasFisicas: 1 },
 };
+// Inventario simulado con otros valores, conservando el resto de la entrada.
+const conInventario = (inventarioDemo) => ({
+  ...input,
+  inventarioDemo: { ...input.inventarioDemo, ...inventarioDemo },
+});
+
+// RF-017 / RN-004: modalidades combinables; solo la venta desde stock pide existencias.
+for (const modalidades of [[], ["pieza_unica"], ["stock", "stock"]])
+  await assert.rejects(
+    api.createProduct(api.DEMO_ARTISAN_ID, { ...input, modalidades }, actor),
+    /modalidad/,
+  );
+await assert.rejects(
+  api.createProduct(api.DEMO_ARTISAN_ID, { ...input, inventarioDemo: undefined }, actor),
+  /tipo de unidades/,
+);
+const bajoPedido = await api.createProduct(
+  api.DEMO_ARTISAN_ID,
+  { ...input, modalidades: ["produccion", "personalizacion"], inventarioDemo: undefined },
+  actor,
+);
+assert.deepEqual(bajoPedido.modalidades, ["produccion", "personalizacion"]);
+assert.equal(bajoPedido.existenciasFisicas, 0);
+
+// RF-019 / RN-003: se registra sin publicar; despublicar lo retira sin borrarlo.
+assert.equal(bajoPedido.publicado, false);
+await assert.rejects(api.getCatalogProduct(bajoPedido.id), /No encontramos/);
+assert.equal((await api.publishOwnProduct(bajoPedido.id)).publicado, true);
+assert.equal((await api.publishOwnProduct(bajoPedido.id)).publicado, true);
+assert.equal((await api.getCatalogProduct(bajoPedido.id)).id, bajoPedido.id);
+const enCatalogo = await api.listCatalog({ q: "Pieza de verificación", pageSize: 50 });
+assert.ok(enCatalogo.items.some((p) => p.id === bajoPedido.id));
+assert.equal("existenciasFisicas" in enCatalogo.items[0], false);
+await api.unpublishOwnProduct(bajoPedido.id);
+assert.equal(
+  (await api.listCatalog({ q: "Pieza de verificación", pageSize: 50 })).items.some(
+    (p) => p.id === bajoPedido.id,
+  ),
+  false,
+);
+assert.equal((await api.getProduct(bajoPedido.id)).id, bajoPedido.id);
+const propios = await api.listOwnProducts(1, 50);
+assert.ok(propios.items.some((p) => p.id === bajoPedido.id && p.publicado === false));
+
 const unique = await api.createProduct(api.DEMO_ARTISAN_ID, input, actor);
 const request = {
   productoId: unique.id,
@@ -148,18 +191,22 @@ let p = await api.getProduct(unique.id);
 assert.equal(p.existenciasFisicas, 0);
 assert.equal(p.unidadesReservadas, 0);
 await assert.rejects(
-  api.updateProduct(unique.id, { ...input, existenciasFisicas: 2, motivoAjuste: "Alta" }, actor),
+  api.updateProduct(
+    unique.id,
+    conInventario({ existenciasFisicas: 2, motivoAjuste: "Alta" }),
+    actor,
+  ),
   /sola/,
 );
 const stocked = await api.createProduct(
   api.DEMO_ARTISAN_ID,
-  { ...input, tipoUnidades: "existencias", existenciasFisicas: 4 },
+  conInventario({ tipoUnidades: "existencias", existenciasFisicas: 4 }),
   actor,
 );
 await assert.rejects(
   api.updateProduct(
     stocked.id,
-    { ...input, tipoUnidades: "existencias", existenciasFisicas: 5 },
+    conInventario({ tipoUnidades: "existencias", existenciasFisicas: 5 }),
     actor,
   ),
   /motivo/,
@@ -180,7 +227,7 @@ await api.changeOrderStatus(personalized.id, "aceptado", actor);
 await assert.rejects(
   api.updateProduct(
     stocked.id,
-    { ...input, tipoUnidades: "existencias", existenciasFisicas: 2, motivoAjuste: "Ajuste" },
+    conInventario({ tipoUnidades: "existencias", existenciasFisicas: 2, motivoAjuste: "Ajuste" }),
     actor,
   ),
   /comprometidas/,
@@ -202,12 +249,11 @@ await api.changeOrderStatus(personalized.id, "listo_para_entrega", actor);
 await api.changeOrderStatus(personalized.id, "entregado", actor);
 await api.updateProduct(
   stocked.id,
-  {
-    ...input,
+  conInventario({
     tipoUnidades: "existencias",
     existenciasFisicas: 4,
     motivoAjuste: "Reposición para verificar cancelación desde Aceptado",
-  },
+  }),
   actor,
 );
 const cancellable = await api.createOrderRequest(
@@ -256,5 +302,5 @@ await api.resetDemo();
 assert.equal((await api.listOrders({ rol: "comprador" })).length, 10);
 await assert.rejects(api.getProduct(unique.id), /No encontramos/);
 console.log(
-  "OK: cantidades, concurrencia, reservas, congelación, entrega, pagos, plazo, privacidad, clasificación, fallo de persistencia y restablecimiento.",
+  "OK: modalidades, publicación, cantidades, concurrencia, reservas, congelación, entrega, pagos, plazo, privacidad, clasificación, fallo de persistencia y restablecimiento.",
 );

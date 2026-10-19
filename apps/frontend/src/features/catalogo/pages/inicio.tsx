@@ -10,7 +10,7 @@ import { ProductCard, ProductCardSkeleton } from "@/features/catalogo/components
 import { ArtisanCard } from "@/features/talleres/components/artisan-card";
 import { ErrorState } from "@/components/common/states";
 import { listArtisans } from "@/features/talleres/api";
-import { listCategories, listProducts } from "@/features/catalogo/api";
+import { listCatalog, listCategories } from "@/features/catalogo/api";
 import { useDocumentHead } from "@/hooks/use-document-head";
 
 /** RF-009, RF-005, RF-011, RF-010 y RF-016, en el orden en que ocurren. */
@@ -68,11 +68,9 @@ export default function Index() {
   // Contrato §12.1: la portada no muestra «destacados», sino lo más reciente.
   const productos = useQuery({
     queryKey: ["catalogo", "portada"],
-    queryFn: () => listProducts({ orden: "recientes", pageSize: 8 }),
+    queryFn: () => listCatalog({ orden: "recientes", pageSize: 8 }),
   });
   const artesanos = useQuery({ queryKey: ["artesanos"], queryFn: listArtisans });
-
-  const nombreTaller = (id: number) => artesanos.data?.find((a) => a.id === id)?.nombreTaller ?? "";
 
   return (
     <SiteLayout>
@@ -196,9 +194,7 @@ export default function Index() {
           <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
             {productos.isPending
               ? Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
-              : productos.data.items.map((p) => (
-                  <ProductCard key={p.id} product={p} artisanName={nombreTaller(p.artesanoId)} />
-                ))}
+              : productos.data.items.map((p) => <ProductCard key={p.id} product={p} />)}
           </div>
         )}
       </section>
