@@ -22,24 +22,25 @@ Se complementa con las pruebas automáticas y el [contrato implementado](../api/
 
 | Paso | Acción | Resultado esperado |
 |---|---|---|
-| 1 | Vista Comprador → catálogo → producto → Preparar solicitud | Abre composición V1 con un renglón, sin navegar a un pedido |
-| 2 | Cambiar cantidad a 0, negativa o fraccionaria y enviar | Error comprensible; no se crea solicitud |
-| 3 | Agregar otro producto del mismo taller | Conserva ambos renglones y sus cantidades |
+| 1 | Vista Comprador → catálogo → producto → Preparar solicitud | Abre composición con la foto y datos del producto elegido; si es el único, no se puede quitar |
+| 2 | Cambiar cantidad a 0, negativa o fraccionaria y elegir Revisar solicitud | Error comprensible; no se abre resumen ni se crea solicitud |
+| 3 | Agregar otro producto del mismo taller y quitar cualquiera de los dos | Ambos ofrecen quitarse; al quitar uno, el restante ya no se puede quitar |
 | 4 | Elegir un taller y revisar las sugerencias inferiores | Solo aparecen productos de ese taller, con sus imágenes; al cambiar de taller se reinicia la página y no se muestran sugerencias anteriores |
-| 5 | Agregar otra vez el mismo producto | Conserva un renglón independiente; no deduplica |
+| 5 | Agregar otra vez el mismo producto | Conserva una entrada independiente; no deduplica |
 | 6 | Elegir stock | Solo exige cantidad; no exige fecha/características ni reserva stock |
 | 7 | Elegir producción en un producto que la admita | Exige cantidad y fecha; rechaza fecha vacía/pasada/inválida |
 | 8 | Elegir personalización | Exige características y origen desde cero/unidad estándar |
-| 9 | Cambiar modalidad después de escribir datos específicos | Limpia datos incompatibles y envía solo los correspondientes |
-| 10 | Enviar varios renglones válidos | Botón muestra envío en curso; abre `/solicitudes/{id}`, estado Pendiente de revisión |
-| 11 | Consultar detalle | Muestra todos los renglones, modalidad/cantidad y datos propios; sin total congelado ni aceptar/pagar/chat |
-| 12 | Volver a Mis solicitudes y recargar | Conserva la solicitud en el navegador y no la duplica por leer/recargar |
-| 13 | Vista Artesano del taller destinatario → Solicitudes | Muestra la recibida; detalle de solo lectura, sin aceptación global |
-| 14 | Crear solicitud de otro taller y consultar con el artesano demo | No aparece entre recibidas de su taller |
-| 15 | Revisar Pedidos (demo), pagos y mensajes anteriores | Conservan sus flujos separados; aviso indica demo anterior |
-| 16 | Revisar a 360 px y con teclado | Campos y botones utilizables, textos completos y sin desplazamiento horizontal obligatorio |
-| 17 | Abrir lista vacía y URL de solicitud inexistente | Estado vacío comprensible o página no encontrada, según corresponda |
-| 18 | Desconectar/forzar fallo del servicio | Error y reintento visibles; no se presenta éxito ni pedido confirmado ficticio |
+| 9 | Cambiar modalidad después de escribir datos específicos, revisar y enviar | Limpia datos incompatibles y envía solo los correspondientes |
+| 10 | Revisar varios productos válidos | Abre resumen con foto y detalles de cada producto; Editar solicitud vuelve a la composición y conserva los datos |
+| 11 | Enviar desde el resumen | Botón muestra envío en curso; abre `/solicitudes/{id}`, estado Pendiente de revisión |
+| 12 | Consultar detalle | Muestra todos los productos, modalidad/cantidad y datos propios; sin total congelado ni aceptar/pagar/chat |
+| 13 | Volver a Mis solicitudes y recargar | Conserva la solicitud en el navegador y no la duplica por leer/recargar |
+| 14 | Vista Artesano del taller destinatario → Solicitudes | Muestra la recibida; detalle de solo lectura, sin aceptación global |
+| 15 | Crear solicitud de otro taller y consultar con el artesano demo | No aparece entre recibidas de su taller |
+| 16 | Revisar Pedidos (demo), pagos y mensajes anteriores | Conservan sus flujos separados; aviso indica demo anterior |
+| 17 | Revisar a 360 px y con teclado | Campos y botones utilizables, textos completos y sin desplazamiento horizontal obligatorio |
+| 18 | Abrir lista vacía y URL de solicitud inexistente | Estado vacío comprensible o página no encontrada, según corresponda |
+| 19 | Desconectar/forzar fallo del servicio | Error y reintento visibles; no se presenta éxito ni pedido confirmado ficticio |
 
 La demo sembrada puede no tener productos con todas las modalidades. Para preparar
 los pasos 7–9, en **Mis productos** registrar/publicar un producto del taller demo que

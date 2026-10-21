@@ -56,7 +56,7 @@ export function crearSolicitud(entrada: SolicitudEntrada, usuario: SesionUsuario
         const campos = Object.fromEntries(
           validada.error.issues.map((i) => [i.path.join("."), [i.message]]),
         );
-        throw new ApiError(400, "Revisa los renglones de la solicitud.", campos);
+        throw new ApiError(400, "Revisa los productos de la solicitud.", campos);
       }
       let tallerId: number | undefined;
       const renglones: RenglonSolicitud[] = validada.data.renglones.map((r, i) => {
@@ -64,7 +64,7 @@ export function crearSolicitud(entrada: SolicitudEntrada, usuario: SesionUsuario
         if (!producto)
           throw new ApiError(400, "El producto no está disponible para nuevas solicitudes.");
         if (tallerId !== undefined && tallerId !== producto.artesanoId)
-          throw new ApiError(400, "Todos los renglones deben pertenecer al mismo taller.");
+          throw new ApiError(400, "Todos los productos deben pertenecer al mismo taller.");
         tallerId = producto.artesanoId;
         if (!producto.modalidades.includes(r.modalidad))
           throw new ApiError(400, "El producto no admite esta modalidad.");

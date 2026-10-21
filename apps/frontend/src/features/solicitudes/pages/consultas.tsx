@@ -42,7 +42,7 @@ export function ListadoSolicitudes({ recibidas = false }: { recibidas?: boolean 
         <h1 className="font-display text-3xl font-bold">
           {recibidas ? "Solicitudes recibidas" : "Mis solicitudes"}
         </h1>
-        <p>Solicitudes V1 con uno o varios renglones. Todavía no son pedidos confirmados.</p>
+        <p>Solicitudes con uno o varios productos. Todavía no son pedidos confirmados.</p>
         {!recibidas ? (
           <Button asChild>
             <Link to="/solicitudes/nueva">Nueva solicitud</Link>
@@ -75,7 +75,8 @@ export function ListadoSolicitudes({ recibidas = false }: { recibidas?: boolean 
                   Solicitud #{s.id}
                 </Link>
                 <p>
-                  {s.taller.nombre} · {s.renglones.length} renglones
+                  {s.taller.nombre} · {s.renglones.length}{" "}
+                  {s.renglones.length === 1 ? "producto" : "productos"}
                 </p>
                 <p>{ESTADO[s.estado]}</p>
               </li>
@@ -147,8 +148,8 @@ export function DetalleSolicitud({ recibidas = false }: { recibidas?: boolean })
             {"comprador" in s ? <p>Comprador: {s.comprador.nombre}</p> : null}
             <p className="rounded-lg border p-4 text-sm">
               {s.estado === "rechazada"
-                ? "La solicitud terminó rechazada. Se conservan sus renglones y motivos; no hay propuesta confirmable ni pedido confirmado."
-                : "El taller revisará cada renglón. Esta solicitud no confirma un pedido ni reserva inventario. La revisión del taller aún no está habilitada."}
+                ? "La solicitud terminó rechazada. Se conservan los productos y sus motivos; no hay propuesta confirmable ni pedido confirmado."
+                : "El taller revisará cada producto. Esta solicitud no confirma un pedido ni reserva inventario. La revisión del taller aún no está habilitada."}
             </p>
             <ol className="space-y-4">
               {s.renglones.map((r) => (

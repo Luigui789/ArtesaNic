@@ -56,7 +56,7 @@ const esquemaRenglon = z.discriminatedUnion("modalidad", [
 /** Entrada explícita: rechaza identidad, estado, importes y cualquier campo desconocido. */
 export const esquemaSolicitudEntrada = z
   .object({
-    renglones: z.array(esquemaRenglon).min(1, "Agrega al menos un renglón a la solicitud."),
+    renglones: z.array(esquemaRenglon).min(1, "Agrega al menos un producto a la solicitud."),
   })
   .strict();
 
