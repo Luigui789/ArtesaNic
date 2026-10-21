@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { ErrorState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/use-session";
 import { getCatalogProduct, listCatalog } from "@/features/catalogo/api";
+import { ProductImage } from "@/features/catalogo/components/product-card";
 import type { CatalogProduct } from "@/features/catalogo/types";
 import { MODALIDAD_LABELS } from "@/lib/labels";
 import { parseRouteId } from "@/lib/route-id";
@@ -40,20 +41,26 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
   const [borrador, setBorrador] = useState<RenglonBorrador[] | null>(null);
   const [errores, setErrores] = useState<string[]>([]);
   const [avisoTaller, setAvisoTaller] = useState("");
-  const [page, setPage] = useState(1);
+  const [paginacion, setPaginacion] = useState<{ tallerId: number | undefined; page: number }>({
+    tallerId: undefined,
+    page: 1,
+  });
   const producto = useQuery({
     queryKey: ["solicitud-producto-inicial", solicitudesReales, productoId],
     queryFn: () => getCatalogProduct(productoId!),
     enabled: productoId !== undefined,
     retry: reintentarSalvoErrorDelCliente,
   });
+  const renglones = borrador ?? (producto.data ? [nuevoRenglon(producto.data)] : []);
+  const taller = renglones[0]?.producto.taller;
+  const tallerId = taller?.id;
+  const page = paginacion.tallerId === tallerId ? paginacion.page : 1;
+  const setPage = (nueva: number) => setPaginacion({ tallerId, page: nueva });
   const catalogo = useQuery({
-    queryKey: ["solicitud-productos", solicitudesReales, page],
-    queryFn: () => listCatalog({ page, pageSize: 12 }),
-    placeholderData: keepPreviousData,
+    queryKey: ["solicitud-productos", solicitudesReales, tallerId, page],
+    queryFn: () => listCatalog({ artesanoId: tallerId, page, pageSize: 12 }),
     retry: reintentarSalvoErrorDelCliente,
   });
-  const renglones = borrador ?? (producto.data ? [nuevoRenglon(producto.data)] : []);
   const envio = useMutation({
     mutationFn: (entrada: SolicitudEntrada) => crearSolicitud(entrada, usuario),
     onSuccess: (solicitud) => {
@@ -71,6 +78,7 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
       return;
     }
     setAvisoTaller("");
+    if (!taller) setPaginacion({ tallerId: p.taller.id, page: 1 });
     setBorrador([...renglones, nuevoRenglon(p)]);
   };
   const enviar = (e: React.FormEvent) => {
@@ -222,12 +230,12 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
           ))}
           <section aria-labelledby="agregar-productos" className="space-y-4">
             <h2 id="agregar-productos" className="text-xl font-semibold">
-              Agregar productos
+              {taller ? `Más productos de ${taller.nombre}` : "Elegí un producto para comenzar"}
             </h2>
             {renglones[0] ? (
               <p className="text-sm">
-                Taller elegido: {renglones[0].producto.taller.nombre}. Los productos de otros
-                talleres están bloqueados.
+                Agregá otro producto de este taller o repetí uno para solicitarlo con otra
+                modalidad.
               </p>
             ) : null}
             {avisoTaller ? <p role="alert">{avisoTaller}</p> : null}
@@ -241,27 +249,26 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
             ) : catalogo.data.items.length === 0 ? (
               <p>No hay productos publicados para solicitar.</p>
             ) : (
-              <ul className="grid gap-3 sm:grid-cols-2">
+              <ul className="grid grid-cols-2 gap-3 lg:grid-cols-3">
                 {catalogo.data.items.map((p) => {
                   const permitido = puedeAgregarProducto(renglones, p);
                   return (
-                    <li key={p.id} className="space-y-2 rounded-lg border p-3">
-                      <p className="font-medium">{p.nombre}</p>
-                      <p className="text-sm">{p.taller.nombre}</p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        disabled={!permitido || envio.isPending}
-                        onClick={() => agregar(p)}
-                        aria-label={`Agregar ${p.nombre}`}
-                      >
-                        Agregar renglón
-                      </Button>
-                      {!permitido ? (
-                        <p className="text-sm text-muted-foreground">
-                          Pertenece a otro taller; no se puede mezclar en esta solicitud.
-                        </p>
-                      ) : null}
+                    <li key={p.id} className="overflow-hidden rounded-lg border">
+                      <ProductImage src={p.imagen} alt={p.nombre} className="aspect-[4/3]" />
+                      <div className="space-y-2 p-3">
+                        <p className="break-words font-medium">{p.nombre}</p>
+                        {!taller ? <p className="text-sm">{p.taller.nombre}</p> : null}
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="w-full"
+                          disabled={!permitido || envio.isPending}
+                          onClick={() => agregar(p)}
+                          aria-label={`Agregar ${p.nombre}`}
+                        >
+                          Agregar renglón
+                        </Button>
+                      </div>
                     </li>
                   );
                 })}

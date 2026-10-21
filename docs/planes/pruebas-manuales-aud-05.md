@@ -25,7 +25,7 @@ Se complementa con las pruebas automáticas y el [contrato implementado](../api/
 | 1 | Vista Comprador → catálogo → producto → Preparar solicitud | Abre composición V1 con un renglón, sin navegar a un pedido |
 | 2 | Cambiar cantidad a 0, negativa o fraccionaria y enviar | Error comprensible; no se crea solicitud |
 | 3 | Agregar otro producto del mismo taller | Conserva ambos renglones y sus cantidades |
-| 4 | Intentar agregar un producto de otro taller | Botón bloqueado y explicación visible; no mezcla talleres |
+| 4 | Elegir un taller y revisar las sugerencias inferiores | Solo aparecen productos de ese taller, con sus imágenes; al cambiar de taller se reinicia la página y no se muestran sugerencias anteriores |
 | 5 | Agregar otra vez el mismo producto | Conserva un renglón independiente; no deduplica |
 | 6 | Elegir stock | Solo exige cantidad; no exige fecha/características ni reserva stock |
 | 7 | Elegir producción en un producto que la admita | Exige cantidad y fecha; rechaza fecha vacía/pasada/inválida |
