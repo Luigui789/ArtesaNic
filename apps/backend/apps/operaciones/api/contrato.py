@@ -43,16 +43,22 @@ PARAMETRO_CLAVE = OpenApiParameter(
         f"tipo de operación. {MIN_CLAVE}–{MAX_CLAVE} caracteres."
     ),
 )
-PARAMETRO_REPETIDA = OpenApiParameter(
-    CABECERA_REPETIDA,
-    OpenApiTypes.STR,
-    OpenApiParameter.HEADER,
-    enum=["true"],
-    response=[201],
-    description="Presente con «true» cuando la respuesta repite una ejecución anterior. "
-    "Informativo: mismo recurso y código registrado; el cuerpo refleja el estado actual del "
-    "recurso, no un snapshot de la primera respuesta.",
-)
+
+
+def parametro_repetida(codigo: int) -> OpenApiParameter:
+    return OpenApiParameter(
+        CABECERA_REPETIDA,
+        OpenApiTypes.STR,
+        OpenApiParameter.HEADER,
+        enum=["true"],
+        response=[codigo],
+        description="Presente con «true» cuando la respuesta repite una ejecución anterior. "
+        "Informativo: mismo recurso y código registrado; el cuerpo refleja el estado actual "
+        "del recurso, no un snapshot de la primera respuesta.",
+    )
+
+
+PARAMETRO_REPETIDA = parametro_repetida(201)
 CONFLICTO = OpenApiResponse(
     ConflictoIdempotenciaSerializer,
     description=f"`{CODIGO_CLAVE_REUTILIZADA}`: la clave ya identifica otra petición de "

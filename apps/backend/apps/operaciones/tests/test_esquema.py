@@ -45,7 +45,9 @@ class EsquemaIdempotenciaTests(SimpleTestCase):
         self.assertEqual(ruta["get"]["security"], [{"jwtAuth": []}])
         self.assertEqual(set(ruta["get"]["responses"]), {"200", "401", "404"})
         tipo = next(p for p in ruta["get"]["parameters"] if p["name"] == "tipo")
-        self.assertEqual(tipo["schema"]["enum"], ["crear_solicitud"])
+        self.assertEqual(
+            tipo["schema"]["enum"], ["crear_solicitud", "finalizar_propuesta", "resolver_renglon"]
+        )
 
     def test_resultado_no_expone_huella_ni_actor(self):
         propiedades = set(self.componentes["OperacionIdempotente"]["properties"])
