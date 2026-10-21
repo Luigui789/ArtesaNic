@@ -1,8 +1,8 @@
 /** Validación temprana de la composición (RF-009/017/018); el backend es la autoridad. */
 import { z } from "zod";
 import type { CatalogProduct } from "@/features/catalogo/types";
-import { ORIGENES_PERSONALIZACION } from "./types";
-import type { RenglonBorrador, SolicitudEntrada } from "./types";
+import { MODALIDADES_ENTREGA, ORIGENES_PERSONALIZACION } from "./types";
+import type { EntregaPreferidaBorrador, RenglonBorrador, SolicitudEntrada } from "./types";
 
 /** Fecha de calendario local del navegador, sin desplazarla al día UTC. */
 export function fechaLocalISO(fecha = new Date()): string {
@@ -24,6 +24,7 @@ function esFechaSolicitadaValida(valor: string): boolean {
 /** Espejo de los límites del backend (MAX_RENGLONES, MAX_CARACTERISTICAS). */
 export const MAX_RENGLONES = 50;
 export const MAX_CARACTERISTICAS = 2000;
+export const MAX_DESCRIPCION_ENTREGA = 500;
 
 const camposComunes = {
   producto: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
@@ -61,15 +62,41 @@ const esquemaRenglon = z.discriminatedUnion("modalidad", [
     .strict(),
 ]);
 
-/** Entrada explícita: rechaza identidad, estado, importes y cualquier campo desconocido. */
+/**
+ * Entrada explícita: rechaza identidad, estado, importes y cualquier campo desconocido.
+ * La preferencia de entrega (RF-016) es opcional; «otra» exige descripción.
+ */
 export const esquemaSolicitudEntrada = z
   .object({
     renglones: z
       .array(esquemaRenglon)
       .min(1, "Agrega al menos un producto a la solicitud.")
       .max(MAX_RENGLONES, `Una solicitud admite hasta ${MAX_RENGLONES} productos.`),
+    modalidadEntregaPreferida: z
+      .enum(MODALIDADES_ENTREGA, { message: "Selecciona una modalidad de entrega válida." })
+      .optional(),
+    descripcionEntregaPreferida: z
+      .string()
+      .trim()
+      .min(1, "Describe la entrega preferida.")
+      .max(MAX_DESCRIPCION_ENTREGA, `Usa como máximo ${MAX_DESCRIPCION_ENTREGA} caracteres.`)
+      .optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((entrada, contexto) => {
+    if (entrada.descripcionEntregaPreferida && !entrada.modalidadEntregaPreferida)
+      contexto.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["modalidadEntregaPreferida"],
+        message: "Indica primero la modalidad de entrega.",
+      });
+    if (entrada.modalidadEntregaPreferida === "otra" && !entrada.descripcionEntregaPreferida)
+      contexto.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["descripcionEntregaPreferida"],
+        message: "Describe la modalidad de entrega «Otra».",
+      });
+  });
 
 export function nuevoRenglon(producto: CatalogProduct): RenglonBorrador {
   return {
@@ -90,8 +117,13 @@ export function puedeAgregarProducto(
   return renglones.every((renglon) => renglon.producto.taller.id === producto.taller.id);
 }
 
-function datosEntrada(renglones: RenglonBorrador[]) {
+const SIN_PREFERENCIA: EntregaPreferidaBorrador = { modalidad: "", descripcion: "" };
+
+function datosEntrada(renglones: RenglonBorrador[], entrega: EntregaPreferidaBorrador) {
+  const descripcion = entrega.descripcion.trim();
   return {
+    ...(entrega.modalidad ? { modalidadEntregaPreferida: entrega.modalidad } : {}),
+    ...(descripcion ? { descripcionEntregaPreferida: descripcion } : {}),
     renglones: renglones.map((renglon) => {
       const base = {
         producto: renglon.producto.id,
@@ -137,11 +169,17 @@ function esquemaDelBorrador(renglones: RenglonBorrador[]) {
 }
 
 /** Conserva el orden y los duplicados; los errores señalan el renglón y el campo. */
-export function validarSolicitudBorrador(renglones: RenglonBorrador[]) {
-  return esquemaDelBorrador(renglones).safeParse(datosEntrada(renglones));
+export function validarSolicitudBorrador(
+  renglones: RenglonBorrador[],
+  entrega: EntregaPreferidaBorrador = SIN_PREFERENCIA,
+) {
+  return esquemaDelBorrador(renglones).safeParse(datosEntrada(renglones, entrega));
 }
 
 /** Allowlist por modalidad: ningún dato de catálogo, sesión o etapa futura se envía. */
-export function crearEntradaSolicitud(renglones: RenglonBorrador[]): SolicitudEntrada {
-  return esquemaDelBorrador(renglones).parse(datosEntrada(renglones));
+export function crearEntradaSolicitud(
+  renglones: RenglonBorrador[],
+  entrega: EntregaPreferidaBorrador = SIN_PREFERENCIA,
+): SolicitudEntrada {
+  return esquemaDelBorrador(renglones).parse(datosEntrada(renglones, entrega));
 }

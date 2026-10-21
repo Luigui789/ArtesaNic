@@ -264,10 +264,40 @@ await verificar(
   },
 );
 
-await verificar("DR-03 tiene estado agregado rechazada y resolución individual rechazado", () => {
-  assert.deepEqual(tipos.ESTADOS_SOLICITUD, ["pendiente_revision", "rechazada"]);
+await verificar("AUD-06: estados explícitos de revisión, propuesta y DR-03", () => {
+  assert.deepEqual(tipos.ESTADOS_SOLICITUD, [
+    "pendiente_revision",
+    "lista_propuesta",
+    "propuesta_emitida",
+    "rechazada",
+  ]);
+  assert.deepEqual(tipos.MODALIDADES_ENTREGA, [
+    "retiro_taller",
+    "punto_encuentro",
+    "entrega_artesano",
+    "otra",
+  ]);
   assert.deepEqual(tipos.RESOLUCIONES_RENGLON, ["pendiente", "aceptado", "rechazado"]);
   assert.deepEqual(tipos.ORIGENES_PERSONALIZACION, ["desde_cero", "unidad_estandar"]);
+});
+
+await verificar("RF-016: preferencia de entrega opcional; «otra» exige descripción", () => {
+  const base = { renglones: [{ producto: producto.id, modalidad: "stock", cantidad: 1 }] };
+  const valida = (extra) =>
+    validacion.esquemaSolicitudEntrada.safeParse({ ...base, ...extra }).success;
+  assert.equal(valida({}), true, "Sin preferencia no se inventa una.");
+  assert.equal(valida({ modalidadEntregaPreferida: "retiro_taller" }), true);
+  assert.equal(
+    valida({ modalidadEntregaPreferida: "otra", descripcionEntregaPreferida: "Encomienda" }),
+    true,
+  );
+  assert.equal(valida({ modalidadEntregaPreferida: "otra" }), false);
+  assert.equal(
+    valida({ modalidadEntregaPreferida: "otra", descripcionEntregaPreferida: "  " }),
+    false,
+  );
+  assert.equal(valida({ descripcionEntregaPreferida: "Sin modalidad" }), false);
+  assert.equal(valida({ modalidadEntregaPreferida: "dron" }), false);
 });
 
 await verificar("API demo crea uno y varios renglones sin limitarse al stock actual", async () => {

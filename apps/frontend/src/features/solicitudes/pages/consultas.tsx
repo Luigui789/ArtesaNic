@@ -15,8 +15,31 @@ import {
   reintentarSalvoErrorDelCliente,
   solicitudesReales,
 } from "../api";
+import type { EstadoSolicitud, Solicitud } from "../api";
 
-const ESTADO = { pendiente_revision: "Pendiente de revisión", rechazada: "Rechazada" };
+const ESTADO: Record<EstadoSolicitud, string> = {
+  pendiente_revision: "Pendiente de revisión",
+  lista_propuesta: "Revisada; propuesta en preparación",
+  propuesta_emitida: "Propuesta emitida",
+  rechazada: "Rechazada",
+};
+const AVISO: Record<EstadoSolicitud, string> = {
+  pendiente_revision:
+    "El taller revisará cada producto. Esta solicitud no confirma un pedido ni reserva inventario.",
+  lista_propuesta:
+    "El taller ya resolvió todos los productos y preparará su propuesta final con precios y entrega.",
+  propuesta_emitida:
+    "El taller emitió su propuesta final. Todavía no es un pedido confirmado ni reserva inventario.",
+  rechazada:
+    "La solicitud terminó rechazada. Se conservan los productos y sus motivos; no hay propuesta confirmable ni pedido confirmado.",
+};
+const ENTREGA: Record<Solicitud["modalidadEntregaPreferida"], string> = {
+  "": "Sin preferencia",
+  retiro_taller: "Retiro en taller",
+  punto_encuentro: "Punto de encuentro",
+  entrega_artesano: "Entrega por el artesano",
+  otra: "Otra",
+};
 const RESOLUCION = { pendiente: "Pendiente", aceptado: "Aceptado", rechazado: "Rechazado" };
 
 export function ListadoSolicitudes({ recibidas = false }: { recibidas?: boolean }) {
@@ -146,11 +169,11 @@ export function DetalleSolicitud({ recibidas = false }: { recibidas?: boolean })
               {s.taller.nombre} · {ESTADO[s.estado]}
             </p>
             {"comprador" in s ? <p>Comprador: {s.comprador.nombre}</p> : null}
-            <p className="rounded-lg border p-4 text-sm">
-              {s.estado === "rechazada"
-                ? "La solicitud terminó rechazada. Se conservan los productos y sus motivos; no hay propuesta confirmable ni pedido confirmado."
-                : "El taller revisará cada producto. Esta solicitud no confirma un pedido ni reserva inventario. La revisión del taller aún no está habilitada."}
+            <p>
+              Entrega preferida: {ENTREGA[s.modalidadEntregaPreferida]}
+              {s.descripcionEntregaPreferida ? ` — ${s.descripcionEntregaPreferida}` : ""}
             </p>
+            <p className="rounded-lg border p-4 text-sm">{AVISO[s.estado]}</p>
             <ol className="space-y-4">
               {s.renglones.map((r) => (
                 <li key={r.id} className="space-y-2 rounded-xl border p-4">

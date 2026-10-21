@@ -1,4 +1,4 @@
-// AUD-05/AUD-08: cliente HTTP contra respuestas controladas. No es E2E de sesión (AUD-18).
+// AUD-05/06/08: cliente HTTP contra respuestas controladas. No es E2E de sesión (AUD-18).
 import assert from "node:assert/strict";
 import { build } from "vite";
 import { fileURLToPath } from "node:url";
@@ -95,11 +95,14 @@ const renglonDTO = {
   origen_personalizacion: "",
   resolucion: "pendiente",
   motivo_rechazo: "",
+  resuelto_en: null,
 };
 const solicitudDTO = {
   id: 9,
   taller: { id: 3, nombre: "Taller destinatario" },
   estado: "pendiente_revision",
+  modalidad_entrega_preferida: "",
+  descripcion_entrega_preferida: "",
   creado_en: "2026-10-20T10:30:00-06:00",
   actualizado_en: "2026-10-20T10:30:00-06:00",
   renglones: [
@@ -473,6 +476,229 @@ await verificar("AUD-08: mock equivalente por usuario demo, sin fetch", async ()
   const nueva = await demo.crearSolicitud(cuerpo, ana, "otra-clave-demo-0002");
   assert.notEqual(nueva.id, primera.id, "Mismo contenido con otra clave es otra solicitud.");
   assert.equal((await demo.listarSolicitudes(ana, false)).total, 2);
+  assert.equal(peticiones.length, 0);
+});
+
+await verificar("AUD-06: preferencia de entrega se serializa solo si se indicó", () => {
+  assert.equal("modalidad_entrega_preferida" in http.cuerpoSolicitud(entrada), false);
+  assert.deepEqual(
+    http.cuerpoSolicitud({
+      ...entrada,
+      modalidadEntregaPreferida: "otra",
+      descripcionEntregaPreferida: "Encomienda a Granada",
+    }),
+    {
+      modalidad_entrega_preferida: "otra",
+      descripcion_entrega_preferida: "Encomienda a Granada",
+      renglones: http.cuerpoSolicitud(entrada).renglones,
+    },
+  );
+  const intento = api.crearIntentoDeEnvio();
+  const sin = intento.clave(entrada);
+  assert.notEqual(
+    intento.clave({ ...entrada, modalidadEntregaPreferida: "retiro_taller" }),
+    sin,
+    "Otra preferencia es otra operación: el cliente nunca provoca un 409.",
+  );
+});
+
+await verificar("AUD-06: lectura conserva preferencia, revisión y revisor", async () => {
+  responder({
+    cuerpo: {
+      ...recibidaDTO,
+      estado: "lista_propuesta",
+      modalidad_entrega_preferida: "punto_encuentro",
+      descripcion_entrega_preferida: "Parque central",
+      renglones: recibidaDTO.renglones.map((r) => ({
+        ...r,
+        resolucion: "aceptado",
+        resuelto_en: "2026-10-21T09:00:00-06:00",
+        resuelto_por: { id: 3, nombre: "Artesana", telefono: "privado" },
+      })),
+    },
+  });
+  const recibida = await http.consultarSolicitudRecibida(9);
+  assert.equal(recibida.estado, "lista_propuesta");
+  assert.equal(recibida.modalidadEntregaPreferida, "punto_encuentro");
+  assert.equal(recibida.descripcionEntregaPreferida, "Parque central");
+  assert.equal(recibida.renglones[0].resueltoEn, "2026-10-21T09:00:00-06:00");
+  assert.deepEqual(recibida.renglones[0].resueltoPor, { id: 3, nombre: "Artesana" });
+});
+
+await verificar("AUD-06: resolver un renglón usa POST idempotente y allowlist", async () => {
+  responder({
+    cuerpo: {
+      ...recibidaDTO,
+      renglones: recibidaDTO.renglones.map((r) => ({ ...r, resuelto_por: null })),
+    },
+  });
+  await api.resolverRenglon(
+    9,
+    12,
+    { resolucion: "rechazado", motivoRechazo: "Sin barro", cantidad: 1, precio: "1.00" },
+    CLAVE,
+  );
+  assert.equal(ultima().url, "/api/v1/solicitudes/recibidas/9/renglones/12/resolver/");
+  assert.equal(ultima().metodo, "POST");
+  assert.equal(ultima().cabeceras.Authorization, `Bearer ${token}`);
+  assert.equal(ultima().cabeceras["Idempotency-Key"], CLAVE);
+  assert.deepEqual(ultima().cuerpo, { resolucion: "rechazado", motivo_rechazo: "Sin barro" });
+  assert.deepEqual(http.cuerpoResolucion({ resolucion: "aceptado", motivoRechazo: "x" }), {
+    resolucion: "aceptado",
+  });
+});
+
+await verificar("AUD-06: cada renglón y cada propuesta tienen su propio intento", () => {
+  const intento = api.crearIntentoDeRevision();
+  const aceptar = { resolucion: "aceptado" };
+  const a = intento.claveResolucion(9, 11, aceptar);
+  assert.equal(intento.claveResolucion(9, 11, aceptar), a, "Reintento: misma clave.");
+  assert.notEqual(intento.claveResolucion(9, 12, aceptar), a, "Otro renglón: otra clave.");
+  const condiciones = {
+    modalidadEntrega: "retiro_taller",
+    costoEntrega: "0.00",
+    lineas: [{ renglon: 11 }],
+  };
+  const p = intento.clavePropuesta(9, condiciones);
+  assert.notEqual(intento.clavePropuesta(10, condiciones), p, "Otra solicitud: otra clave.");
+});
+
+const propuestaDTO = {
+  id: 4,
+  solicitud: 9,
+  emitida_en: "2026-10-21T10:00:00-06:00",
+  moneda: "NIO",
+  modalidad_entrega: "entrega_artesano",
+  descripcion_entrega: "Masaya centro",
+  lineas: [
+    {
+      id: 1,
+      renglon: 12,
+      posicion: 2,
+      producto: { id: 15, nombre: "Caja de madera", categoria },
+      modalidad: "produccion",
+      cantidad: 3,
+      precio_unitario: "100.10",
+      subtotal: "300.30",
+      cargo_personalizacion: "0.00",
+      fecha_solicitada: "2099-01-01",
+      fecha_comprometida: "2099-01-05",
+    },
+  ],
+  otros_cargos: [{ posicion: 1, descripcion: "Empaque", monto: "0.10", renglon: null }],
+  costo_entrega: "0.20",
+  subtotal_productos: "300.30",
+  total_personalizacion: "0.00",
+  total_otros_cargos: "0.10",
+  total: "300.60",
+};
+
+await verificar("AUD-06: emitir propuesta no envía precios ni totales", async () => {
+  responder({ status: 201, cuerpo: propuestaDTO });
+  const propuesta = await api.emitirPropuesta(
+    9,
+    {
+      modalidadEntrega: "entrega_artesano",
+      descripcionEntrega: "Masaya centro",
+      costoEntrega: "0.20",
+      lineas: [{ renglon: 12, fechaComprometida: "2099-01-05", precioUnitario: "1.00" }],
+      otrosCargos: [{ descripcion: "Empaque", monto: "0.10" }],
+      total: "1.00",
+      comprador: 999,
+    },
+    CLAVE,
+  );
+  assert.equal(ultima().url, "/api/v1/solicitudes/recibidas/9/propuesta/");
+  assert.equal(ultima().metodo, "POST");
+  assert.equal(ultima().cabeceras["Idempotency-Key"], CLAVE);
+  assert.deepEqual(ultima().cuerpo, {
+    modalidad_entrega: "entrega_artesano",
+    descripcion_entrega: "Masaya centro",
+    costo_entrega: "0.20",
+    lineas: [{ renglon: 12, fecha_comprometida: "2099-01-05" }],
+    otros_cargos: [{ descripcion: "Empaque", monto: "0.10" }],
+  });
+  // Importes como cadenas exactas del servidor: 0.1 + 0.2 nunca se recalcula en float.
+  assert.equal(propuesta.total, "300.60");
+  assert.equal(propuesta.lineas[0].precioUnitario, "100.10");
+  assert.equal(propuesta.lineas[0].fechaComprometida, "2099-01-05");
+  assert.deepEqual(propuesta.otrosCargos, [
+    { posicion: 1, descripcion: "Empaque", monto: "0.10", renglon: null },
+  ]);
+  for (const campo of ["pedido", "reserva", "pago"]) assert.equal(campo in propuesta, false);
+});
+
+await verificar("AUD-06: lectura de propuesta por parte y 404 sin propuesta", async () => {
+  responder({ cuerpo: propuestaDTO });
+  assert.equal((await api.consultarPropuesta(9, usuarioDemo, false)).id, 4);
+  assert.equal(ultima().url, "/api/v1/solicitudes/mias/9/propuesta/");
+  assert.equal(ultima().metodo, "GET");
+  responder({ cuerpo: propuestaDTO });
+  await api.consultarPropuesta(9, usuarioDemo, true);
+  assert.equal(ultima().url, "/api/v1/solicitudes/recibidas/9/propuesta/");
+  responder({ status: 404, cuerpo: { detail: "No encontrado." } });
+  await assert.rejects(http.consultarPropuesta(9, false), (e) => {
+    assert.equal(e.status, 404);
+    assert.match(e.message, /todavía no tiene una propuesta/);
+    return true;
+  });
+});
+
+await verificar("AUD-06: 409 de negocio conserva código y mensaje del servidor", async () => {
+  for (const codigo of [
+    "renglon_ya_resuelto",
+    "solicitud_con_renglones_pendientes",
+    "solicitud_rechazada",
+    "propuesta_ya_emitida",
+    "clave_idempotencia_reutilizada",
+  ]) {
+    responder({ status: 409, cuerpo: { detail: `Mensaje ${codigo}`, codigo } });
+    await assert.rejects(http.resolverRenglon(9, 11, { resolucion: "aceptado" }, CLAVE), (e) => {
+      assert.equal(e.status, 409);
+      assert.equal(e.codigo, codigo);
+      assert.equal(e.message, `Mensaje ${codigo}`);
+      assert.equal(api.reintentarSalvoErrorDelCliente(0, e), false);
+      return true;
+    });
+  }
+});
+
+await verificar("AUD-06: la demo no simula revisión ni propuesta y no usa fetch", async () => {
+  const demo = await cargarModulo("src/features/solicitudes/api.ts", { VITE_CATALOGO_API: "mock" });
+  responder();
+  await assert.rejects(
+    demo.resolverRenglon(1, 1, { resolucion: "aceptado" }, CLAVE),
+    (e) => e.status === 501,
+  );
+  await assert.rejects(
+    demo.emitirPropuesta(1, { modalidadEntrega: "otra", costoEntrega: "0", lineas: [] }, CLAVE),
+    (e) => e.status === 501,
+  );
+  const comprador = { ...usuarioDemo, rol: "comprador", id: 901 };
+  const creada = await demo.crearSolicitud(
+    {
+      renglones: [{ producto: 1, modalidad: "stock", cantidad: 1 }],
+      modalidadEntregaPreferida: "otra",
+      descripcionEntregaPreferida: "Encomienda",
+    },
+    comprador,
+    "clave-demo-entrega-0001",
+  );
+  assert.equal(creada.modalidadEntregaPreferida, "otra");
+  assert.equal(creada.renglones[0].resueltoEn, null);
+  await assert.rejects(
+    demo.crearSolicitud(
+      { renglones: [{ producto: 1, modalidad: "stock", cantidad: 1 }] },
+      comprador,
+      "clave-demo-entrega-0001",
+    ),
+    (e) => e.status === 409,
+    "Misma clave con otra preferencia es otra petición.",
+  );
+  await assert.rejects(
+    demo.consultarPropuesta(creada.id, comprador, false),
+    (e) => e.status === 404,
+  );
   assert.equal(peticiones.length, 0);
 });
 

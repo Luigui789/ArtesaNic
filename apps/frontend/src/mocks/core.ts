@@ -19,10 +19,21 @@ import {
   TALLER_DEMO_ID,
 } from "./seed";
 import { borrarInstantanea, guardarInstantanea, leerInstantanea } from "./persistence";
-import type { SolicitudArtesano } from "@/features/solicitudes/types";
+import type { RenglonSolicitud, SolicitudArtesano } from "@/features/solicitudes/types";
 
-export interface SolicitudDemo extends SolicitudArtesano {
+/**
+ * Las instantáneas v4 anteriores a AUD-06 no guardan preferencia de entrega ni revisión:
+ * esos campos son opcionales aquí y la lectura los completa con valores vacíos, de modo
+ * que no hace falta cambiar la versión de IndexedDB. La demo no simula la revisión.
+ */
+export interface SolicitudDemo extends Omit<
+  SolicitudArtesano,
+  "modalidadEntregaPreferida" | "descripcionEntregaPreferida" | "renglones"
+> {
   compradorId: number;
+  modalidadEntregaPreferida?: SolicitudArtesano["modalidadEntregaPreferida"];
+  descripcionEntregaPreferida?: string;
+  renglones: Omit<RenglonSolicitud, "resueltoEn">[];
 }
 
 const categories = buildCategories();
