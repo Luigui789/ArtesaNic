@@ -1,4 +1,4 @@
-// AUD-05: cliente HTTP contra respuestas controladas. No es E2E de sesión (AUD-18).
+// AUD-05/AUD-08: cliente HTTP contra respuestas controladas. No es E2E de sesión (AUD-18).
 import assert from "node:assert/strict";
 import { build } from "vite";
 import { fileURLToPath } from "node:url";
@@ -33,6 +33,7 @@ async function cargarClienteReal() {
             id === `\0${virtual}`
               ? `export * as api from "@/features/solicitudes/api";
                  export * as http from "@/features/solicitudes/http";
+                 export * as idem from "@/features/solicitudes/idempotencia";
                  export * as transporte from "@/features/catalogo/http";`
               : undefined,
         },
@@ -51,7 +52,9 @@ async function cargarClienteReal() {
   }
 }
 
-const { api, http, transporte } = await cargarClienteReal();
+const { api, http, idem, transporte } = await cargarClienteReal();
+const CLAVE = "11111111-2222-4333-8444-555555555555";
+const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 let peticiones = [];
 let respuestas = [];
 globalThis.fetch = async (url, init = {}) => {
@@ -186,12 +189,18 @@ await verificar("allowlist y serialización snake_case por modalidad", () => {
 await verificar("creación real usa Bearer e ignora la identidad de la demo", async () => {
   assert.equal(api.solicitudesReales, true);
   responder({ status: 201, cuerpo: solicitudDTO });
-  const solicitud = await api.crearSolicitud(entrada, usuarioDemo);
+  const solicitud = await api.crearSolicitud(entrada, usuarioDemo, CLAVE);
   assert.equal(ultima().url, "/api/v1/solicitudes/");
   assert.equal(ultima().metodo, "POST");
   assert.equal(ultima().cabeceras.Authorization, `Bearer ${token}`);
   assert.equal(ultima().cabeceras["Content-Type"], "application/json");
+  assert.equal(ultima().cabeceras["Idempotency-Key"], CLAVE);
   assert.deepEqual(ultima().cuerpo, http.cuerpoSolicitud(entrada));
+  assert.equal(
+    JSON.stringify(ultima().cuerpo).includes(CLAVE),
+    false,
+    "La clave no va en el cuerpo.",
+  );
   assert.equal(solicitud.id, solicitudDTO.id);
   assert.equal(solicitud.creadoEn, solicitudDTO.creado_en);
   assert.equal(solicitud.actualizadoEn, solicitudDTO.actualizado_en);
@@ -278,7 +287,7 @@ await verificar("400 conserva errores anidados por posición y campo", async () 
       ],
     },
   });
-  await assert.rejects(http.crearSolicitud(entrada), (error) => {
+  await assert.rejects(http.crearSolicitud(entrada, CLAVE), (error) => {
     assert.ok(error instanceof api.ApiError);
     assert.equal(error.status, 400);
     assert.equal(error.message, "La cantidad debe ser positiva.");
@@ -295,7 +304,7 @@ await verificar("400 conserva errores anidados por posición y campo", async () 
 await verificar("401 sin token no inventa una sesión ni envía usuario demo", async () => {
   token = null;
   responder({ status: 401, cuerpo: { detail: "Authentication credentials were not provided." } });
-  await assert.rejects(api.crearSolicitud(entrada, usuarioDemo), (error) => {
+  await assert.rejects(api.crearSolicitud(entrada, usuarioDemo, CLAVE), (error) => {
     assert.equal(error.status, 401);
     assert.equal(error.message, "Inicia sesión para consultar o enviar solicitudes.");
     return true;
@@ -324,7 +333,7 @@ await verificar("403 conserva motivo y 404 no revela identidad ajena", async () 
 
 await verificar("fallo de red preserva error y no reenvía POST automáticamente", async () => {
   responder(new TypeError("Red interrumpida"));
-  await assert.rejects(http.crearSolicitud(entrada), (error) => {
+  await assert.rejects(http.crearSolicitud(entrada, CLAVE), (error) => {
     assert.equal(error.status, 0);
     assert.match(error.message, /conectar con el servidor/);
     assert.equal(api.reintentarSalvoErrorDelCliente(0, error), true);
@@ -343,9 +352,127 @@ await verificar("origen mock sigue la misma bandera del catálogo y no usa fetch
   const creada = await demo.crearSolicitud(
     { renglones: [{ producto: 1, modalidad: "stock", cantidad: 1 }] },
     compradorDemo,
+    CLAVE,
   );
   assert.equal(creada.estado, "pendiente_revision");
   assert.equal((await demo.consultarSolicitud(creada.id, compradorDemo, false)).id, creada.id);
+  assert.equal(peticiones.length, 0);
+});
+
+await verificar("AUD-08: claves UUID v4, también sin randomUUID", () => {
+  const clave = idem.nuevaClaveIdempotencia();
+  assert.match(clave, UUID_V4);
+  assert.notEqual(clave, idem.nuevaClaveIdempotencia());
+  const original = globalThis.crypto.randomUUID;
+  try {
+    Object.defineProperty(globalThis.crypto, "randomUUID", {
+      value: undefined,
+      configurable: true,
+    });
+    assert.match(idem.nuevaClaveIdempotencia(), UUID_V4);
+  } finally {
+    Object.defineProperty(globalThis.crypto, "randomUUID", { value: original, configurable: true });
+  }
+});
+
+await verificar("AUD-08: el mismo intento conserva su clave entre envíos", () => {
+  let n = 0;
+  const intento = idem.crearIntentoIdempotente(() => `clave-generada-${++n}`);
+  const cuerpo = http.cuerpoSolicitud(entrada);
+  const primera = intento.clave(cuerpo);
+  assert.equal(intento.clave(structuredClone(cuerpo)), primera, "Rerender o reintento.");
+  assert.equal(intento.clave(cuerpo), primera);
+  const otro = { renglones: [{ ...cuerpo.renglones[0], cantidad: 9 }] };
+  const cambiada = intento.clave(otro);
+  assert.notEqual(cambiada, primera, "Otro cuerpo es otra operación.");
+  intento.completar();
+  assert.notEqual(intento.clave(otro), cambiada, "Tras el éxito, un envío igual es nuevo.");
+  assert.equal(n, 3);
+});
+
+await verificar("AUD-08: reintento tras fallo de red reutiliza la clave", async () => {
+  const intento = api.crearIntentoDeEnvio();
+  responder(new TypeError("Respuesta perdida"), { status: 201, cuerpo: solicitudDTO });
+  await assert.rejects(api.crearSolicitud(entrada, usuarioDemo, intento.clave(entrada)), (e) => {
+    assert.equal(e.status, 0);
+    return true;
+  });
+  const reintento = await api.crearSolicitud(entrada, usuarioDemo, intento.clave(entrada));
+  assert.equal(reintento.id, solicitudDTO.id);
+  assert.equal(peticiones.length, 2);
+  const [a, b] = peticiones.map((p) => p.cabeceras["Idempotency-Key"]);
+  assert.match(a, UUID_V4);
+  assert.equal(a, b);
+  assert.deepEqual(peticiones[0].cuerpo, peticiones[1].cuerpo);
+  intento.completar();
+  responder({ status: 201, cuerpo: { ...solicitudDTO, id: 10 } });
+  await api.crearSolicitud(entrada, usuarioDemo, intento.clave(entrada));
+  assert.notEqual(ultima().cabeceras["Idempotency-Key"], a, "Acción nueva, clave nueva.");
+  const otroIntento = api.crearIntentoDeEnvio();
+  assert.notEqual(otroIntento.clave(entrada), intento.clave(entrada), "Otra composición.");
+});
+
+await verificar("AUD-08: 409 se presenta como conflicto entendible", async () => {
+  responder({
+    status: 409,
+    cuerpo: { detail: "Clave reutilizada.", codigo: "clave_idempotencia_reutilizada" },
+  });
+  await assert.rejects(http.crearSolicitud(entrada, CLAVE), (error) => {
+    assert.ok(error instanceof api.ApiError);
+    assert.equal(error.status, 409);
+    assert.equal(error.codigo, "clave_idempotencia_reutilizada");
+    assert.match(error.message, /ya se había enviado con otros datos/);
+    assert.deepEqual(error.campos, {});
+    assert.equal(api.reintentarSalvoErrorDelCliente(0, error), false);
+    return true;
+  });
+  responder({ status: 400, cuerpo: { "Idempotency-Key": ["Envía un Idempotency-Key válido."] } });
+  await assert.rejects(http.crearSolicitud(entrada, CLAVE), (error) => {
+    assert.equal(error.status, 400);
+    assert.equal(error.codigo, undefined);
+    assert.deepEqual(error.campos, { "Idempotency-Key": ["Envía un Idempotency-Key válido."] });
+    return true;
+  });
+});
+
+await verificar("AUD-08: consulta de resultado incierto, propia y de solo lectura", async () => {
+  responder({
+    cuerpo: {
+      tipo: "crear_solicitud",
+      estado: "completada",
+      recurso: { tipo: "solicitud", id: 9 },
+    },
+  });
+  assert.equal(await http.consultarCreacionSolicitud(CLAVE), 9);
+  assert.equal(ultima().url, `/api/v1/operaciones/crear_solicitud/${CLAVE}/`);
+  assert.equal(ultima().metodo, "GET");
+  assert.equal(ultima().cabeceras.Authorization, `Bearer ${token}`);
+  assert.equal(ultima().cabeceras["Idempotency-Key"], undefined);
+  responder({ status: 404, cuerpo: { detail: "No encontrado." } });
+  assert.equal(await http.consultarCreacionSolicitud(CLAVE), null);
+  responder({ status: 401, cuerpo: { detail: "Sin sesión." } });
+  await assert.rejects(http.consultarCreacionSolicitud(CLAVE), (e) => e.status === 401);
+});
+
+await verificar("AUD-08: mock equivalente por usuario demo, sin fetch", async () => {
+  const demo = await cargarModulo("src/features/solicitudes/api.ts", { VITE_CATALOGO_API: "mock" });
+  responder();
+  const ana = { ...usuarioDemo, rol: "comprador", id: 801 };
+  const beto = { ...usuarioDemo, rol: "comprador", id: 802 };
+  const cuerpo = { renglones: [{ producto: 1, modalidad: "stock", cantidad: 1 }] };
+  const clave = "clave-demo-compartida-0001";
+  const primera = await demo.crearSolicitud(cuerpo, ana, clave);
+  const repetida = await demo.crearSolicitud(cuerpo, ana, clave);
+  assert.equal(repetida.id, primera.id);
+  await assert.rejects(
+    demo.crearSolicitud({ renglones: [{ ...cuerpo.renglones[0], cantidad: 2 }] }, ana, clave),
+    (e) => e.status === 409 && e.codigo === "clave_idempotencia_reutilizada",
+  );
+  const deBeto = await demo.crearSolicitud(cuerpo, beto, clave);
+  assert.notEqual(deBeto.id, primera.id, "La clave no se comparte entre usuarios demo.");
+  const nueva = await demo.crearSolicitud(cuerpo, ana, "otra-clave-demo-0002");
+  assert.notEqual(nueva.id, primera.id, "Mismo contenido con otra clave es otra solicitud.");
+  assert.equal((await demo.listarSolicitudes(ana, false)).total, 2);
   assert.equal(peticiones.length, 0);
 });
 

@@ -47,10 +47,34 @@ function pertenece(s: SolicitudDemo, usuario: SesionUsuario, recibidas: boolean)
   return recibidas ? s.taller.id === usuario.artesanoId : s.compradorId === usuario.id;
 }
 
-export function crearSolicitud(entrada: SolicitudEntrada, usuario: SesionUsuario | null) {
+/**
+ * Equivalente simple de AUD-08 para la demo: memoria de la pestaña, por usuario demo y
+ * clave. La autoridad real es el servidor; esta tabla no se guarda en IndexedDB.
+ */
+const operaciones = new Map<string, { cuerpo: string; solicitudId: number }>();
+
+export function crearSolicitud(
+  entrada: SolicitudEntrada,
+  usuario: SesionUsuario | null,
+  clave?: string,
+) {
   return api(
     () => {
       const comprador = exigirSesion(usuario);
+      const llave = clave === undefined ? undefined : `${comprador.id}:${clave}`;
+      const cuerpo = JSON.stringify(entrada.renglones);
+      const previa = llave === undefined ? undefined : operaciones.get(llave);
+      if (previa) {
+        if (previa.cuerpo !== cuerpo)
+          throw new ApiError(
+            409,
+            "Esta solicitud ya se había enviado con otros datos.",
+            {},
+            "clave_idempotencia_reutilizada",
+          );
+        const existente = store.solicitudes.find((s) => s.id === previa.solicitudId);
+        if (existente) return lectura(existente, false) as Solicitud;
+      }
       const validada = esquemaSolicitudEntrada.safeParse(entrada);
       if (!validada.success) {
         const campos = Object.fromEntries(
@@ -94,6 +118,7 @@ export function crearSolicitud(entrada: SolicitudEntrada, usuario: SesionUsuario
         renglones,
       };
       store.solicitudes.push(solicitud);
+      if (llave !== undefined) operaciones.set(llave, { cuerpo, solicitudId: solicitud.id });
       return lectura(solicitud, false) as Solicitud;
     },
     undefined,

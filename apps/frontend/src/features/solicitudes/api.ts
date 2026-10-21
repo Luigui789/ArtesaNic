@@ -8,15 +8,32 @@ import { catalogoReal } from "@/features/catalogo/api";
 import type { Paginated } from "@/features/catalogo/types";
 import * as mock from "@/mocks/solicitudes";
 import * as http from "./http";
+import { crearIntentoIdempotente } from "./idempotencia";
 import type { Solicitud, SolicitudArtesano, SolicitudEntrada } from "./types";
 
 export const solicitudesReales = catalogoReal;
 
+/** `clave`: `Idempotency-Key` del intento; obtenerla con `crearIntentoDeEnvio`. */
 export function crearSolicitud(
   entrada: SolicitudEntrada,
   usuario: SesionUsuario | null,
+  clave: string,
 ): Promise<Solicitud> {
-  return solicitudesReales ? http.crearSolicitud(entrada) : mock.crearSolicitud(entrada, usuario);
+  return solicitudesReales
+    ? http.crearSolicitud(entrada, clave)
+    : mock.crearSolicitud(entrada, usuario, clave);
+}
+
+/**
+ * Un intento de envío por composición: misma clave mientras el cuerpo no cambie, para
+ * que un reintento no duplique la solicitud; clave nueva para una solicitud nueva.
+ */
+export function crearIntentoDeEnvio() {
+  const intento = crearIntentoIdempotente();
+  return {
+    clave: (entrada: SolicitudEntrada) => intento.clave(http.cuerpoSolicitud(entrada)),
+    completar: intento.completar,
+  };
 }
 
 export function listarSolicitudes(
