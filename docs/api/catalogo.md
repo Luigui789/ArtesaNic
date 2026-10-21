@@ -208,7 +208,7 @@ El **snapshot contractual pertenece al futuro dominio de pedidos** (AUD-05/AUD-0
 Por defecto sigue el simulado porque pedidos, solicitudes y mensajes todavía son simulados y resuelven productos de la demo por su identificador. Con `real`:
 
 - la gestión del artesano responde `401` hasta que exista la sesión real (AUD-18 registra el token con `configurarTokenDeAcceso`);
-- el botón *Solicitar pedido* queda deshabilitado;
+- el botón *Preparar solicitud* abre la composición de [solicitudes V1](solicitudes.md); su creación real exige Bearer y la sesión frontend sigue pendiente de AUD-18;
 - el perfil público del taller (`/artesano/{id}`) lee `GET /api/v1/talleres/{id}/` (`talleres/http.ts`), así que el `taller.id` del producto abre el taller real. Como la API pública no publica al responsable ni tiene fotografías del taller, la página no los muestra. El panel, los pedidos y los mensajes siguen usando los talleres simulados;
 - no hay fotografías (DR-01).
 
