@@ -48,6 +48,20 @@ export function reintentarSalvoErrorDelCliente(intentos: number, error: Error): 
   return !delCliente && intentos < 3;
 }
 
+/** DRF también devuelve errores anidados por renglón; conserva su posición y campo. */
+function camposDeError(cuerpo: unknown, prefijo = ""): Record<string, string[]> {
+  if (Array.isArray(cuerpo) && cuerpo.every((v) => typeof v === "string"))
+    return { [prefijo]: cuerpo };
+  if (cuerpo && typeof cuerpo === "object")
+    return Object.assign(
+      {},
+      ...Object.entries(cuerpo).map(([campo, valor]) =>
+        camposDeError(valor, prefijo ? `${prefijo}.${campo}` : campo),
+      ),
+    );
+  return cuerpo == null ? {} : { [prefijo]: [String(cuerpo)] };
+}
+
 async function aError(
   respuesta: Response,
   mensajes: Partial<Record<number, string>> = {},
@@ -63,12 +77,7 @@ async function aError(
       ? String((cuerpo as { detail: unknown }).detail)
       : undefined;
   if (respuesta.status === 400 && cuerpo && typeof cuerpo === "object" && !detalle) {
-    const campos = Object.fromEntries(
-      Object.entries(cuerpo as Record<string, unknown>).map(([campo, mensajes]) => [
-        campo,
-        Array.isArray(mensajes) ? mensajes.map(String) : [String(mensajes)],
-      ]),
-    );
+    const campos = camposDeError(cuerpo);
     const primero = Object.values(campos)[0]?.[0];
     return new ApiError(400, primero ?? "Revisa los datos enviados.", campos);
   }
