@@ -367,6 +367,51 @@ paths:
                 items:
                   $ref: '#/components/schemas/Categoria'
           description: ''
+  /api/v1/operaciones/{tipo}/{clave}/:
+    get:
+      operationId: consultar_operacion
+      description: 'Busca por actor autenticado, tipo y clave. Solo existen operaciones
+        completadas: una que falló o se revirtió no deja registro y responde 404,
+        igual que una ajena o inexistente. Una operación aún en curso en otra conexión
+        tampoco es visible: repetir la petición con la misma clave espera su resultado.'
+      summary: Consultar el resultado de una operación propia
+      parameters:
+      - in: path
+        name: clave
+        schema:
+          type: string
+        description: El mismo valor enviado en Idempotency-Key.
+        required: true
+      - in: path
+        name: tipo
+        schema:
+          type: string
+          enum:
+          - crear_solicitud
+        required: true
+      tags:
+      - Operaciones
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperacionIdempotente'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe, no se completó o pertenece a otro actor.
   /api/v1/productos/:
     get:
       operationId: listar_catalogo
@@ -1183,6 +1228,11 @@ components:
           type: string
       required:
       - detail
+    EstadoOperacionEnum:
+      enum:
+      - completada
+      type: string
+      description: '* `completada` - Completada'
     EstadoSolicitudEnum:
       enum:
       - pendiente_revision
@@ -1229,6 +1279,43 @@ components:
         * `stock` - Venta desde stock
         * `produccion` - Producción por cantidad
         * `personalizacion` - Personalización
+    OperacionIdempotente:
+      type: object
+      description: Resultado propio. Nunca expone la huella, la petición original
+        ni el actor.
+      properties:
+        tipo:
+          allOf:
+          - $ref: '#/components/schemas/TipoOperacionEnum'
+          readOnly: true
+        estado:
+          allOf:
+          - $ref: '#/components/schemas/EstadoOperacionEnum'
+          readOnly: true
+        recurso:
+          allOf:
+          - $ref: '#/components/schemas/RecursoOperacion'
+          readOnly: true
+        codigo_http:
+          type: integer
+          readOnly: true
+          description: Código de la respuesta original; una repetición devuelve el
+            mismo.
+        creado_en:
+          type: string
+          format: date-time
+          readOnly: true
+        completado_en:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - codigo_http
+      - completado_en
+      - creado_en
+      - estado
+      - recurso
+      - tipo
     OrigenPersonalizacionEnum:
       enum:
       - desde_cero
@@ -1658,6 +1745,19 @@ components:
       - categoria
       - id
       - nombre
+    RecursoOperacion:
+      type: object
+      properties:
+        tipo:
+          type: string
+          readOnly: true
+          description: Modelo resultante, p. ej. «solicitud».
+        id:
+          type: integer
+          readOnly: true
+      required:
+      - id
+      - tipo
     RegistroArtesanoRequest:
       type: object
       description: Cuenta del artesano más los datos iniciales de su taller.
@@ -2093,6 +2193,11 @@ components:
       required:
       - id
       - nombre
+    TipoOperacionEnum:
+      enum:
+      - crear_solicitud
+      type: string
+      description: '* `crear_solicitud` - Crear solicitud'
     TokenAcceso:
       type: object
       properties:

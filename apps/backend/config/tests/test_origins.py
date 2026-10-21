@@ -40,3 +40,13 @@ class OrigenesTests(AuthAPITestCase):
         # Token válido, pero enviado desde un sitio ajeno.
         desde_ajeno = self.post_con_csrf(URL_LOGIN, credenciales, HTTP_ORIGIN=AJENO)
         self.assertEqual(desde_ajeno.status_code, 403)
+
+    def test_frontend_puede_enviar_la_clave_y_leer_la_repeticion(self):
+        respuesta = self.client.options(
+            "/api/v1/solicitudes/",
+            HTTP_ORIGIN=FRONTEND,
+            HTTP_ACCESS_CONTROL_REQUEST_METHOD="POST",
+            HTTP_ACCESS_CONTROL_REQUEST_HEADERS="authorization,content-type,idempotency-key",
+        )
+        self.assertIn("idempotency-key", respuesta.headers["Access-Control-Allow-Headers"])
+        self.assertEqual(settings.CORS_EXPOSE_HEADERS, ["Idempotency-Replayed"])
