@@ -838,12 +838,27 @@ paths:
   /api/v1/solicitudes/:
     post:
       operationId: crear_solicitud
-      description: Comprador derivado del token; taller derivado de los productos
+      description: 'Comprador derivado del token; taller derivado de los productos
         publicados de un taller aprobado. Stock requiere cantidad; producción también
         fecha solicitada; personalización también características y origen. No confirma
-        pedido, congela precio ni reserva inventario. La protección servidor ante
-        reintentos queda para AUD-08.
+        pedido, congela precio ni reserva inventario. Protegida contra reintentos
+        (AUD-08): exige Idempotency-Key; repetir la misma clave y el mismo cuerpo
+        devuelve la solicitud ya creada con 201 e Idempotency-Replayed; la misma clave
+        con otro cuerpo responde 409. `Idempotency-Key` ausente o con formato inválido
+        responde `{"Idempotency-Key": ["..."]}`, antes de validar el cuerpo.'
       summary: Enviar una solicitud de un taller
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el resultado
+          original sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
       tags:
       - Solicitudes
       requestBody:
@@ -856,6 +871,15 @@ paths:
       - jwtAuth: []
       responses:
         '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: el cuerpo y el código son los mismos que en
+                la ejecución original.'
           content:
             application/json:
               schema:
@@ -881,6 +905,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Rol incorrecto, o taller del artesano no aprobado.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoIdempotencia'
+          description: '`clave_idempotencia_reutilizada`: la clave ya identifica otra
+            petición de este actor. No se ejecuta la operación.'
   /api/v1/solicitudes/mias/:
     get:
       operationId: listar_mis_solicitudes
@@ -1208,6 +1239,12 @@ components:
       - codigo
       - id
       - nombre
+    CodigoConflictoIdempotenciaEnum:
+      enum:
+      - clave_idempotencia_reutilizada
+      type: string
+      description: '* `clave_idempotencia_reutilizada` - Clave reutilizada con otra
+        petición'
     CompradorSolicitud:
       type: object
       properties:
@@ -1220,6 +1257,16 @@ components:
       required:
       - id
       - nombre
+    ConflictoIdempotencia:
+      type: object
+      properties:
+        detail:
+          type: string
+        codigo:
+          $ref: '#/components/schemas/CodigoConflictoIdempotenciaEnum'
+      required:
+      - codigo
+      - detail
     Error:
       type: object
       description: Forma de los errores que no son de validación de campos.

@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from drf_spectacular.utils import OpenApiResponse, extend_schema
-from rest_framework import exceptions, status
+from rest_framework import exceptions
 from rest_framework.generics import GenericAPIView
 from rest_framework.mixins import ListModelMixin
 from rest_framework.pagination import PageNumberPagination
@@ -11,6 +11,8 @@ from rest_framework.views import APIView
 
 from apps.accounts.api.permissions import EsComprador, EsPropietario
 from apps.accounts.api.serializers import ErrorSerializer
+from apps.operaciones import services as operaciones
+from apps.operaciones.api import contrato as idempotencia
 from apps.talleres.api.permissions import EsArtesanoAprobado
 
 from .. import selectors, services
@@ -58,22 +60,40 @@ class CrearSolicitudView(APIView):
         description="Comprador derivado del token; taller derivado de los productos publicados "
         "de un taller aprobado. Stock requiere cantidad; producción también fecha solicitada; "
         "personalización también características y origen. No confirma pedido, congela precio "
-        "ni reserva inventario. La protección servidor ante reintentos queda para AUD-08.",
+        "ni reserva inventario. Protegida contra reintentos (AUD-08): exige Idempotency-Key; "
+        "repetir la misma clave y el mismo cuerpo devuelve la solicitud ya creada con 201 e "
+        "Idempotency-Replayed; la misma clave con otro cuerpo responde 409. "
+        + idempotencia.CLAVE_INVALIDA,
         request=SolicitudEntradaSerializer,
-        responses={201: SolicitudCompradorSerializer, 400: ERROR_ENTRADA, **ERRORES},
+        parameters=[idempotencia.PARAMETRO_CLAVE, idempotencia.PARAMETRO_REPETIDA],
+        responses={
+            201: SolicitudCompradorSerializer,
+            400: ERROR_ENTRADA,
+            **ERRORES,
+            409: idempotencia.CONFLICTO,
+        },
     )
     def post(self, request):
+        clave = idempotencia.clave_de_peticion(request)
         entrada = SolicitudEntradaSerializer(data=request.data)
         entrada.is_valid(raise_exception=True)
         try:
-            solicitud = services.crear_solicitud(comprador=request.user, **entrada.validated_data)
+            resultado = services.crear_solicitud_idempotente(
+                comprador=request.user, clave=clave, **entrada.validated_data
+            )
         except services.SolicitudInvalida as exc:
             raise exceptions.ValidationError(exc.errores) from None
         except services.CompradorNoValido:
             raise exceptions.PermissionDenied() from None
-        solicitud = selectors.solicitudes_con_renglones().get(pk=solicitud.pk)
-        return Response(
-            SolicitudCompradorSerializer(solicitud).data, status=status.HTTP_201_CREATED
+        except operaciones.ClaveIdempotenciaReutilizada:
+            raise idempotencia.ClaveReutilizada() from None
+        solicitud = (
+            selectors.solicitudes_con_renglones()
+            .del_comprador(request.user)
+            .get(pk=resultado.operacion.recurso_id)
+        )
+        return idempotencia.respuesta_idempotente(
+            resultado, SolicitudCompradorSerializer(solicitud).data
         )
 
 

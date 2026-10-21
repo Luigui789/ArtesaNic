@@ -1,10 +1,12 @@
-"""Alta transaccional. AUD-06 resuelve; AUD-07 confirma; AUD-08 protege reintentos."""
+"""Alta transaccional protegida contra reintentos (AUD-08). AUD-06 resuelve; AUD-07 confirma."""
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.accounts.models import Rol
 from apps.catalogo.models import Producto
+from apps.operaciones import services as operaciones
+from apps.operaciones.models import TipoOperacion
 
 from .models import RenglonSolicitud, Solicitud
 
@@ -93,3 +95,20 @@ def crear_solicitud(*, comprador, renglones: list[dict]) -> Solicitud:
         fila.solicitud = solicitud
     RenglonSolicitud.objects.bulk_create(filas)
     return solicitud
+
+
+def crear_solicitud_idempotente(
+    *, comprador, clave: str, renglones: list[dict]
+) -> operaciones.ResultadoIdempotente:
+    """Protege ``crear_solicitud`` (RF-009.7) sin duplicar ninguna de sus validaciones.
+
+    La huella cubre solo el contrato de entrada: los renglones normalizados, en orden.
+    Comprador y taller no forman parte de ella: proceden del token y de los productos.
+    """
+    return operaciones.ejecutar_idempotente(
+        actor=comprador,
+        tipo=TipoOperacion.CREAR_SOLICITUD,
+        clave=clave,
+        datos={"renglones": renglones},
+        operacion=lambda: crear_solicitud(comprador=comprador, renglones=renglones),
+    )

@@ -9,6 +9,7 @@ from datetime import timedelta
 from http.cookiejar import CookieJar
 from urllib.error import HTTPError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
+from uuid import uuid4
 
 from django.apps import apps
 from django.test import LiveServerTestCase, override_settings
@@ -47,6 +48,8 @@ class SmokeSolicitudesTests(LiveServerTestCase):
 
         def peticion(ruta, *, datos=None, token=None, csrf=None):
             cabeceras = {"Accept": "application/json"}
+            if ruta == "/api/v1/solicitudes/":
+                cabeceras["Idempotency-Key"] = str(uuid4())  # cada envío es nuevo (AUD-08)
             if token:
                 cabeceras["Authorization"] = f"Bearer {token}"
             if csrf:
