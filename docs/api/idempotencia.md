@@ -13,11 +13,21 @@ por operación deliberada y la repite en cada reintento de esa misma operación.
 | Clave | Cuerpo | Resultado |
 |---|---|---|
 | nueva | cualquiera | se ejecuta la operación |
-| ya usada por el mismo actor y tipo | igual (huella idéntica) | se devuelve el resultado original; no se ejecuta otra vez |
+| ya usada por el mismo actor y tipo | igual (huella idéntica) | misma operación lógica: no se ejecuta otra vez; se devuelve el mismo recurso con el código registrado |
 | ya usada por el mismo actor y tipo | distinto | `409 clave_idempotencia_reutilizada`; no se ejecuta |
 | distinta | igual | **otra operación válida**: no se deduplica por contenido |
 
 No existen heurísticas por comprador, producto, tiempo, total ni JSON idéntico.
+
+## Semántica del replay
+
+Un replay devuelve el resultado de la misma operación lógica sin ejecutar nuevamente la
+mutación. Se conserva la referencia al mismo recurso y el código HTTP registrado, y la
+respuesta lleva `Idempotency-Replayed: true`. La representación del recurso se reconstruye
+desde su estado persistido actual; AUD-08 no almacena un snapshot histórico del cuerpo
+HTTP. La idempotencia garantiza no duplicar efectos, no congelar la representación: si
+una etapa posterior modifica legítimamente el recurso (por ejemplo, la revisión de
+renglones de AUD-06), un replay muestra ese estado actual.
 
 ## Cabecera `Idempotency-Key`
 
@@ -54,9 +64,11 @@ Idempotency-Key: 3f6d2c1e-8a4b-4c7d-9e0f-1a2b3c4d5e6f
 
 `201` con la solicitud `{"id": 42, ...}`.
 
-**2. Reintento con la misma clave y el mismo cuerpo** → `201`, mismo cuerpo
-(`"id": 42`) y cabecera `Idempotency-Replayed: true`. No se crea otra solicitud ni se
-revalida el catálogo: un producto despublicado después no altera la repetición.
+**2. Reintento con la misma clave y el mismo cuerpo** → `201` (código registrado), la
+misma solicitud (`"id": 42`) y cabecera `Idempotency-Replayed: true`. No se crea otra
+solicitud ni se revalida el catálogo: un producto despublicado después no altera la
+repetición. El cuerpo es la representación actual de la solicitud 42; no tiene por qué
+coincidir campo por campo con la primera respuesta si la solicitud cambió después.
 
 **3. Misma clave, otro cuerpo**
 

@@ -854,8 +854,8 @@ paths:
           type: string
           pattern: ^[A-Za-z0-9._:~-]{16,128}$
         description: 'Clave generada por el cliente para este intento lógico (se recomienda
-          un UUID v4). Reenviar la misma clave con la misma petición devuelve el resultado
-          original sin repetir la operación; con otra petición responde 409. Claves
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
           distintas son operaciones distintas aunque el contenido coincida. Ámbito:
           actor autenticado y tipo de operación. 16–128 caracteres.'
         required: true
@@ -878,8 +878,9 @@ paths:
                 enum:
                 - 'true'
               description: 'Presente con «true» cuando la respuesta repite una ejecución
-                anterior. Informativo: el cuerpo y el código son los mismos que en
-                la ejecución original.'
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
           content:
             application/json:
               schema:

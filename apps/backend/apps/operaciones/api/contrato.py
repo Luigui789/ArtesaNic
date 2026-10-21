@@ -37,7 +37,7 @@ PARAMETRO_CLAVE = OpenApiParameter(
     pattern=PATRON_CLAVE,
     description=(
         "Clave generada por el cliente para este intento lógico (se recomienda un UUID v4). "
-        "Reenviar la misma clave con la misma petición devuelve el resultado original sin "
+        "Reenviar la misma clave con la misma petición devuelve el mismo recurso sin "
         "repetir la operación; con otra petición responde 409. Claves distintas son "
         "operaciones distintas aunque el contenido coincida. Ámbito: actor autenticado y "
         f"tipo de operación. {MIN_CLAVE}–{MAX_CLAVE} caracteres."
@@ -50,7 +50,8 @@ PARAMETRO_REPETIDA = OpenApiParameter(
     enum=["true"],
     response=[201],
     description="Presente con «true» cuando la respuesta repite una ejecución anterior. "
-    "Informativo: el cuerpo y el código son los mismos que en la ejecución original.",
+    "Informativo: mismo recurso y código registrado; el cuerpo refleja el estado actual del "
+    "recurso, no un snapshot de la primera respuesta.",
 )
 CONFLICTO = OpenApiResponse(
     ConflictoIdempotenciaSerializer,
@@ -79,7 +80,10 @@ def clave_de_peticion(request) -> str:
 
 
 def respuesta_idempotente(resultado: ResultadoIdempotente, datos) -> Response:
-    """Mismo código que la ejecución original; la repetición se marca en una cabecera."""
+    """Código registrado de la operación; la repetición se marca en una cabecera.
+
+    ``datos`` es la representación actual del recurso: no se guarda el cuerpo original.
+    """
     respuesta = Response(datos, status=resultado.operacion.codigo_http)
     if resultado.repetida:
         respuesta[CABECERA_REPETIDA] = "true"
