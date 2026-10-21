@@ -1,3 +1,4 @@
+/** Formulario legacy de la demo anterior; la ruta activa usa features/solicitudes. */
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";

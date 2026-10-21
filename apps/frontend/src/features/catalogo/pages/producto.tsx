@@ -149,28 +149,15 @@ export default function DetalleProducto() {
             </div>
 
             <div className="mt-8">
-              {catalogoReal ? (
-                // Las solicitudes todavía son simuladas y no conocen los productos de Django.
-                <>
-                  <Button size="lg" disabled aria-describedby="sin-solicitudes">
-                    Solicitar pedido
-                  </Button>
-                  <p id="sin-solicitudes" className="mt-2 text-sm">
-                    Las solicitudes de pedido todavía no están conectadas con este catálogo.
-                  </p>
-                </>
-              ) : (
-                // La solicitud simulada comprueba las unidades disponibles del inventario.
-                <Button asChild size="lg" className="w-full touch-target text-base sm:w-auto">
-                  <Link to={`/solicitar/${p.id}`}>
-                    Solicitar pedido
-                    <ArrowRight className="size-5" aria-hidden="true" />
-                  </Link>
-                </Button>
-              )}
+              <Button asChild size="lg" className="w-full touch-target text-base sm:w-auto">
+                <Link to={`/solicitar/${p.id}`}>
+                  Preparar solicitud
+                  <ArrowRight className="size-5" aria-hidden="true" />
+                </Link>
+              </Button>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                Enviarás una solicitud al taller. El artesano la revisa y, si la acepta, coordinan
-                el pago y la entrega.
+                El taller revisará cada renglón. Confirmar una propuesta y coordinar pago y entrega
+                son etapas posteriores.
               </p>
             </div>
 

@@ -13,7 +13,8 @@ import Auth from "@/features/auth/pages/acceso";
 import Catalogo from "@/features/catalogo/pages/catalogo";
 import Producto from "@/features/catalogo/pages/producto";
 import Artesano from "@/features/talleres/pages/artesano";
-import Solicitar from "@/features/pedidos/pages/solicitar";
+import Solicitar from "@/features/solicitudes/pages/preparar";
+import { ListadoSolicitudes, DetalleSolicitud } from "@/features/solicitudes/pages/consultas";
 import PedidosIndex from "@/features/pedidos/pages/pedidos";
 import PedidosDetalle from "@/features/pedidos/pages/pedido-detalle";
 import Mensajes from "@/features/mensajes/pages/mensajes";
@@ -41,6 +42,11 @@ export function App() {
                   <Route path="/producto/:id" element={<Producto />} />
                   <Route path="/artesano/:id" element={<Artesano />} />
                   <Route path="/solicitar/:productId" element={<Solicitar />} />
+                  <Route path="/solicitudes/nueva" element={<Solicitar />} />
+                  <Route path="/solicitudes" element={<ListadoSolicitudes />} />
+                  <Route path="/solicitudes/:id" element={<DetalleSolicitud />} />
+                  <Route path="/panel/solicitudes" element={<ListadoSolicitudes recibidas />} />
+                  <Route path="/panel/solicitudes/:id" element={<DetalleSolicitud recibidas />} />
                   <Route path="/pedidos" element={<PedidosIndex />} />
                   <Route path="/pedidos/:id" element={<PedidosDetalle />} />
                   <Route path="/mensajes" element={<Mensajes />} />
