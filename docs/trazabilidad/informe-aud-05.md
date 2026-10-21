@@ -117,8 +117,8 @@ explícita del usuario en su navegador.
 | `uv run ruff check .` / `ruff format --check .` | OK |
 | Django check / makemigrations check | OK; sin cambios de modelos pendientes |
 | `uv run python manage.py migrate --noinput` | OK; esquema aplicado, sin migraciones pendientes |
-| `uv run python manage.py test --noinput` | **358 tests OK**; base anterior 245 + 113 nuevos |
-| Nuevos tests backend | Creación40, modelo25, lectura/permisos/performance32, esquema15, smoke1 |
+| `uv run python manage.py test --noinput` | **362 tests OK**; base anterior 245 + 117 nuevos |
+| Nuevos tests backend | Creación44, modelo25, lectura/permisos/performance32, esquema15, smoke1 |
 | Frontend: `pnpm install --frozen-lockfile` | OK; dependencias conservadas |
 | `pnpm lint` | OK, 0 errores; 9 warnings previos de Fast Refresh |
 | `pnpm typecheck` | OK |
