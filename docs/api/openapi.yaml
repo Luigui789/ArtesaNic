@@ -790,6 +790,222 @@ paths:
               schema:
                 $ref: '#/components/schemas/Salud'
           description: ''
+  /api/v1/solicitudes/:
+    post:
+      operationId: crear_solicitud
+      description: Comprador derivado del token; taller derivado de los productos
+        publicados de un taller aprobado. Stock requiere cantidad; producción también
+        fecha solicitada; personalización también características y origen. No confirma
+        pedido, congela precio ni reserva inventario. La protección servidor ante
+        reintentos queda para AUD-08.
+      summary: Enviar una solicitud de un taller
+      tags:
+      - Solicitudes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SolicitudEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SolicitudComprador'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+  /api/v1/solicitudes/mias/:
+    get:
+      operationId: listar_mis_solicitudes
+      summary: Listar las solicitudes propias
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      tags:
+      - Solicitudes
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSolicitudCompradorList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/solicitudes/mias/{solicitud_id}/:
+    get:
+      operationId: consultar_mi_solicitud
+      summary: Consultar una solicitud propia
+      parameters:
+      - in: path
+        name: solicitud_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Solicitudes
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SolicitudComprador'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/solicitudes/recibidas/:
+    get:
+      operationId: listar_solicitudes_recibidas
+      summary: Listar solicitudes del taller propio aprobado
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      tags:
+      - Solicitudes
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedSolicitudArtesanoList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/solicitudes/recibidas/{solicitud_id}/:
+    get:
+      operationId: consultar_solicitud_recibida
+      summary: Consultar una solicitud destinada al taller propio
+      parameters:
+      - in: path
+        name: solicitud_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Solicitudes
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SolicitudArtesano'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
   /api/v1/talleres/:
     get:
       operationId: listar_talleres
@@ -925,6 +1141,9 @@ paths:
           description: Esta cuenta no tiene un taller registrado.
 components:
   schemas:
+    BlankEnum:
+      enum:
+      - ''
     Categoria:
       type: object
       properties:
@@ -944,6 +1163,18 @@ components:
       - codigo
       - id
       - nombre
+    CompradorSolicitud:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          readOnly: true
+      required:
+      - id
+      - nombre
     Error:
       type: object
       description: Forma de los errores que no son de validación de campos.
@@ -952,6 +1183,14 @@ components:
           type: string
       required:
       - detail
+    EstadoSolicitudEnum:
+      enum:
+      - pendiente_revision
+      - rechazada
+      type: string
+      description: |-
+        * `pendiente_revision` - Pendiente de revisión
+        * `rechazada` - Rechazada
     EstadoTallerEnum:
       enum:
       - pendiente
@@ -990,6 +1229,14 @@ components:
         * `stock` - Venta desde stock
         * `produccion` - Producción por cantidad
         * `personalizacion` - Personalización
+    OrigenPersonalizacionEnum:
+      enum:
+      - desde_cero
+      - unidad_estandar
+      type: string
+      description: |-
+        * `desde_cero` - Fabricación desde cero
+        * `unidad_estandar` - Unidad estándar como base
     PaginatedProductoPropioList:
       type: object
       required:
@@ -1040,6 +1287,56 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ProductoPublico'
+    PaginatedSolicitudArtesanoList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SolicitudArtesano'
+    PaginatedSolicitudCompradorList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SolicitudComprador'
     PatchedPerfilTallerEntradaRequest:
       type: object
       description: |-
@@ -1343,6 +1640,24 @@ components:
       - nombre
       - precio
       - taller
+    ProductoSolicitud:
+      type: object
+      description: Referencia al catálogo vigente, sin precio ni snapshot contractual.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          readOnly: true
+        categoria:
+          allOf:
+          - $ref: '#/components/schemas/Categoria'
+          readOnly: true
+      required:
+      - categoria
+      - id
+      - nombre
     RegistroArtesanoRequest:
       type: object
       description: Cuenta del artesano más los datos iniciales de su taller.
@@ -1400,6 +1715,106 @@ components:
       - nombre
       - password
       - telefono
+    RenglonSolicitud:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        posicion:
+          type: integer
+          readOnly: true
+        producto:
+          allOf:
+          - $ref: '#/components/schemas/ProductoSolicitud'
+          readOnly: true
+        modalidad:
+          allOf:
+          - $ref: '#/components/schemas/ModalidadEnum'
+          readOnly: true
+        cantidad:
+          type: integer
+          readOnly: true
+        fecha_solicitada:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        caracteristicas:
+          type: string
+          readOnly: true
+        origen_personalizacion:
+          readOnly: true
+          oneOf:
+          - $ref: '#/components/schemas/OrigenPersonalizacionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        resolucion:
+          allOf:
+          - $ref: '#/components/schemas/ResolucionRenglonEnum'
+          readOnly: true
+        motivo_rechazo:
+          type: string
+          readOnly: true
+      required:
+      - cantidad
+      - caracteristicas
+      - fecha_solicitada
+      - id
+      - modalidad
+      - motivo_rechazo
+      - origen_personalizacion
+      - posicion
+      - producto
+      - resolucion
+    RenglonSolicitudEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        producto:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 1
+          format: int64
+        modalidad:
+          $ref: '#/components/schemas/ModalidadEnum'
+        cantidad:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        fecha_solicitada:
+          type: string
+          format: date
+          description: Obligatoria solo en producción; hoy o una fecha futura.
+        caracteristicas:
+          type: string
+          minLength: 1
+          description: Texto libre obligatorio solo en personalización.
+        origen_personalizacion:
+          allOf:
+          - $ref: '#/components/schemas/OrigenPersonalizacionEnum'
+          description: |-
+            Obligatorio solo en personalización; no reserva una unidad estándar.
+
+            * `desde_cero` - Fabricación desde cero
+            * `unidad_estandar` - Unidad estándar como base
+      required:
+      - cantidad
+      - modalidad
+      - producto
+    ResolucionRenglonEnum:
+      enum:
+      - pendiente
+      - aceptado
+      - rechazado
+      type: string
+      description: |-
+        * `pendiente` - Pendiente
+        * `aceptado` - Aceptado
+        * `rechazado` - Rechazado
     RolEnum:
       enum:
       - comprador
@@ -1427,6 +1842,96 @@ components:
       required:
       - access
       - usuario
+    SolicitudArtesano:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        taller:
+          allOf:
+          - $ref: '#/components/schemas/TallerResumen'
+          readOnly: true
+        estado:
+          allOf:
+          - $ref: '#/components/schemas/EstadoSolicitudEnum'
+          readOnly: true
+        creado_en:
+          type: string
+          format: date-time
+          readOnly: true
+        actualizado_en:
+          type: string
+          format: date-time
+          readOnly: true
+        renglones:
+          type: array
+          items:
+            $ref: '#/components/schemas/RenglonSolicitud'
+          readOnly: true
+        comprador:
+          allOf:
+          - $ref: '#/components/schemas/CompradorSolicitud'
+          readOnly: true
+      required:
+      - actualizado_en
+      - comprador
+      - creado_en
+      - estado
+      - id
+      - renglones
+      - taller
+    SolicitudComprador:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        taller:
+          allOf:
+          - $ref: '#/components/schemas/TallerResumen'
+          readOnly: true
+        estado:
+          allOf:
+          - $ref: '#/components/schemas/EstadoSolicitudEnum'
+          readOnly: true
+        creado_en:
+          type: string
+          format: date-time
+          readOnly: true
+        actualizado_en:
+          type: string
+          format: date-time
+          readOnly: true
+        renglones:
+          type: array
+          items:
+            $ref: '#/components/schemas/RenglonSolicitud'
+          readOnly: true
+      required:
+      - actualizado_en
+      - creado_en
+      - estado
+      - id
+      - renglones
+      - taller
+    SolicitudEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        renglones:
+          type: array
+          items:
+            $ref: '#/components/schemas/RenglonSolicitudEntradaRequest'
+          description: Uno o varios renglones de un único taller; se conservan orden
+            y repeticiones.
+          minItems: 1
+      required:
+      - renglones
     TallerPropio:
       type: object
       description: 'Taller del artesano autenticado: el perfil y el resultado de su
