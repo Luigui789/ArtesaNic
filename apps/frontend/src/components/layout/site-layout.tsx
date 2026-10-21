@@ -40,12 +40,14 @@ const NAV: Record<Role, { to: string; label: string; end?: boolean }[]> = {
   comprador: [
     { to: "/", label: "Inicio", end: true },
     { to: "/catalogo", label: "Catálogo" },
-    { to: "/pedidos", label: "Mis pedidos" },
+    { to: "/solicitudes", label: "Solicitudes" },
+    { to: "/pedidos", label: "Pedidos (demo)" },
     { to: "/mensajes", label: "Mensajes" },
   ],
   artesano: [
     { to: "/panel", label: "Panel", end: true },
-    { to: "/panel/pedidos", label: "Pedidos" },
+    { to: "/panel/solicitudes", label: "Solicitudes" },
+    { to: "/panel/pedidos", label: "Pedidos (demo)" },
     { to: "/panel/productos", label: "Mis productos" },
     { to: "/panel/perfil", label: "Perfil del taller" },
     { to: "/mensajes", label: "Mensajes" },
@@ -363,10 +365,24 @@ function AvisoPersistencia() {
 }
 
 export function SiteLayout({ children }: { children: ReactNode }) {
+  const { pathname } = useLocation();
+  const pedidosLegacy = pathname.startsWith("/pedidos") || pathname.startsWith("/panel/pedidos");
   return (
     <div className="flex min-h-screen flex-col">
       <Header />
       <AvisoPersistencia />
+      {pedidosLegacy ? (
+        <p className="border-b px-4 py-3 text-center text-sm">
+          Demo comercial anterior: sus pedidos, pagos y entregas están separados de las solicitudes
+          V1.{" "}
+          <Link
+            className="underline"
+            to={pathname.startsWith("/panel/") ? "/panel/solicitudes" : "/solicitudes"}
+          >
+            Ver solicitudes V1
+          </Link>
+        </p>
+      ) : null}
       <main className="flex-1">{children}</main>
       <Footer />
     </div>

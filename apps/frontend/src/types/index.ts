@@ -233,6 +233,7 @@ export interface Message {
   fecha: string;
 }
 
+/** LEGACY/DEMO: no representa Solicitud V1, Propuesta ni Pedido confirmado del backend. */
 export interface Order {
   id: number;
   /** Código de negocio visible ("PM-1009"), no un identificador. */

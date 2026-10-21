@@ -64,6 +64,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.talleres",
     "apps.catalogo",
+    "apps.solicitudes",
 ]
 
 MIDDLEWARE = [
@@ -212,5 +213,8 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "EstadoTallerEnum": "apps.talleres.models.EstadoTaller",
         "ModalidadEnum": "apps.catalogo.models.Modalidad",
+        "EstadoSolicitudEnum": "apps.solicitudes.models.EstadoSolicitud",
+        "ResolucionRenglonEnum": "apps.solicitudes.models.ResolucionRenglon",
+        "OrigenPersonalizacionEnum": "apps.solicitudes.models.OrigenPersonalizacion",
     },
 }

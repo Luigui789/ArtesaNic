@@ -19,6 +19,11 @@ import {
   TALLER_DEMO_ID,
 } from "./seed";
 import { borrarInstantanea, guardarInstantanea, leerInstantanea } from "./persistence";
+import type { SolicitudArtesano } from "@/features/solicitudes/types";
+
+export interface SolicitudDemo extends SolicitudArtesano {
+  compradorId: number;
+}
 
 const categories = buildCategories();
 const artisans = buildArtisans(categories);
@@ -27,7 +32,16 @@ const { orders, receiptFiles } = buildOrders(products);
 const messages = buildMessages();
 const movements = applyScenarioUnits(products, orders);
 
-export let store = { categories, artisans, products, orders, messages, receiptFiles, movements };
+export let store = {
+  categories,
+  artisans,
+  products,
+  orders,
+  messages,
+  receiptFiles,
+  movements,
+  solicitudes: [] as SolicitudDemo[],
+};
 const initial = structuredClone(store);
 /**
  * Estado de la persistencia de la demo. Si había datos guardados que no se

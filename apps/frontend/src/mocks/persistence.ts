@@ -19,7 +19,7 @@ const CLAVE = "instantanea";
  * Versión de la forma del estado. Si el modelo cambia, una instantánea antigua
  * se descarta en lugar de cargarse con campos que ya no existen.
  */
-export const VERSION_INSTANTANEA = 3;
+export const VERSION_INSTANTANEA = 4;
 
 interface Instantanea<T> {
   version: number;

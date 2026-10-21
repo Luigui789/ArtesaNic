@@ -13,7 +13,7 @@ En el frontend, cada dominio tiene su carpeta en `apps/frontend/src/features/`; 
 
 Frontend: pnpm y `apps/frontend/pnpm-lock.yaml`. Backend: uv, `apps/backend/pyproject.toml` y `apps/backend/uv.lock`. Instalar con `--frozen-lockfile` y `--locked`; no generar locks paralelos ni actualizar versiones mayores por reorganizar carpetas.
 
-Los flujos del frontend siguen con mocks. En esta fase la única comunicación real añadida es la comprobación de salud mediante el proxy de Vite. Nuevos RF e integración de negocio requieren una fase posterior.
+La sesión del frontend sigue simulada (AUD-18 pendiente). Catálogo y solicitudes V1 comparten `VITE_CATALOGO_API`: demo por defecto, cliente HTTP real opcional. Los pedidos, pagos e inventario legacy siguen en la demo; no son contratos del nuevo flujo. Ver [solicitudes](docs/api/solicitudes.md) y [fronteras de fase](docs/decisiones/v1.md).
 
 ## Validación de un cambio
 

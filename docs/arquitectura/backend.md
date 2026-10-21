@@ -12,11 +12,17 @@ Back-Artesanic/
 │   │   ├── local.py            Desarrollo: DEBUG, orígenes de Vite y cookies sin Secure
 │   │   └── test.py             Pruebas: hash de contraseñas rápido
 │   ├── urls.py                 /admin/, /api/v1/salud/, /api/v1/auth/, /api/v1/talleres/,
-│   │                           /api/v1/categorias/, /api/v1/productos/
+│   │                           /api/v1/categorias/, /api/v1/productos/, /api/v1/solicitudes/
 │   ├── health.py               Sonda de disponibilidad (RNF-006)
 │   ├── wsgi.py, asgi.py
 │   └── tests/                  Salud, orígenes (CORS y CSRF) y esquema OpenAPI
 ├── apps/
+│   ├── solicitudes/            Solicitud y RenglonSolicitud (AUD-05), sin propuesta/pedido confirmado
+│   │   ├── models.py           Modalidad por renglón; resolución estructural y restricciones
+│   │   ├── services.py         Creación transaccional de un solo taller; identidad del token
+│   │   ├── selectors.py        Ownership en SQL y carga relacionada sin N+1
+│   │   ├── api/               Creación comprador y lecturas de las partes; sin acciones de revisión
+│   │   └── tests/             Modalidades, atomicidad, constraints, permisos, schema y consultas
 │   ├── catalogo/               Categorías y productos con modalidades V1 (RF-001, RF-003, RF-017, RF-019; AUD-04)
 │   │   ├── models.py           Categoria, Producto, Modalidad y sus restricciones (al menos una modalidad)
 │   │   ├── services.py         Alta, edición, publicar y despublicar; exige taller aprobado
@@ -97,6 +103,7 @@ Las reglas tienen un único lugar: la normalización del teléfono está en `pho
 |---|---|
 | `apps/talleres/` (AUD-02, implementada) | Perfil del taller (RF-008) vinculado a la cuenta de artesano; aprobación (RF-013) en Django Admin. El alta ocurre en el registro del artesano; estados y rubro según D-AUD02-01 a 03 ([talleres](../api/talleres.md#4-decisiones-aplicadas-en-aud-02)). |
 | `apps/catalogo/` (AUD-04, implementada salvo imagen) | Categorías, productos con modalidades combinables, publicación y catálogo público paginado ([catálogo](../api/catalogo.md)). Pendiente: fotografía principal (DR-01) y moderación administrativa con actor y motivo (AUD-14). Las unidades estándar e inventario (RF-022) serán un dominio aparte. |
+| `apps/solicitudes/` (AUD-05) | [Solicitudes y renglones](../api/solicitudes.md), creación atómica y lectura de las partes. Estado inicial `pendiente_revision`, terminal `rechazada` preparado según [DR-03](../decisiones/v1.md#dr-03--solicitud-sin-renglones-aceptados). Propuesta y revisión real en AUD-06; pedido confirmado, congelación y reservas en AUD-07; idempotencia en AUD-08. |
 | `apps/accounts/api/serializers.py` | Añadir `artesano_id` y `artesano_estado` al perfil cuando exista el taller. |
 | `apps/talleres/api/permissions.py` | `EsArtesanoAprobado` (implementado): toda función operativa del artesano lo exige; los modelos con dueño implementan `pertenece_a(usuario)`. |
 | `config/settings/base.py` | Almacenamiento de archivos: imágenes públicas del catálogo separadas de los comprobantes privados, que llegarán con los pagos. |

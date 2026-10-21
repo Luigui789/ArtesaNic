@@ -1,3 +1,4 @@
+/** Contratos legacy/demo; Solicitud V1 vive en features/solicitudes. */
 import type { Order, OrderOption } from "@/types";
 
 export interface OrderRequestInput {
