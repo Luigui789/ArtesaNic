@@ -155,6 +155,7 @@ class SmokeSolicitudesTests(LiveServerTestCase):
             {
                 "Solicitud",
                 "RenglonSolicitud",
+                "RevisionRenglonSolicitud",
             },
         )
         for clave in ("pedido", "propuesta", "reserva", "movimientos", "pagos", "chat", "total"):

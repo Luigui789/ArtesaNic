@@ -16,7 +16,9 @@ from apps.operaciones.api import contrato as idempotencia
 from apps.talleres.api.permissions import EsArtesanoAprobado
 
 from .. import selectors, services
+from .conflictos import errores_de_dominio, respuesta_conflicto
 from .serializers import (
+    ResolucionEntradaSerializer,
     SolicitudArtesanoSerializer,
     SolicitudCompradorSerializer,
     SolicitudEntradaSerializer,
@@ -59,11 +61,12 @@ class CrearSolicitudView(APIView):
         summary="Enviar una solicitud de un taller",
         description="Comprador derivado del token; taller derivado de los productos publicados "
         "de un taller aprobado. Stock requiere cantidad; producción también fecha solicitada; "
-        "personalización también características y origen. No confirma pedido, congela precio "
+        "personalización también características y origen. Preferencia de entrega opcional "
+        "(RF-016); «otra» exige descripción. No confirma pedido, congela precio "
         "ni reserva inventario. Protegida contra reintentos (AUD-08): exige Idempotency-Key; "
         "repetir la misma clave y el mismo cuerpo devuelve la solicitud ya creada con 201 e "
-        "Idempotency-Replayed; la misma clave con otro cuerpo responde 409. "
-        + idempotencia.CLAVE_INVALIDA,
+        "Idempotency-Replayed; la misma clave con otro cuerpo (incluida otra preferencia de "
+        "entrega) responde 409. " + idempotencia.CLAVE_INVALIDA,
         request=SolicitudEntradaSerializer,
         parameters=[idempotencia.PARAMETRO_CLAVE, idempotencia.PARAMETRO_REPETIDA],
         responses={
@@ -178,3 +181,52 @@ class SolicitudRecibidaView(_DetalleView):
     )
     def get(self, request, solicitud_id: int):
         return super().get(request, solicitud_id)
+
+
+@method_decorator(never_cache, name="dispatch")
+class ResolverRenglonView(APIView):
+    permission_classes = [EsArtesanoAprobado]
+
+    @extend_schema(
+        tags=[TAG],
+        operation_id="resolver_renglon",
+        summary="Aceptar o rechazar un renglón de una solicitud recibida",
+        description="Resolución final e individual (RF-005, RN-008): pendiente → aceptado | "
+        "rechazado. Rechazar exige motivo no vacío; aceptar no lo admite. No modifica "
+        "cantidad, producto, modalidad ni fechas: no hay contraofertas. Registra historial "
+        "con revisor y fecha. Al resolver el último renglón, la solicitud pasa a "
+        "lista_propuesta si hay alguno aceptado, o a rechazada (DR-03) si todos se "
+        "rechazaron. Una resolución no se invierte ni se repite con otra clave (409 "
+        "renglon_ya_resuelto). Protegida contra reintentos (AUD-08): la huella incluye "
+        "solicitud, renglón, resolución y motivo. Responde la solicitud actualizada. "
+        + idempotencia.CLAVE_INVALIDA,
+        request=ResolucionEntradaSerializer,
+        parameters=[idempotencia.PARAMETRO_CLAVE, idempotencia.parametro_repetida(200)],
+        responses={
+            200: SolicitudArtesanoSerializer,
+            400: ERROR_ENTRADA,
+            **ERRORES,
+            404: NO_ENCONTRADO,
+            409: respuesta_conflicto(services.CodigoConflicto.RENGLON_YA_RESUELTO),
+        },
+    )
+    def post(self, request, solicitud_id: int, renglon_id: int):
+        clave = idempotencia.clave_de_peticion(request)
+        entrada = ResolucionEntradaSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        with errores_de_dominio():
+            resultado = services.resolver_renglon_idempotente(
+                artesano=request.user,
+                clave=clave,
+                solicitud_id=solicitud_id,
+                renglon_id=renglon_id,
+                **entrada.validated_data,
+            )
+        solicitud = (
+            selectors.solicitudes_con_renglones()
+            .del_taller(request.user.taller)
+            .get(pk=solicitud_id)
+        )
+        return idempotencia.respuesta_idempotente(
+            resultado, SolicitudArtesanoSerializer(solicitud).data
+        )

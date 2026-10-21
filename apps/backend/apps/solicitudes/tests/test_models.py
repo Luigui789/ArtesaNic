@@ -174,7 +174,8 @@ class ModeloTests(SolicitudesAPITestCase):
 
     def test_dominio_solo_persiste_solicitud_y_renglon(self):
         modelos = {m.__name__ for m in apps.get_app_config("solicitudes").get_models()}
-        self.assertEqual(modelos, {"Solicitud", "RenglonSolicitud"})
+        # La propuesta es una entidad aparte (apps.propuestas); el pedido, de AUD-07.
+        self.assertEqual(modelos, {"Solicitud", "RenglonSolicitud", "RevisionRenglonSolicitud"})
 
     def test_crear_no_produce_efectos_en_otros_dominios(self):
         modelos = [

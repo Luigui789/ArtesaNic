@@ -4,6 +4,7 @@ from .views import (
     CrearSolicitudView,
     MiSolicitudView,
     MisSolicitudesView,
+    ResolverRenglonView,
     SolicitudesRecibidasView,
     SolicitudRecibidaView,
 )
@@ -15,5 +16,10 @@ urlpatterns = [
     path("recibidas/", SolicitudesRecibidasView.as_view(), name="solicitudes-recibidas"),
     path(
         "recibidas/<int:solicitud_id>/", SolicitudRecibidaView.as_view(), name="solicitud-recibida"
+    ),
+    path(
+        "recibidas/<int:solicitud_id>/renglones/<int:renglon_id>/resolver/",
+        ResolverRenglonView.as_view(),
+        name="resolver-renglon",
     ),
 ]
