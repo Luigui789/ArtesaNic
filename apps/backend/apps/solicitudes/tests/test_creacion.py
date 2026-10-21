@@ -14,7 +14,7 @@ from apps.solicitudes.models import (
     Solicitud,
 )
 
-from .base import URL_CREAR, SolicitudesAPITestCase, datos_renglon
+from .base import SolicitudesAPITestCase, datos_renglon
 
 
 class CreacionTests(SolicitudesAPITestCase):
@@ -48,7 +48,7 @@ class CreacionTests(SolicitudesAPITestCase):
     def test_requiere_lista_de_renglones(self):
         for datos in ({}, {"renglones": None}, {"renglones": {}}, {"renglones": [None]}):
             with self.subTest(datos=datos):
-                self.assertEqual(self.client.post(URL_CREAR, datos, format="json").status_code, 400)
+                self.assertEqual(self.publicar(datos).status_code, 400)
 
     def test_rechaza_campos_privilegiados_del_agregado(self):
         for campo in (
@@ -69,7 +69,7 @@ class CreacionTests(SolicitudesAPITestCase):
         ):
             with self.subTest(campo=campo):
                 datos = {"renglones": [datos_renglon(self.producto)], campo: 1}
-                respuesta = self.client.post(URL_CREAR, datos, format="json")
+                respuesta = self.publicar(datos)
                 self.assertEqual(respuesta.status_code, 400)
                 self.assertIn(campo, respuesta.data)
         self.assertFalse(Solicitud.objects.exists())

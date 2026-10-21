@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/layout/site-layout";
@@ -15,6 +15,7 @@ import { parseRouteId } from "@/lib/route-id";
 import { NotFound } from "@/app/not-found";
 import {
   ApiError,
+  crearIntentoDeEnvio,
   crearSolicitud,
   reintentarSalvoErrorDelCliente,
   solicitudesReales,
@@ -62,9 +63,13 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
     queryFn: () => listCatalog({ artesanoId: tallerId, page, pageSize: 12 }),
     retry: reintentarSalvoErrorDelCliente,
   });
+  // Un intento por composición: sobrevive a los rerenders y conserva la clave al reintentar.
+  const intento = useRef(crearIntentoDeEnvio());
   const envio = useMutation({
-    mutationFn: (entrada: SolicitudEntrada) => crearSolicitud(entrada, usuario),
+    mutationFn: ({ entrada, clave }: { entrada: SolicitudEntrada; clave: string }) =>
+      crearSolicitud(entrada, usuario, clave),
     onSuccess: (solicitud) => {
+      intento.current.completar();
       void consultas.invalidateQueries({ queryKey: ["solicitudes"] });
       void navigate(`/solicitudes/${solicitud.id}`);
     },
@@ -100,7 +105,7 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
       setPaso("resumen");
       return;
     }
-    envio.mutate(validada.data);
+    envio.mutate({ entrada: validada.data, clave: intento.current.clave(validada.data) });
   };
 
   // No ofrecer el catálogo editable antes de cargar el producto de la ruta:

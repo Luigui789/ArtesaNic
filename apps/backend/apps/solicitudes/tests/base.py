@@ -1,4 +1,5 @@
 from datetime import timedelta
+from uuid import uuid4
 
 from django.utils import timezone
 
@@ -51,5 +52,11 @@ class SolicitudesAPITestCase(CatalogoAPITestCase):
             renglones=list(renglones) or [datos_renglon(self.producto)],
         )
 
-    def enviar(self, *renglones):
-        return self.client.post(URL_CREAR, {"renglones": list(renglones)}, format="json")
+    def enviar(self, *renglones, clave=None):
+        return self.publicar({"renglones": list(renglones)}, clave=clave)
+
+    def publicar(self, datos, *, clave=None):
+        """Cada envío es una operación nueva salvo que se repita la clave (AUD-08)."""
+        return self.client.post(
+            URL_CREAR, datos, format="json", HTTP_IDEMPOTENCY_KEY=clave or str(uuid4())
+        )

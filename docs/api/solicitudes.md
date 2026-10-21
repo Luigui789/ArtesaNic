@@ -1,7 +1,8 @@
 # Contrato de API — Solicitudes V1 (AUD-05)
 
 **Fecha:** 20 de octubre de 2026 (America/Managua).
-**Estado:** creación y lectura persistentes de solicitudes y renglones. La revisión,
+**Estado:** creación y lectura persistentes de solicitudes y renglones; creación protegida
+contra reintentos por AUD-08 ([contrato idempotente](idempotencia.md)). La revisión,
 propuesta y confirmación son fases posteriores.
 **Fuentes:** RF-005, RF-009, RF-010, RF-017, RF-018; RN-005, RN-007, RN-008, RN-009.
 **Esquema:** [OpenAPI generado](openapi.yaml), etiqueta `Solicitudes`.
@@ -44,7 +45,7 @@ Todos exigen `Authorization: Bearer <access>` y responden sin almacenamiento en 
 
 | Método | Ruta | Acceso | Éxito |
 |---|---|---|---|
-| POST | `/api/v1/solicitudes/` | Comprador activo | 201 |
+| POST | `/api/v1/solicitudes/` | Comprador activo; exige `Idempotency-Key` | 201 |
 | GET | `/api/v1/solicitudes/mias/` | Comprador, solo propias | 200 |
 | GET | `/api/v1/solicitudes/mias/{solicitud_id}/` | Comprador propietario | 200 |
 | GET | `/api/v1/solicitudes/recibidas/` | Artesano con taller aprobado, solo destinadas a su taller | 200 |
@@ -86,9 +87,18 @@ reservar. Métodos distintos de los implementados responden `405` para un rol au
   también revierte todo. No se produce una solicitud parcial.
 
 No se consulta disponibilidad definitiva ni se reserva stock al enviar: AUD-07 lo hará
-en la confirmación del comprador. Enviar dos veces puede crear dos solicitudes:
-**la protección servidor contra reintentos/lost-response queda para AUD-08**.
-Deshabilitar el botón durante un envío no acredita RF-009.7.
+en la confirmación del comprador.
+
+### Reintentos (AUD-08)
+
+El `POST` exige la cabecera `Idempotency-Key` (16–128 caracteres; UUID recomendado).
+Misma clave y mismo cuerpo devuelven la solicitud ya creada (`201`, mismo `id`,
+`Idempotency-Replayed: true`); misma clave con otro cuerpo responde
+`409 clave_idempotencia_reutilizada`; claves distintas crean solicitudes distintas aunque
+el contenido coincida. Una respuesta perdida se resuelve reenviando la misma clave o con
+`GET /api/v1/operaciones/crear_solicitud/{clave}/`. Sin clave o con formato inválido:
+`400 {"Idempotency-Key": [...]}`. Detalle en [idempotencia](idempotencia.md).
+Deshabilitar el botón no es la protección: la autoridad es el servidor.
 
 ### Errores
 
@@ -161,7 +171,6 @@ separado en IndexedDB, versión 4; una instantánea anterior se protege sin sobr
 - **AUD-06:** revisión individual, historial de resoluciones, motivos, propuesta y condiciones
   comerciales; aplicar DR-03 al resolver todos los renglones.
 - **AUD-07:** confirmación del comprador, snapshot económico y reservas atómicas; stock real.
-- **AUD-08:** idempotencia transversal, reintentos y recuperación de respuesta perdida.
 - **AUD-09:** flujo React completo de confirmación/cancelación; AUD-18, sesión frontend real.
 - Pagos, vencimiento, cumplimiento, entrega, reembolsos, supervisión y chat siguen en sus
   fases. DR-01 fotografías e inventario RF-022 no se implementan aquí.

@@ -33,6 +33,8 @@ export class ApiError extends Error {
     message: string,
     /** Errores por campo de un `400`, con los nombres de campo de la API. */
     readonly campos: Record<string, string[]> = {},
+    /** `codigo` legible por máquina de un `409` (contrato §1.9). */
+    readonly codigo?: string,
   ) {
     super(message);
     this.name = "ApiError";
@@ -81,6 +83,10 @@ async function aError(
     const primero = Object.values(campos)[0]?.[0];
     return new ApiError(400, primero ?? "Revisa los datos enviados.", campos);
   }
+  const codigo =
+    respuesta.status === 409 && cuerpo && typeof cuerpo === "object" && "codigo" in cuerpo
+      ? String((cuerpo as { codigo: unknown }).codigo)
+      : undefined;
   // 403 trae el motivo del servidor (por ejemplo, taller no aprobado); se respeta.
   const mensaje =
     respuesta.status === 403 && detalle
@@ -89,7 +95,7 @@ async function aError(
         MENSAJES[respuesta.status] ??
         detalle ??
         "El servidor no pudo completar la operación.");
-  return new ApiError(respuesta.status, mensaje);
+  return new ApiError(respuesta.status, mensaje, {}, codigo);
 }
 
 // ---------- Transporte ----------
@@ -110,6 +116,8 @@ export interface Opciones {
   autenticada?: boolean;
   /** Mensajes propios del recurso por código de estado (por ejemplo, el 404 de un taller). */
   mensajes?: Partial<Record<number, string>>;
+  /** Cabeceras propias de la operación, como `Idempotency-Key` (AUD-08). */
+  cabeceras?: Record<string, string>;
 }
 
 /**
@@ -118,9 +126,9 @@ export interface Opciones {
  */
 export async function solicitar<T>(
   ruta: string,
-  { metodo = "GET", cuerpo, autenticada, mensajes }: Opciones = {},
+  { metodo = "GET", cuerpo, autenticada, mensajes, cabeceras: propias }: Opciones = {},
 ) {
-  const cabeceras: Record<string, string> = { Accept: "application/json" };
+  const cabeceras: Record<string, string> = { ...propias, Accept: "application/json" };
   if (cuerpo !== undefined) cabeceras["Content-Type"] = "application/json";
   if (autenticada) {
     const token = obtenerToken();

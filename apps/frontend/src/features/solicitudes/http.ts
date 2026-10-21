@@ -2,7 +2,7 @@
  * Cliente de solicitudes V1 (AUD-05). La identidad procede del Bearer del transporte
  * compartido; este módulo no recibe usuarios ni identidades de la demostración.
  */
-import { solicitar } from "@/features/catalogo/http";
+import { ApiError, solicitar } from "@/features/catalogo/http";
 import type { Paginated } from "@/features/catalogo/types";
 import type { RenglonSolicitud, Solicitud, SolicitudArtesano, SolicitudEntrada } from "./types";
 
@@ -10,7 +10,9 @@ const PAGE_SIZE = 12;
 const MENSAJES = {
   401: "Inicia sesión para consultar o enviar solicitudes.",
   404: "No encontramos esta solicitud.",
+  409: "Esta solicitud ya se había enviado con otros datos. Revisa tus solicitudes antes de enviarla de nuevo.",
 };
+export const CABECERA_IDEMPOTENCIA = "Idempotency-Key";
 
 interface RenglonDTO {
   id: number;
@@ -117,15 +119,43 @@ export function cuerpoSolicitud(entrada: SolicitudEntrada) {
   };
 }
 
-export async function crearSolicitud(entrada: SolicitudEntrada): Promise<Solicitud> {
+/**
+ * `clave` identifica el intento (AUD-08): repetirla con el mismo cuerpo devuelve la
+ * solicitud ya creada en lugar de crear otra. Ver `idempotencia.ts`.
+ */
+export async function crearSolicitud(entrada: SolicitudEntrada, clave: string): Promise<Solicitud> {
   return aSolicitud(
     await solicitar<SolicitudDTO>("/solicitudes/", {
       metodo: "POST",
       cuerpo: cuerpoSolicitud(entrada),
       autenticada: true,
       mensajes: MENSAJES,
+      cabeceras: { [CABECERA_IDEMPOTENCIA]: clave },
     }),
   );
+}
+
+interface OperacionDTO {
+  tipo: "crear_solicitud";
+  estado: "completada";
+  recurso: { tipo: string; id: number };
+}
+
+/**
+ * Resultado incierto tras perder la respuesta: devuelve el ID de la solicitud creada
+ * con esa clave, o `null` si no se registró (el servidor no revela claves ajenas).
+ */
+export async function consultarCreacionSolicitud(clave: string): Promise<number | null> {
+  try {
+    const operacion = await solicitar<OperacionDTO>(
+      `/operaciones/crear_solicitud/${encodeURIComponent(clave)}/`,
+      { autenticada: true, mensajes: MENSAJES },
+    );
+    return operacion.recurso.id;
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 404) return null;
+    throw error;
+  }
 }
 
 /** Solicitudes del comprador autenticado. La API admite hasta 48; el cliente solicita 12. */

@@ -10,6 +10,7 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from corsheaders.defaults import default_headers
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
@@ -65,6 +66,7 @@ INSTALLED_APPS = [
     "apps.talleres",
     "apps.catalogo",
     "apps.solicitudes",
+    "apps.operaciones",
 ]
 
 MIDDLEWARE = [
@@ -140,6 +142,9 @@ FRONTEND_ORIGINS = env_list("DJANGO_FRONTEND_ORIGINS")
 CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
 CORS_ALLOW_CREDENTIALS = True
 CORS_URLS_REGEX = r"^/api/.*$"
+# Contrato de idempotencia (docs/api/idempotencia.md): la SPA envía la clave y lee la repetición.
+CORS_ALLOW_HEADERS = (*default_headers, "idempotency-key")
+CORS_EXPOSE_HEADERS = ["Idempotency-Replayed"]
 CSRF_TRUSTED_ORIGINS = FRONTEND_ORIGINS
 
 # Secure exige HTTPS; solo el perfil local lo desactiva.
@@ -216,5 +221,8 @@ SPECTACULAR_SETTINGS = {
         "EstadoSolicitudEnum": "apps.solicitudes.models.EstadoSolicitud",
         "ResolucionRenglonEnum": "apps.solicitudes.models.ResolucionRenglon",
         "OrigenPersonalizacionEnum": "apps.solicitudes.models.OrigenPersonalizacion",
+        "TipoOperacionEnum": "apps.operaciones.models.TipoOperacion",
+        "EstadoOperacionEnum": "apps.operaciones.api.serializers.ESTADOS_VISIBLES",
+        "CodigoConflictoIdempotenciaEnum": "apps.operaciones.api.serializers.CODIGOS_CONFLICTO",
     },
 }
