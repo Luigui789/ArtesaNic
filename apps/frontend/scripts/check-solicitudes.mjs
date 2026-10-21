@@ -166,6 +166,16 @@ await verificar("composición de uno y varios renglones, modalidades independien
   assert.equal(validacion.crearEntradaSolicitud([stock, stock]).renglones.length, 2);
 });
 
+await verificar("límites espejo del backend: renglones y características", () => {
+  const maximo = Array(validacion.MAX_RENGLONES).fill(stock);
+  assert.equal(validacion.validarSolicitudBorrador(maximo).success, true);
+  assert.equal(validacion.validarSolicitudBorrador([...maximo, stock]).success, false);
+  const largo = (n) => ({ ...personalizacion, caracteristicas: "a".repeat(n) });
+  const max = validacion.MAX_CARACTERISTICAS;
+  assert.equal(validacion.validarSolicitudBorrador([largo(max)]).success, true);
+  assert.equal(validacion.validarSolicitudBorrador([largo(max + 1)]).success, false);
+});
+
 await verificar("mismo taller y bloqueo visual de un taller diferente", () => {
   assert.equal(validacion.puedeAgregarProducto([], otroProducto), true);
   assert.equal(validacion.puedeAgregarProducto([stock], producto), true);

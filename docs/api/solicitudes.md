@@ -71,7 +71,7 @@ reservar. Métodos distintos de los implementados responden `405` para un rol au
 }
 ```
 
-- Único campo superior: `renglones`, lista no vacía. No hay modalidad global.
+- Único campo superior: `renglones`, lista no vacía de hasta 50 elementos; `caracteristicas` admite hasta 2000 caracteres. No hay modalidad global.
 - Cada producto debe estar publicado, pertenecer a taller aprobado y admitir la modalidad.
 - Todos los productos deben pertenecer al mismo taller. Se permiten productos repetidos.
 - Cantidad entera mayor que cero (hasta `2147483647`); se rechazan booleanos y floats.

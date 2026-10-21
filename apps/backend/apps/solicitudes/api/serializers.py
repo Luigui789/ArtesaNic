@@ -1,11 +1,12 @@
-from django.core.validators import MinLengthValidator
+from django.core.validators import MaxLengthValidator, MinLengthValidator
 from rest_framework import serializers
 
 from apps.accounts.api.serializers import SinCamposDesconocidosMixin
 from apps.catalogo.api.serializers import CategoriaSerializer, TallerResumenSerializer
 from apps.catalogo.models import Modalidad, Producto
 
-from ..models import OrigenPersonalizacion, RenglonSolicitud, Solicitud
+from ..models import MAX_CARACTERISTICAS, OrigenPersonalizacion, RenglonSolicitud, Solicitud
+from ..services import MAX_RENGLONES
 
 
 class CantidadEnteraField(serializers.IntegerField):
@@ -17,8 +18,12 @@ class CantidadEnteraField(serializers.IntegerField):
 
 class RenglonesEntradaSerializer(serializers.ListSerializer):
     def get_validators(self):
-        # ListSerializer no añade un validator por min_length; OpenAPI sí lo necesita.
-        return [*super().get_validators(), MinLengthValidator(1)]
+        # ListSerializer no añade validators por min/max_length; OpenAPI sí los necesita.
+        return [
+            *super().get_validators(),
+            MinLengthValidator(1),
+            MaxLengthValidator(MAX_RENGLONES),
+        ]
 
 
 class RenglonSolicitudEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
@@ -32,7 +37,9 @@ class RenglonSolicitudEntradaSerializer(SinCamposDesconocidosMixin, serializers.
         required=False, help_text="Obligatoria solo en producción; hoy o una fecha futura."
     )
     caracteristicas = serializers.CharField(
-        required=False, help_text="Texto libre obligatorio solo en personalización."
+        required=False,
+        max_length=MAX_CARACTERISTICAS,
+        help_text="Texto libre obligatorio solo en personalización.",
     )
     origen_personalizacion = serializers.ChoiceField(
         choices=OrigenPersonalizacion.choices,
@@ -59,6 +66,7 @@ class SolicitudEntradaSerializer(SinCamposDesconocidosMixin, serializers.Seriali
         many=True,
         allow_empty=False,
         min_length=1,
+        max_length=MAX_RENGLONES,
         help_text="Uno o varios renglones de un único taller; se conservan orden y repeticiones.",
     )
 

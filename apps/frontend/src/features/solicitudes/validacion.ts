@@ -21,6 +21,10 @@ function esFechaSolicitadaValida(valor: string): boolean {
   );
 }
 
+/** Espejo de los límites del backend (MAX_RENGLONES, MAX_CARACTERISTICAS). */
+export const MAX_RENGLONES = 50;
+export const MAX_CARACTERISTICAS = 2000;
+
 const camposComunes = {
   producto: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),
   cantidad: z
@@ -45,7 +49,11 @@ const esquemaRenglon = z.discriminatedUnion("modalidad", [
     .object({
       ...camposComunes,
       modalidad: z.literal("personalizacion"),
-      caracteristicas: z.string().trim().min(1, "Describe las características solicitadas."),
+      caracteristicas: z
+        .string()
+        .trim()
+        .min(1, "Describe las características solicitadas.")
+        .max(MAX_CARACTERISTICAS, `Usa como máximo ${MAX_CARACTERISTICAS} caracteres.`),
       origenPersonalizacion: z.enum(ORIGENES_PERSONALIZACION, {
         message: "Selecciona si se fabrica desde cero o se usa una unidad estándar.",
       }),
@@ -56,7 +64,10 @@ const esquemaRenglon = z.discriminatedUnion("modalidad", [
 /** Entrada explícita: rechaza identidad, estado, importes y cualquier campo desconocido. */
 export const esquemaSolicitudEntrada = z
   .object({
-    renglones: z.array(esquemaRenglon).min(1, "Agrega al menos un producto a la solicitud."),
+    renglones: z
+      .array(esquemaRenglon)
+      .min(1, "Agrega al menos un producto a la solicitud.")
+      .max(MAX_RENGLONES, `Una solicitud admite hasta ${MAX_RENGLONES} productos.`),
   })
   .strict();
 

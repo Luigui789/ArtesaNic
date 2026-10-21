@@ -1793,6 +1793,7 @@ components:
           type: string
           minLength: 1
           description: Texto libre obligatorio solo en personalización.
+          maxLength: 2000
         origen_personalizacion:
           allOf:
           - $ref: '#/components/schemas/OrigenPersonalizacionEnum'
@@ -1930,6 +1931,7 @@ components:
           description: Uno o varios renglones de un único taller; se conservan orden
             y repeticiones.
           minItems: 1
+          maxItems: 50
       required:
       - renglones
     TallerPropio:

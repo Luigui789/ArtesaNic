@@ -16,6 +16,7 @@ CAMPOS_RENGLON = {
     "caracteristicas",
     "origen_personalizacion",
 }
+MAX_RENGLONES = 50
 MENSAJE_PRODUCTO = "El producto no está disponible para nuevas solicitudes."
 
 
@@ -40,6 +41,10 @@ def crear_solicitud(*, comprador, renglones: list[dict]) -> Solicitud:
         raise CompradorNoValido
     if not renglones:
         raise SolicitudInvalida({"renglones": ["Agrega al menos un renglón."]})
+    if len(renglones) > MAX_RENGLONES:
+        raise SolicitudInvalida(
+            {"renglones": [f"Una solicitud admite hasta {MAX_RENGLONES} renglones."]}
+        )
     for datos in renglones:
         if set(datos) - CAMPOS_RENGLON:
             raise SolicitudInvalida({"renglones": ["Hay campos no permitidos."]})

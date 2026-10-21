@@ -7,7 +7,12 @@ from django.utils import timezone
 from apps.catalogo import services as catalogo
 from apps.catalogo.tests.base import crear_producto
 from apps.solicitudes import services
-from apps.solicitudes.models import EstadoSolicitud, RenglonSolicitud, Solicitud
+from apps.solicitudes.models import (
+    MAX_CARACTERISTICAS,
+    EstadoSolicitud,
+    RenglonSolicitud,
+    Solicitud,
+)
 
 from .base import URL_CREAR, SolicitudesAPITestCase, datos_renglon
 
@@ -329,6 +334,40 @@ class CreacionTests(SolicitudesAPITestCase):
     def test_servicio_rechaza_lista_vacia(self):
         with self.assertRaises(services.SolicitudInvalida):
             services.crear_solicitud(comprador=self.comprador, renglones=[])
+
+    def test_limite_de_renglones(self):
+        maximo = [datos_renglon(self.producto)] * services.MAX_RENGLONES
+        self.assertEqual(self.enviar(*maximo).status_code, 201)
+        self.assertEqual(self.enviar(*maximo, datos_renglon(self.producto)).status_code, 400)
+        self.assertEqual(Solicitud.objects.count(), 1)
+
+    def test_servicio_rechaza_exceso_de_renglones(self):
+        with self.assertRaises(services.SolicitudInvalida):
+            self.crear(*[datos_renglon(self.producto)] * (services.MAX_RENGLONES + 1))
+
+    def test_limite_de_caracteristicas(self):
+        for largo, esperado in ((MAX_CARACTERISTICAS, 201), (MAX_CARACTERISTICAS + 1, 400)):
+            with self.subTest(largo=largo):
+                respuesta = self.enviar(
+                    datos_renglon(
+                        self.producto,
+                        modalidad="personalizacion",
+                        caracteristicas="a" * largo,
+                        origen_personalizacion="desde_cero",
+                    )
+                )
+                self.assertEqual(respuesta.status_code, esperado)
+
+    def test_servicio_rechaza_caracteristicas_demasiado_largas(self):
+        with self.assertRaises(services.SolicitudInvalida):
+            self.crear(
+                datos_renglon(
+                    self.producto,
+                    modalidad="personalizacion",
+                    caracteristicas="a" * (MAX_CARACTERISTICAS + 1),
+                    origen_personalizacion="desde_cero",
+                )
+            )
 
     def test_servicio_rechaza_campos_fuera_del_contrato(self):
         with self.assertRaises(services.SolicitudInvalida):

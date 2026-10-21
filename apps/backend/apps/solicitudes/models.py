@@ -4,7 +4,7 @@ from datetime import date
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxLengthValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -12,6 +12,8 @@ from django.utils import timezone
 from apps.accounts.models import Rol
 from apps.catalogo.models import Modalidad
 from apps.talleres.models import PATRON_NO_EN_BLANCO
+
+MAX_CARACTERISTICAS = 2000
 
 
 class EstadoSolicitud(models.TextChoices):
@@ -90,7 +92,11 @@ class RenglonSolicitud(models.Model):
     modalidad = models.CharField(max_length=20, choices=Modalidad.choices)
     cantidad = models.PositiveIntegerField(validators=[MinValueValidator(1)])
     fecha_solicitada = models.DateField(null=True, blank=True)
-    caracteristicas = models.TextField(blank=True)
+    caracteristicas = models.TextField(
+        blank=True,
+        max_length=MAX_CARACTERISTICAS,
+        validators=[MaxLengthValidator(MAX_CARACTERISTICAS)],
+    )
     origen_personalizacion = models.CharField(
         max_length=20, choices=OrigenPersonalizacion.choices, blank=True
     )
