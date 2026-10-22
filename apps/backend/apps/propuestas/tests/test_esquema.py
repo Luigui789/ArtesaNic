@@ -1,4 +1,4 @@
-"""RNF-005: contrato de revisión y propuesta (AUD-06), sin acciones de AUD-07."""
+"""RNF-005: contrato de revisión, propuesta (AUD-06) y decisión del comprador (AUD-07)."""
 
 from django.test import SimpleTestCase
 from drf_spectacular.generators import SchemaGenerator
@@ -6,6 +6,7 @@ from drf_spectacular.generators import SchemaGenerator
 RESOLVER = "/api/v1/solicitudes/recibidas/{solicitud_id}/renglones/{renglon_id}/resolver/"
 PROPUESTA_RECIBIDA = "/api/v1/solicitudes/recibidas/{solicitud_id}/propuesta/"
 PROPUESTA_MIA = "/api/v1/solicitudes/mias/{solicitud_id}/propuesta/"
+DECISION_MIA = "/api/v1/solicitudes/mias/{solicitud_id}/propuesta/decision/"
 
 
 def referencia(nombre):
@@ -26,6 +27,7 @@ class EsquemaPropuestaTests(SimpleTestCase):
         for ruta, metodo, codigo in (
             (RESOLVER, "post", "200"),
             (PROPUESTA_RECIBIDA, "post", "201"),
+            (DECISION_MIA, "post", "200"),
         ):
             with self.subTest(ruta=ruta):
                 operacion = self.operacion(ruta, metodo)
@@ -35,7 +37,7 @@ class EsquemaPropuestaTests(SimpleTestCase):
                 self.assertIn("Idempotency-Replayed", cabeceras)
 
     def test_mutaciones_documentan_400_401_403_404_y_409_con_codigos_estables(self):
-        for ruta in (RESOLVER, PROPUESTA_RECIBIDA):
+        for ruta in (RESOLVER, PROPUESTA_RECIBIDA, DECISION_MIA):
             with self.subTest(ruta=ruta):
                 respuestas = self.operacion(ruta, "post")["responses"]
                 self.assertTrue({"400", "401", "403", "404", "409"} <= set(respuestas))
@@ -51,6 +53,8 @@ class EsquemaPropuestaTests(SimpleTestCase):
                 "solicitud_rechazada",
                 "solicitud_sin_renglones_aceptados",
                 "propuesta_ya_emitida",
+                "propuesta_ya_decidida",
+                "stock_insuficiente",
                 "clave_idempotencia_reutilizada",
             },
         )
@@ -113,11 +117,15 @@ class EsquemaPropuestaTests(SimpleTestCase):
             ["retiro_taller", "punto_encuentro", "entrega_artesano", "otra"],
         )
 
-    def test_lecturas_por_parte_y_sin_acciones_de_aud07(self):
+    def test_lecturas_por_parte_y_decision_del_comprador(self):
         self.assertEqual(set(self.esquema["paths"][PROPUESTA_MIA]), {"get"})
         self.assertEqual(set(self.esquema["paths"][PROPUESTA_RECIBIDA]), {"get", "post"})
+        self.assertEqual(set(self.esquema["paths"][DECISION_MIA]), {"post"})
         for ruta in (PROPUESTA_MIA, PROPUESTA_RECIBIDA):
             self.assertIn("404", self.operacion(ruta, "get")["responses"])
-        rutas = " ".join(self.esquema["paths"])
-        for accion in ("aceptar", "rechazar", "confirmar", "reservar", "pedido"):
-            self.assertNotIn(accion, rutas)
+        entrada_decision = self.componentes["DecisionPropuestaEntradaRequest"]
+        self.assertEqual(set(entrada_decision["properties"]), {"decision"})
+        self.assertEqual(entrada_decision["required"], ["decision"])
+        self.assertEqual(
+            self.componentes["AccionDecisionPropuestaEnum"]["enum"], ["aceptar", "rechazar"]
+        )

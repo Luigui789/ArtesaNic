@@ -270,16 +270,14 @@ class EmisionTests(PropuestaAPITestCase):
         modelos = [
             m
             for m in apps.get_models()
-            if m._meta.app_label in {"accounts", "talleres", "catalogo"}
+            if m._meta.app_label in {"accounts", "talleres", "catalogo", "pedidos", "inventario"}
         ]
         antes = {m._meta.label: m.objects.count() for m in modelos}
         self.emitir()
         self.assertEqual(antes, {m._meta.label: m.objects.count() for m in modelos})
-        etiquetas = {m._meta.app_label for m in apps.get_models()}
-        self.assertFalse({"pedidos", "inventario", "reservas", "pagos"} & etiquetas)
         self.assertEqual(
             {m.__name__ for m in apps.get_app_config("propuestas").get_models()},
-            {"Propuesta", "LineaPropuesta", "CargoPropuesta"},
+            {"Propuesta", "LineaPropuesta", "CargoPropuesta", "DecisionPropuesta"},
         )
 
 
