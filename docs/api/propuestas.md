@@ -101,6 +101,9 @@ Reglas de las condiciones comerciales:
 
 - **Precio unitario:** lo toma el servidor del producto vigente al emitir. El cliente no
   envía precio, subtotal, total, cantidad, modalidad, comprador, taller ni estado (`400`).
+  Un producto despublicado después de crear la solicitud sigue pudiendo revisarse y
+  cotizarse: la despublicación solo afecta a nuevas solicitudes y no cancela compromisos
+  en curso ([D-AUD06-06](../decisiones/v1.md#concreciones-de-aud-06)).
 - **Subtotal por línea** = precio unitario × cantidad del renglón (CHECK en PostgreSQL).
 - **Cargo de personalización:** solo en renglones de personalización; ≥ 0; por defecto 0.
 - **Fecha comprometida:** obligatoria solo en producción; fecha válida, hoy o posterior

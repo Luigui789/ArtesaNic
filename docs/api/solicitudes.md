@@ -23,7 +23,8 @@ AUD-05 persiste `Solicitud` y `RenglonSolicitud`; AUD-06 añade el historial
 contractual del pedido, pagos, chat, reservas ni movimientos. Las referencias
 de nombre/categoría del producto se leen del catálogo vigente, incluso si después se
 despublica; no son un snapshot contractual. Una despublicación impide nuevas solicitudes,
-pero no borra las existentes. Los CHECK de una fila no pueden comprobar relaciones
+pero no borra, cancela ni modifica las existentes: continúan su revisión y propuesta
+([D-AUD06-06](../decisiones/v1.md#concreciones-de-aud-06)). Los CHECK de una fila no pueden comprobar relaciones
 entre talleres de varias tablas: esa regla se valida en el servicio transaccional y en
 la validación del modelo. Escrituras SQL directas deben respetar ese límite.
 
