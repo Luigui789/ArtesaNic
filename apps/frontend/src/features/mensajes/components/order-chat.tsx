@@ -97,7 +97,14 @@ export function OrderChat({ pedidoId, estado }: { pedidoId: number; estado: Orde
         </p>
       </div>
 
-      <div ref={listaRef} className="max-h-96 space-y-3 overflow-y-auto p-4">
+      <div
+        ref={listaRef}
+        role="log"
+        aria-label="Conversación del pedido"
+        aria-live="polite"
+        aria-relevant="additions"
+        className="max-h-96 space-y-3 overflow-y-auto p-4"
+      >
         {mensajes.isPending ? (
           <div className="space-y-3">
             <div className="h-14 animate-pulse rounded-lg bg-surface" />

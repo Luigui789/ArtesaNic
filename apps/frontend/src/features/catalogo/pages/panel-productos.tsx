@@ -1,3 +1,8 @@
+import { useForm, useController } from "react-hook-form";
+import { ListPagination } from "@/components/common/pagination";
+import { ConfirmAction } from "@/components/common/confirm-action";
+import { PageContainer, PageHeader } from "@/components/common/page";
+import { mensajeDominio } from "@/lib/errores-dominio";
 import { UNIT_TYPE_LABELS, MODALIDAD_LABELS } from "@/lib/labels";
 import { Link } from "react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -79,12 +84,39 @@ export default function MisProductos() {
 
   const [abierto, setAbierto] = useState(false);
   const [editando, setEditando] = useState<OwnProduct | null>(null);
-  const [nombre, setNombre] = useState("");
-  const [precio, setPrecio] = useState("");
+  const formulario = useForm({
+    defaultValues: {
+      nombre: "",
+      precio: "",
+      categoria: "",
+      descripcion: "",
+      modalidades: [] as Modalidad[],
+    },
+  });
+  const { field: nombreCampo } = useController({ control: formulario.control, name: "nombre" });
+  const { field: precioCampo } = useController({ control: formulario.control, name: "precio" });
+  const { field: categoriaCampo } = useController({
+    control: formulario.control,
+    name: "categoria",
+  });
+  const { field: descripcionCampo } = useController({
+    control: formulario.control,
+    name: "descripcion",
+  });
+  const { field: modalidadesCampo } = useController({
+    control: formulario.control,
+    name: "modalidades",
+  });
+  const [nombre, setNombre] = [nombreCampo.value, nombreCampo.onChange] as const;
+  const [precio, setPrecio] = [precioCampo.value, precioCampo.onChange] as const;
+  const [categoria, setCategoria] = [categoriaCampo.value, categoriaCampo.onChange] as const;
+  const [descripcion, setDescripcion] = [
+    descripcionCampo.value,
+    descripcionCampo.onChange,
+  ] as const;
+  const modalidades = modalidadesCampo.value;
+  const setModalidades = modalidadesCampo.onChange;
   // Código de categoría; vacío significa "sin elegir", no un valor por defecto.
-  const [categoria, setCategoria] = useState<string>("");
-  const [descripcion, setDescripcion] = useState("");
-  const [modalidades, setModalidades] = useState<Modalidad[]>([]);
   // Inventario simulado: solo con el servidor simulado y si se vende desde stock.
   const [tipoUnidades, setTipoUnidades] = useState<UnitType | "">("");
   const [existencias, setExistencias] = useState("");
@@ -133,12 +165,14 @@ export default function MisProductos() {
   const tipoActual = tipoUnidades || unidades?.tipoUnidades || "";
   const existenciasActuales = existencias || (unidades ? String(unidades.existenciasFisicas) : "");
 
-  const alternarModalidad = (m: Modalidad, activa: boolean) =>
-    setModalidades((actuales) =>
+  const alternarModalidad = (m: Modalidad, activa: boolean) => {
+    const actuales = formulario.getValues("modalidades");
+    setModalidades(
       activa
         ? MODALIDADES.filter((x) => x === m || actuales.includes(x))
         : actuales.filter((x) => x !== m),
     );
+  };
 
   const invalidar = () => void queryClient.invalidateQueries();
 
@@ -164,7 +198,7 @@ export default function MisProductos() {
           ),
         );
       }
-      toast.error(e.message);
+      toast.error(mensajeDominio(e));
     },
   });
 
@@ -184,7 +218,7 @@ export default function MisProductos() {
       invalidar();
       toast.success(producto.publicado ? "Producto publicado" : "Producto despublicado");
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => toast.error(mensajeDominio(e)),
   });
 
   const enviar = (e: React.FormEvent) => {
@@ -222,7 +256,7 @@ export default function MisProductos() {
 
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-6xl px-4 py-8">
+      <PageContainer>
         <Link
           to="/panel"
           className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -231,19 +265,16 @@ export default function MisProductos() {
           Volver al panel
         </Link>
 
-        <header className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
-          <div className="min-w-0">
-            <h1 className="truncate font-display text-3xl font-bold">Mis productos</h1>
-            <p className="text-sm text-muted-foreground">
-              Registra cada pieza con nombre, precio, rubro, descripción y modalidades de venta, y
-              publícala cuando esté lista.
-            </p>
-          </div>
-          <Button className="touch-target shrink-0" onClick={() => abrir()}>
-            <Plus className="size-4" aria-hidden="true" />
-            Nuevo producto
-          </Button>
-        </header>
+        <PageHeader
+          title="Mis productos"
+          description="Registra tus piezas, su fotografía y modalidades. Publícalas cuando estén listas."
+          action={
+            <Button onClick={() => abrir()}>
+              <Plus className="size-4" aria-hidden="true" />
+              Nuevo producto
+            </Button>
+          }
+        />
 
         <div className="mt-8">
           {productos.isError ? (
@@ -288,57 +319,64 @@ export default function MisProductos() {
                           <Pencil className="size-4" aria-hidden="true" />
                           Editar
                         </Button>
-                        <Button
-                          variant={p.publicado ? "outline" : "default"}
-                          className="touch-target"
-                          disabled={publicacion.isPending && publicacion.variables?.id === p.id}
-                          onClick={() => publicacion.mutate(p)}
-                        >
-                          {p.publicado ? (
-                            <EyeOff className="size-4" aria-hidden="true" />
-                          ) : (
+                        {p.publicado ? (
+                          <ConfirmAction
+                            trigger={
+                              <Button variant="outline" disabled={publicacion.isPending}>
+                                <EyeOff className="size-4" aria-hidden="true" />
+                                Despublicar
+                              </Button>
+                            }
+                            title="¿Despublicar este producto?"
+                            description="Dejará de aparecer en el catálogo. Su foto y las referencias de pedidos se conservan."
+                            confirm="Despublicar producto"
+                            destructive
+                            busy={publicacion.isPending}
+                            onConfirm={async () => {
+                              try {
+                                await publicacion.mutateAsync(p);
+                              } catch {
+                                /* error informado por la mutación */
+                              }
+                            }}
+                          />
+                        ) : (
+                          <Button
+                            disabled={publicacion.isPending}
+                            onClick={() => publicacion.mutate(p)}
+                          >
                             <Eye className="size-4" aria-hidden="true" />
-                          )}
-                          {p.publicado ? "Despublicar" : "Publicar"}
-                        </Button>
+                            Publicar
+                          </Button>
+                        )}
                       </div>
+                      {catalogoReal ? (
+                        <Button asChild variant="ghost" className="mt-2 w-full">
+                          <Link to={`/panel/inventario/${p.id}`}>Gestionar existencias</Link>
+                        </Button>
+                      ) : null}
                     </div>
                   </li>
                 ))}
               </ul>
 
-              {productos.data.totalPages > 1 ? (
-                <nav
-                  className="mt-8 flex items-center justify-between gap-3"
-                  aria-label="Paginación de mis productos"
-                >
-                  <Button
-                    variant="outline"
-                    className="touch-target"
-                    disabled={page <= 1}
-                    onClick={() => setPage((n) => n - 1)}
-                  >
-                    Anterior
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Página {productos.data.page} de {productos.data.totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    className="touch-target"
-                    disabled={page >= productos.data.totalPages}
-                    onClick={() => setPage((n) => n + 1)}
-                  >
-                    Siguiente
-                  </Button>
-                </nav>
-              ) : null}
+              <ListPagination
+                page={page}
+                totalPages={productos.data.totalPages}
+                onPage={setPage}
+                busy={productos.isPlaceholderData}
+              />
             </>
           )}
         </div>
-      </div>
+      </PageContainer>
 
-      <Dialog open={abierto} onOpenChange={setAbierto}>
+      <Dialog
+        open={abierto}
+        onOpenChange={(open) => {
+          if (!guardar.isPending) setAbierto(open);
+        }}
+      >
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editando ? "Editar producto" : "Nuevo producto"}</DialogTitle>
@@ -354,6 +392,8 @@ export default function MisProductos() {
               <Label htmlFor="p-nombre">Nombre del producto *</Label>
               <Input
                 id="p-nombre"
+                ref={nombreCampo.ref}
+                onBlur={nombreCampo.onBlur}
                 className="min-h-11"
                 maxLength={LIMITES_PRODUCTO.nombre}
                 value={nombre}
@@ -372,6 +412,8 @@ export default function MisProductos() {
                 <Label htmlFor="p-precio">Precio en córdobas *</Label>
                 <Input
                   id="p-precio"
+                  ref={precioCampo.ref}
+                  onBlur={precioCampo.onBlur}
                   type="number"
                   inputMode="decimal"
                   min={0.01}
@@ -393,6 +435,8 @@ export default function MisProductos() {
                 <Select value={categoria} onValueChange={setCategoria} disabled={!categorias.data}>
                   <SelectTrigger
                     id="p-categoria"
+                    ref={categoriaCampo.ref}
+                    onBlur={categoriaCampo.onBlur}
                     className="min-h-11"
                     aria-invalid={!!errores["categoria"]}
                   >
@@ -418,6 +462,8 @@ export default function MisProductos() {
               <Label htmlFor="p-descripcion">Descripción *</Label>
               <Textarea
                 id="p-descripcion"
+                ref={descripcionCampo.ref}
+                onBlur={descripcionCampo.onBlur}
                 rows={5}
                 maxLength={LIMITES_PRODUCTO.descripcion}
                 value={descripcion}
@@ -540,6 +586,7 @@ export default function MisProductos() {
                 type="button"
                 variant="outline"
                 className="touch-target"
+                disabled={guardar.isPending}
                 onClick={() => setAbierto(false)}
               >
                 Cancelar

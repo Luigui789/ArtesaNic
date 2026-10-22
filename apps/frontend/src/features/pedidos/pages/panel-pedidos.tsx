@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/common/page";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -57,7 +58,7 @@ export default function PedidosTaller() {
 
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <PageContainer className="max-w-5xl">
         <Link
           to="/panel"
           className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -123,7 +124,7 @@ export default function PedidosTaller() {
             ))
           )}
         </div>
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }

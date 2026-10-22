@@ -1,46 +1,37 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import type { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { FormMessage } from "@/components/common/form-field";
 import { useSession, type SesionUsuario } from "@/features/auth/use-session";
 import { interpretarFallo } from "@/features/auth/errores";
-import { erroresDeValidacion, esquemaIngreso } from "@/features/auth/validacion";
+import { esquemaIngreso } from "@/features/auth/validacion";
 import { Campo } from "./campo";
-
-const CAMPOS = ["telefono", "password"];
-
-/**
- * Login con teléfono y contraseña. No pregunta el rol: lo determina la cuenta y llega
- * en la respuesta del servidor (RF-004, RN-001).
- */
+type Datos = z.infer<typeof esquemaIngreso>;
 export function FormularioIngreso({ onExito }: { onExito: (usuario: SesionUsuario) => void }) {
   const { iniciarSesion } = useSession();
-  const [telefono, setTelefono] = useState("");
-  const [password, setPassword] = useState("");
-  const [errores, setErrores] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
-  const [enviando, setEnviando] = useState(false);
-
-  const enviar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const r = esquemaIngreso.safeParse({ telefono, password });
-    if (!r.success) {
-      setErrores(erroresDeValidacion(r.error));
-      setGeneral(null);
-      return;
-    }
-    setErrores({});
+  const pending = useRef(false);
+  const form = useForm<Datos>({
+    resolver: zodResolver(esquemaIngreso),
+    defaultValues: { telefono: "", password: "" },
+  });
+  const enviar = form.handleSubmit(async (data) => {
+    if (pending.current) return;
+    pending.current = true;
     setGeneral(null);
-    setEnviando(true);
     try {
-      onExito(await iniciarSesion(r.data));
+      onExito(await iniciarSesion(data));
     } catch (error) {
-      const fallo = interpretarFallo(error, CAMPOS);
-      setErrores(fallo.campos);
+      const fallo = interpretarFallo(error, ["telefono", "password"]);
+      for (const [key, message] of Object.entries(fallo.campos))
+        if (key === "telefono" || key === "password") form.setError(key, { message });
       setGeneral(fallo.general);
     } finally {
-      setEnviando(false);
+      pending.current = false;
     }
-  };
-
+  });
   return (
     <form
       onSubmit={(e) => void enviar(e)}
@@ -48,33 +39,45 @@ export function FormularioIngreso({ onExito }: { onExito: (usuario: SesionUsuari
       aria-label="Ingresar"
       className="space-y-5 rounded-xl border bg-card p-5"
     >
-      <Campo
-        id="ingreso-telefono"
-        etiqueta="Teléfono *"
-        type="tel"
-        inputMode="tel"
-        autoComplete="tel"
-        placeholder="8555 1234"
-        valor={telefono}
-        onCambio={setTelefono}
-        error={errores["telefono"]}
+      <Controller
+        control={form.control}
+        name="telefono"
+        render={({ field, fieldState }) => (
+          <Campo
+            id="ingreso-telefono"
+            etiqueta="Teléfono *"
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder="8555 1234"
+            valor={field.value}
+            onCambio={field.onChange}
+            ref={field.ref}
+            onBlur={field.onBlur}
+            error={fieldState.error?.message}
+          />
+        )}
       />
-      <Campo
-        id="ingreso-password"
-        etiqueta="Contraseña *"
-        type="password"
-        autoComplete="current-password"
-        valor={password}
-        onCambio={setPassword}
-        error={errores["password"]}
+      <Controller
+        control={form.control}
+        name="password"
+        render={({ field, fieldState }) => (
+          <Campo
+            id="ingreso-password"
+            etiqueta="Contraseña *"
+            type="password"
+            autoComplete="current-password"
+            valor={field.value}
+            onCambio={field.onChange}
+            ref={field.ref}
+            onBlur={field.onBlur}
+            error={fieldState.error?.message}
+          />
+        )}
       />
-      {general ? (
-        <p role="alert" className="text-sm text-destructive">
-          {general}
-        </p>
-      ) : null}
-      <Button type="submit" className="w-full touch-target" disabled={enviando}>
-        {enviando ? "Ingresando…" : "Ingresar"}
+      <FormMessage>{general}</FormMessage>
+      <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+        {form.formState.isSubmitting ? "Ingresando…" : "Ingresar"}
       </Button>
     </form>
   );

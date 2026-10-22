@@ -10,7 +10,7 @@ import {
 } from "lucide-react";
 import type { OrderStatus, PaymentStatus } from "@/types";
 import { ORDER_STATUS_LABELS, PAYMENT_STATUS_LABELS } from "@/lib/labels";
-import { cn } from "@/lib/utils";
+import { StatusBadge } from "@/components/common/status-badge";
 
 const ORDER_STYLE: Record<OrderStatus, { icon: typeof Clock; className: string }> = {
   pendiente: { icon: Clock, className: "bg-surface text-surface-foreground border-border" },
@@ -57,18 +57,9 @@ function BaseBadge({
   className: string;
 }) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-3 py-1 text-sm font-medium",
-        className,
-      )}
-    >
-      <Icon className="size-4 shrink-0" aria-hidden="true" />
-      <span>
-        <span className="sr-only">{prefijo}: </span>
-        {label}
-      </span>
-    </span>
+    <StatusBadge icon={Icon} prefix={prefijo} className={className}>
+      {label}
+    </StatusBadge>
   );
 }
 

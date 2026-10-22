@@ -1,7 +1,10 @@
+import { ListPagination } from "@/components/common/pagination";
+import { PageContainer } from "@/components/common/page";
 import { useSearchParams } from "react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Filter, Search } from "lucide-react";
+import { PageHeader } from "@/components/common/page";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { ProductCard, ProductCardSkeleton } from "@/features/catalogo/components/product-card";
 import { EmptyState, ErrorState } from "@/components/common/states";
@@ -15,7 +18,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { listCatalog, listCategories, listTalleresCatalogo } from "@/features/catalogo/api";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { parseRouteId } from "@/lib/route-id";
@@ -69,6 +79,7 @@ export default function Catalogo() {
   const search = parseCatalogSearch(searchParams);
   const [texto, setTexto] = useState(search.q ?? "");
   const [filtrosAbiertos, setFiltrosAbiertos] = useState(false);
+  useEffect(() => setTexto(search.q ?? ""), [search.q]);
 
   useDocumentHead({
     title: "Catálogo de productos artesanales | Masaya",
@@ -112,16 +123,16 @@ export default function Catalogo() {
     setSearchParams(buildSearchParams({}));
   };
 
-  const Filtros = (
+  const filtros = (prefix: string) => (
     <div className="space-y-6">
       <div className="space-y-2">
-        <Label htmlFor="filtro-categoria">Categoría</Label>
+        <Label htmlFor={`${prefix}-filtro-categoria`}>Categoría</Label>
         <Select
           value={search.categoria ?? SIN_CATEGORIA}
           onValueChange={(v) => set({ categoria: v === SIN_CATEGORIA ? undefined : v })}
           disabled={!categorias.data}
         >
-          <SelectTrigger id="filtro-categoria" className="min-h-11">
+          <SelectTrigger id={`${prefix}-filtro-categoria`} className="min-h-11">
             <SelectValue placeholder="Todas las categorías" />
           </SelectTrigger>
           <SelectContent>
@@ -139,12 +150,12 @@ export default function Catalogo() {
         <legend className="text-sm font-medium">Precio en córdobas</legend>
         <div className="flex items-center gap-2">
           <div className="flex-1">
-            <Label htmlFor="precio-min" className="text-xs text-muted-foreground">
+            <Label htmlFor={`${prefix}-precio-min`} className="text-xs text-muted-foreground">
               Desde
             </Label>
             <Input
               key={`min-${search.precioMin ?? ""}`}
-              id="precio-min"
+              id={`${prefix}-precio-min`}
               type="number"
               inputMode="numeric"
               min={0}
@@ -156,12 +167,12 @@ export default function Catalogo() {
             />
           </div>
           <div className="flex-1">
-            <Label htmlFor="precio-max" className="text-xs text-muted-foreground">
+            <Label htmlFor={`${prefix}-precio-max`} className="text-xs text-muted-foreground">
               Hasta
             </Label>
             <Input
               key={`max-${search.precioMax ?? ""}`}
-              id="precio-max"
+              id={`${prefix}-precio-max`}
               type="number"
               inputMode="numeric"
               min={0}
@@ -176,13 +187,13 @@ export default function Catalogo() {
       </fieldset>
 
       <div className="space-y-2">
-        <Label htmlFor="filtro-artesano">Taller artesanal</Label>
+        <Label htmlFor={`${prefix}-filtro-artesano`}>Taller artesanal</Label>
         {/* El control solo admite valores de texto: se convierte en la frontera. */}
         <Select
           value={search.artesanoId != null ? String(search.artesanoId) : "todos"}
           onValueChange={(v) => set({ artesanoId: v === "todos" ? undefined : parseRouteId(v) })}
         >
-          <SelectTrigger id="filtro-artesano" className="min-h-11">
+          <SelectTrigger id={`${prefix}-filtro-artesano`} className="min-h-11">
             <SelectValue placeholder="Todos los talleres" />
           </SelectTrigger>
           <SelectContent className="max-h-72">
@@ -204,12 +215,11 @@ export default function Catalogo() {
 
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-7xl px-4 py-8">
-        <h1 className="font-display text-3xl font-bold">Catálogo</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Piezas de los talleres artesanales de Masaya. Filtra por rubro, precio o taller.
-        </p>
-
+      <PageContainer>
+        <PageHeader
+          title="Catálogo"
+          description="Encuentra tu próxima pieza. Artesanías hechas por talleres de Masaya."
+        />
         <form
           className="mt-6 flex flex-col gap-3 sm:flex-row"
           onSubmit={(e) => {
@@ -248,15 +258,20 @@ export default function Catalogo() {
             <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
               <SheetHeader>
                 <SheetTitle>Filtros</SheetTitle>
+                <SheetDescription>
+                  Busca por categoría, precio y taller. Los resultados se actualizan al elegir.
+                </SheetDescription>
               </SheetHeader>
-              <div className="px-4 pb-6">{Filtros}</div>
+              <div className="px-4 pb-6">{filtros("movil")}</div>
             </SheetContent>
           </Sheet>
         </form>
 
         <div className="mt-6 grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
           <aside className="hidden lg:block" aria-label="Filtros del catálogo">
-            <div className="sticky top-24 rounded-xl border bg-card p-5">{Filtros}</div>
+            <div className="sticky top-24 rounded-xl border bg-card p-5">
+              {filtros("escritorio")}
+            </div>
           </aside>
 
           <div>
@@ -315,43 +330,17 @@ export default function Catalogo() {
                   ))}
                 </div>
 
-                <nav
-                  className="mt-8 flex items-center justify-between gap-3"
-                  aria-label="Paginación del catálogo"
-                >
-                  <Button
-                    variant="outline"
-                    className="touch-target"
-                    disabled={(search.page ?? 1) <= 1}
-                    onClick={() =>
-                      setSearchParams(
-                        buildSearchParams({ ...search, page: (search.page ?? 1) - 1 }),
-                      )
-                    }
-                  >
-                    Anterior
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Página {productos.data.page} de {productos.data.totalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    className="touch-target"
-                    disabled={(search.page ?? 1) >= productos.data.totalPages}
-                    onClick={() =>
-                      setSearchParams(
-                        buildSearchParams({ ...search, page: (search.page ?? 1) + 1 }),
-                      )
-                    }
-                  >
-                    Siguiente
-                  </Button>
-                </nav>
+                <ListPagination
+                  page={search.page ?? 1}
+                  totalPages={productos.data.totalPages}
+                  busy={productos.isPlaceholderData}
+                  onPage={(page) => setSearchParams(buildSearchParams({ ...search, page }))}
+                />
               </>
             )}
           </div>
         </div>
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }

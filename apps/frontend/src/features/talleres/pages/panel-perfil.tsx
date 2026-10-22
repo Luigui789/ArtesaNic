@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/common/page";
 import { ImageUploader } from "@/features/catalogo/components/image-uploader";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -169,7 +170,7 @@ export default function PerfilTaller() {
 
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-3xl px-4 py-8">
+      <PageContainer>
         <Link
           to="/panel"
           className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -237,7 +238,7 @@ export default function PerfilTaller() {
             </div>
           </form>
         )}
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }

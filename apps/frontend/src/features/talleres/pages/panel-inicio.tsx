@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/common/page";
 import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ClipboardList, Hammer, Package, Wallet } from "lucide-react";
@@ -70,7 +71,7 @@ export default function Panel() {
 
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-6xl px-4 py-8">
+      <PageContainer className="max-w-6xl">
         <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="min-w-0">
             <p className="text-sm font-medium text-secondary">Panel del artesano</p>
@@ -163,7 +164,7 @@ export default function Panel() {
             )}
           </div>
         </section>
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }
