@@ -143,7 +143,7 @@ await verificar("33. modo real: sin «Vista de demostración» ni cambio de rol"
     ruta: "/panel",
   });
   const navegacion = texto(artesano.match(/<nav aria-label="Principal".*?<\/nav>/s)[0]);
-  assert.equal(navegacion.trim(), "Panel Solicitudes Mis productos");
+  assert.equal(navegacion.trim(), "Panel Solicitudes Mis productos Perfil del taller");
 });
 
 await verificar("modo demo: el selector existe solo con VITE_AUTH_API=mock", async () => {
