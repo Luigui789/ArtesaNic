@@ -39,6 +39,7 @@ function NavBadge({ cantidad }: { cantidad: number }) {
 const NAV: Record<Role, { to: string; label: string; end?: boolean }[]> = {
   comprador: [
     { to: "/", label: "Inicio", end: true },
+    { to: "/descubrir", label: "Descubrir" },
     { to: "/catalogo", label: "Catálogo" },
     { to: "/solicitudes", label: "Solicitudes" },
     { to: "/pedidos", label: "Pedidos (demo)" },
@@ -61,7 +62,7 @@ const INICIO_DE_VISTA: Record<Role, string> = { comprador: "/", artesano: "/pane
  * sistema real el rol lo asigna el servidor (RF-004) y este control no existe.
  * No sustituye a la pantalla de acceso, que sigue enlazada en la cabecera.
  */
-function SelectorVista({
+export function SelectorVista({
   onCambio,
   className,
   idDescripcion,
@@ -252,7 +253,7 @@ function Header() {
  * página: al recargar, el mock los reconstruye desde el seed determinista. Se
  * vuelve además a la vista de comprador, que es donde empieza la demostración.
  */
-function RestablecerDemo() {
+export function RestablecerDemo() {
   const { cambiarRol } = useSession();
   return (
     <AlertDialog>
@@ -305,13 +306,28 @@ function Footer() {
           <h3 className="text-sm font-semibold uppercase tracking-wide">Navegación</h3>
           <ul className="mt-3 space-y-1 text-sm">
             <li>
+              <Link to="/" className="text-muted-foreground hover:text-foreground">
+                Inicio
+              </Link>
+            </li>
+            <li>
+              <Link to="/descubrir" className="text-muted-foreground hover:text-foreground">
+                Descubrir
+              </Link>
+            </li>
+            <li>
               <Link to="/catalogo" className="text-muted-foreground hover:text-foreground">
-                Catálogo
+                Marketplace
               </Link>
             </li>
             <li>
               <Link to="/#como-funciona" className="text-muted-foreground hover:text-foreground">
                 Cómo funciona
+              </Link>
+            </li>
+            <li>
+              <Link to="/ayuda" className="text-muted-foreground hover:text-foreground">
+                Ayuda y normas
               </Link>
             </li>
             <li>
@@ -343,7 +359,7 @@ function Footer() {
  * Avisa cuando la demo no puede guardar sin sobrescribir datos que no logró leer.
  * Nada se borra hasta que la persona elige «Restablecer datos de demostración».
  */
-function AvisoPersistencia() {
+export function AvisoPersistencia() {
   const { data } = useQuery({
     queryKey: ["persistencia-demo"],
     queryFn: getPersistenceStatus,
