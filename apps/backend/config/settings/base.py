@@ -136,6 +136,9 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+MEDIA_ROOT = Path(env("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
+MEDIA_URL = "/media/"
+
 # --- Frontend (SPA), CORS, CSRF y cookies (ADR-003, ADR-007) ---
 
 # Orígenes exactos del frontend. Nunca se admite cualquier origen con credenciales.

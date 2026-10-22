@@ -16,6 +16,7 @@ from .base import (
     CatalogoAPITestCase,
     crear_producto,
     cuerpo_producto,
+    imagen_prueba,
     url_despublicar,
     url_mi_producto,
     url_publicar,
@@ -31,6 +32,7 @@ CAMPOS_PROPIOS = {
     "taller",
     "publicado",
     "creado_en",
+    "fotografia_url",
     "actualizado_en",
 }
 
@@ -348,7 +350,9 @@ class EditarProductoTests(CatalogoAPITestCase):
 class PublicacionTests(CatalogoAPITestCase):
     def setUp(self):
         super().setUp()
-        self.producto = crear_producto(self.taller, self.categoria)
+        self.producto = crear_producto(
+            self.taller, self.categoria, fotografia_principal=imagen_prueba()
+        )
         self.autenticar(self.artesano)
 
     def test_publicar_y_despublicar(self):

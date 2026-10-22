@@ -1,7 +1,10 @@
 """Apoyo compartido por las pruebas del catálogo."""
 
 from decimal import Decimal
+from io import BytesIO
 
+from django.core.files.uploadedfile import SimpleUploadedFile
+from PIL import Image
 from rest_framework.test import APITestCase
 
 from apps.accounts.api.tokens import emitir_tokens
@@ -61,7 +64,9 @@ def cuerpo_producto(categoria="cuero_y_calzado", **cambios) -> dict:
 def crear_producto(taller, categoria, *, publicado=False, **cambios) -> Producto:
     producto = services.crear_producto(taller, **datos_producto(categoria, **cambios))
     if publicado:
-        services.publicar_producto(producto)
+        # Fixture histórica anterior a DR-01; no pasa por la nueva precondición.
+        Producto.objects.filter(pk=producto.pk).update(publicado=True)
+        producto.publicado = True
     return producto
 
 
@@ -90,3 +95,9 @@ class CatalogoAPITestCase(APITestCase):
 
     def anonimo(self) -> None:
         self.client.credentials()
+
+
+def imagen_prueba(formato="PNG", nombre="original.png"):
+    contenido = BytesIO()
+    Image.new("RGB", (8, 6), "red").save(contenido, format=formato)
+    return SimpleUploadedFile(nombre, contenido.getvalue(), content_type="image/png")

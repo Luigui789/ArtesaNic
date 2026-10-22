@@ -1,7 +1,9 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.accounts.api.serializers import SinCamposDesconocidosMixin
 
+from ..imagenes import validar_fotografia
 from ..models import CAMPO_DE_MODALIDAD, PRECIO_MINIMO, Categoria, Modalidad, Producto
 
 MENSAJE_SIN_MODALIDAD = "Selecciona al menos una modalidad de venta."
@@ -51,7 +53,7 @@ class ModalidadesField(serializers.ListField):
 
 class ProductoEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
     """Datos que escribe el artesano. Taller, publicación y fechas no son campos de entrada:
-    enviarlos responde 400. La fotografía principal está pendiente de DR-01."""
+    enviarlos responde 400. Fotografía opcional hasta publicar (D-DR01-01)."""
 
     nombre = serializers.CharField(max_length=120)
     descripcion = serializers.CharField(max_length=2000)
@@ -68,6 +70,12 @@ class ProductoEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializ
         error_messages={"does_not_exist": "La categoría indicada no existe."},
     )
     modalidades = ModalidadesField()
+    fotografia_principal = serializers.FileField(
+        required=False,
+        allow_null=True,
+        validators=[validar_fotografia],
+        help_text="Una imagen estática JPEG, PNG o WebP, máximo 5 MiB. null retira en borrador.",
+    )
 
     def validated_data_del_modelo(self) -> dict:
         """Traduce la lista de modalidades a los campos booleanos del modelo.
@@ -84,6 +92,12 @@ class ProductoEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializ
 
 
 class _ProductoLecturaSerializer(serializers.ModelSerializer):
+    fotografia_url = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_fotografia_url(self, obj):
+        return obj.fotografia_principal.url if obj.fotografia_principal else None
+
     categoria = CategoriaSerializer(read_only=True)
     modalidades = serializers.ListField(
         child=serializers.ChoiceField(choices=Modalidad.choices),
@@ -107,6 +121,7 @@ class ProductoPublicoSerializer(_ProductoLecturaSerializer):
             "modalidades",
             "taller",
             "creado_en",
+            "fotografia_url",
         ]
         read_only_fields = fields
 
@@ -126,6 +141,7 @@ class ProductoPropioSerializer(_ProductoLecturaSerializer):
             "taller",
             "publicado",
             "creado_en",
+            "fotografia_url",
             "actualizado_en",
         ]
         read_only_fields = fields
