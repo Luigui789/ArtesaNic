@@ -12,7 +12,7 @@ from apps.catalogo.models import Categoria, Producto
 from apps.talleres import services as servicios_taller
 from apps.talleres.tests.base import crear_administrador, crear_artesano_con_taller
 
-from .base import crear_categoria, crear_producto, datos_producto
+from .base import crear_categoria, crear_producto, datos_producto, imagen_prueba
 
 
 class CatalogoModelTestCase(TestCase):
@@ -132,7 +132,7 @@ class ServiciosDeProductoTests(CatalogoModelTestCase):
         self.assertTrue(producto.permite_stock)
 
     def test_publicar_y_despublicar_son_idempotentes(self):
-        producto = crear_producto(self.taller, self.categoria)
+        producto = crear_producto(self.taller, self.categoria, fotografia_principal=imagen_prueba())
         self.assertTrue(services.publicar_producto(producto))
         self.assertFalse(services.publicar_producto(producto))
         self.assertTrue(services.despublicar_producto(producto))

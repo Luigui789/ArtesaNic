@@ -1,8 +1,8 @@
 # Contrato de API — Catálogo
 
-**Estado:** implementado en la rama `feature/catalogo-productos-v1` (AUD-04), **salvo la fotografía principal**, bloqueada por la decisión abierta DR-01 ([sección 7](#7-fotografía-principal-dr-01-bloqueada)). Verificado con la suite de pruebas contra PostgreSQL.
+**Estado:** contrato de AUD-04 ampliado con fotografía principal real por DR-01 ([sección 7](#7-fotografía-principal-dr-01)).
 
-**Fecha:** 2026-10-15
+**Fecha:** 2026-10-21
 
 **Esquema generado:** [`openapi.yaml`](openapi.yaml), etiquetas `Catálogo` y `Productos propios`.
 
@@ -61,6 +61,7 @@ Colección completa, ordenada por nombre y sin paginar. En los productos la cate
   "categoria": { "id": 1, "codigo": "cuero_y_calzado", "nombre": "Cuero y calzado" },
   "modalidades": ["stock", "personalizacion"],
   "taller": { "id": 3, "nombre": "Barro y Sombra" },
+  "fotografia_url": "/media/productos/{uuid}/principal/{uuid}.jpg",
   "creado_en": "2026-10-15T10:30:00-06:00"
 }
 ```
@@ -80,8 +81,9 @@ La misma forma más `publicado` (booleano) y `actualizado_en`.
 | `precio` | Córdobas, decimal con hasta 2 decimales y 10 dígitos, mayor que cero. Se acepta número o texto (`"850.50"`); se responde como texto decimal |
 | `categoria` | Código de una categoría existente (`400` si no existe) |
 | `modalidades` | Lista no vacía y sin repetir de `stock`, `produccion` y `personalizacion` |
+| `fotografia_principal` | Archivo opcional JPEG/PNG/WebP estático, hasta 5 MiB. Omitido conserva; `null` JSON retira solo en borrador |
 
-En `POST` todos son obligatorios. En `PATCH` todos son opcionales; `modalidades` **reemplaza la lista completa** y, si no se envía, no cambia.
+En `POST` todos salvo `fotografia_principal` son obligatorios. En `PATCH` todos son opcionales; `modalidades` **reemplaza la lista completa** y, si no se envía, no cambia.
 
 **Cualquier otro campo responde `400`** (`{"taller": ["Campo no permitido."]}`), entre ellos `taller`, `taller_id`, `propietario`, `publicado`, `id`, `creado_en`, `actualizado_en`, `imagen` y los de inventario. **El taller dueño se deriva siempre del token**; ninguna petición lo elige ni lo cambia.
 
@@ -107,6 +109,8 @@ Se combinan libremente; al menos una es obligatoria. La API valida la lista (`40
 - Despublicar **no borra la fila**: el producto deja de aparecer en el catálogo y en el detalle público, pero sigue existiendo y el artesano lo ve en `GET /productos/mios/`.
 - Despublicar tiene **efecto inmediato solo para nuevas solicitudes**: el producto ya no puede agregarse a una solicitud nueva. Las solicitudes creadas antes continúan su revisión, propuesta y etapas posteriores con la referencia al producto; la despublicación no las cancela ni modifica, y no se bloquea aunque existan solicitudes activas ([D-AUD06-06](../decisiones/v1.md#concreciones-de-aud-06)). La advertencia previa al artesano cuando el producto aparece en solicitudes activas queda pendiente de la interfaz de productos.
 - Editar no cambia la publicación.
+- Publicar exige fotografía principal persistida; de lo contrario responde `409` con `{"codigo": "producto_sin_fotografia", "detail": "Agrega una fotografía principal válida antes de publicar."}`. Se verifica también al repetir la acción sobre históricos sin foto.
+- Despublicar conserva la imagen. Eliminar la imagen de un publicado responde `400` en `fotografia_principal`.
 
 ## 6. Catálogo público (RF-003)
 
@@ -156,21 +160,49 @@ Productos del taller propio, publicados y no publicados, del más reciente al m�
 | `404` | El producto no existe **o pertenece a otro taller**: las dos respuestas son idénticas, para no revelar productos ajenos |
 | `405` | `PUT` o `DELETE` |
 
-## 7. Fotografía principal: DR-01 bloqueada
+## 7. Fotografía principal: DR-01
 
-RF-001 incluye la fotografía principal, y RNF-005.6 fija que las imágenes se guardan como archivos fuera de las filas de PostgreSQL, conservando en la base solo referencias y metadatos. **No están definidos** los formatos, el tamaño máximo, la cantidad, la resolución, la optimización o compresión, el proveedor de almacenamiento, la URL pública o firmada ni las miniaturas ([auditoría §23, DR-01](../auditorias/auditoria-tecnica-v1-2026-10-12.md#23-decision_required)). La regla anterior (JPG/PNG/WebP, 5 MB, Pillow) no es la línea base y no se importa.
+**Cerrada para productos** por [D-DR01-01 a D-DR01-07](../decisiones/v1.md#concreciones-de-dr-01-fotografía-principal-de-producto).
+RF-001 exige fotografía y RNF-005 exige archivos fuera de PostgreSQL. JPEG/PNG/WebP y
+5 MiB son decisiones de implementación V1; no se atribuyen al texto original del RF.
 
-Por eso este contrato **no tiene campo de imagen**: enviarlo responde `400`. No se usó una solución provisional que obligara a romper el contrato después. La integración prevista es **aditiva**:
+`POST /productos/mios/` y `PATCH /productos/mios/{id}/` aceptan `application/json`
+(sin archivo nuevo) y `multipart/form-data` (archivo binario). Ejemplo:
 
-1. Un subrecurso propio para el archivo, por ejemplo `PUT /api/v1/productos/mios/{id}/fotografia/` con `multipart/form-data`, que no cambia el cuerpo JSON de `POST`/`PATCH`.
-2. Un campo de lectura añadido al producto público y propio (por ejemplo `fotografia`: URL o `null`).
+```bash
+curl -H "Authorization: Bearer $ACCESS_TOKEN" \
+  -F 'nombre=Jarrón' -F 'descripcion=Jarrón artesanal' -F 'precio=850.00' \
+  -F 'categoria=ceramica' -F 'modalidades=stock' -F 'modalidades=personalizacion' \
+  -F 'fotografia_principal=@foto.webp' http://localhost:8000/api/v1/productos/mios/
+```
 
-**Decisión mínima requerida para cerrar DR-01:**
+La categoría debe existir. El navegador fija el boundary; el cliente HTTP común de AUD-18
+mantiene Bearer en memoria, cookies, renovación/reintento y CSRF donde corresponde.
+No se permite enviar taller, propietario, publicación ni rutas arbitrarias. Los booleanos
+`permite_*` siguen siendo internos: el contrato vigente recibe `modalidades`.
 
-- formatos admitidos y tamaño máximo;
-- procesamiento: redimensionado o compresión, y miniaturas;
-- almacenamiento y entrega: proveedor, y URL pública o firmada;
-- si **publicar exige fotografía**. RF-001.3 pide validar los obligatorios antes de guardar. Si se exige, `publicar` añadirá esa precondición, y los productos creados antes sin fotografía no podrán volver a publicarse hasta tener una.
+Solo una foto, estática, JPEG/PNG/WebP hasta **5 242 880 bytes**. Pillow valida tamaño,
+formato real, estructura y decodificación completa. No confía en nombre/extensión/MIME.
+SVG, GIF, BMP, TIFF, PDF, ejecutables y corruptos responden `400` en `fotografia_principal`.
+Ejemplos: «El archivo no puede superar 5 MiB.», «Usa una imagen JPEG, PNG o WebP.» o
+«El archivo no es una imagen válida.». Protección técnica: hasta 25 millones de píxeles,
+sin resolución mínima comercial, redimensionado ni optimización automática.
+
+Lecturas propias y públicas incluyen `fotografia_url` (URL relativa al origen API o `null`).
+El frontend la usa en tarjetas, detalle, home y perfil del taller a través del mapeo común.
+Los históricos sin imagen conservan placeholder visual, sin URL inventada.
+Archivos en `ImageField`/Django Storage, columna con referencia y nombres UUID + extensión
+canónica. No se guarda base64, bytes ni nombre original en PostgreSQL.
+
+La edición sin archivo mantiene el actual. El reemplazo valida y guarda el nuevo antes
+de actualizar la fila; elimina el previo después del commit. Fallo SQL inmediato limpia
+el archivo nuevo. Fallo de limpieza se registra; caída del proceso o rollback externo
+pueden dejar huérfanos porque filesystem y BD no comparten transacción. Despublicar no
+borra imágenes. EXIF se conserva en el archivo y no se extrae como dato de negocio.
+
+Media es pública por URL incluso en borradores/despublicados; no sirve para archivos
+privados de pagos. AUD-10 necesita política adicional. No incluye galerías, S3/CDN,
+miniaturas ni transformación. [Configuración local](../arquitectura/desarrollo-local-backend.md#media-de-productos-dr-01).
 
 ## 8. Decisiones aplicadas en AUD-04
 
@@ -211,7 +243,7 @@ Por defecto sigue el simulado porque pedidos, solicitudes y mensajes todavía so
 - la gestión del artesano responde `401` hasta que exista la sesión real (AUD-18 registra el token con `configurarTokenDeAcceso`);
 - el botón *Preparar solicitud* abre la composición de [solicitudes V1](solicitudes.md); su creación real exige Bearer y la sesión frontend sigue pendiente de AUD-18;
 - el perfil público del taller (`/artesano/{id}`) lee `GET /api/v1/talleres/{id}/` (`talleres/http.ts`), así que el `taller.id` del producto abre el taller real. Como la API pública no publica al responsable ni tiene fotografías del taller, la página no los muestra. El panel, los pedidos y los mensajes siguen usando los talleres simulados;
-- no hay fotografías (DR-01).
+- la fotografía principal se carga como archivo y se muestra desde `fotografia_url` (DR-01).
 
 El inventario simulado (existencias) solo aparece en el formulario del modo simulado y solo con la modalidad `stock`.
 

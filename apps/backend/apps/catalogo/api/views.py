@@ -13,6 +13,7 @@ from rest_framework import exceptions, status
 from rest_framework.generics import GenericAPIView
 from rest_framework.mixins import ListModelMixin
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -183,6 +184,7 @@ class _GestionMixin:
     """
 
     permission_classes = [EsArtesanoAprobado, EsPropietario]
+    parser_classes = [JSONParser, MultiPartParser]
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):
@@ -231,7 +233,7 @@ class MisProductosView(_GestionMixin, ListModelMixin, GenericAPIView):
         summary="Registrar un producto en el taller propio",
         description="Crea el producto sin publicar; se publica con la acción publicar. Todos "
         "los campos son obligatorios. Taller, publicación y cualquier otro campo se rechazan "
-        "con 400. La fotografía principal está pendiente de la decisión DR-01.",
+        "con 400. Fotografía opcional JPEG/PNG/WebP de hasta 5 MiB; publicar la exige.",
         request=ProductoEntradaSerializer,
         responses={
             201: ProductoPropioSerializer,
@@ -309,10 +311,19 @@ class _PublicacionView(_GestionView):
             operacion(producto)
         except services.TallerNoHabilitado:
             raise _sin_habilitacion() from None
+        except services.ProductoSinFotografia:
+            return Response(
+                {
+                    "codigo": "producto_sin_fotografia",
+                    "detail": "Agrega una fotografía principal válida antes de publicar.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         return Response(ProductoPropioSerializer(producto).data)
 
 
 _RESPUESTAS_PUBLICACION = {
+    409: OpenApiResponse(ErrorSerializer, description="producto_sin_fotografia: falta fotografía."),
     200: ProductoPropioSerializer,
     401: RESPUESTA_401,
     403: RESPUESTA_403,

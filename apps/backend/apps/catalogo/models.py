@@ -16,6 +16,8 @@ from django.utils import timezone
 
 from apps.talleres.models import PATRON_NO_EN_BLANCO, EstadoTaller, Taller
 
+from .imagenes import ruta_fotografia, validar_fotografia
+
 # Código estable de la categoría en la API: minúsculas, dígitos y guiones bajos.
 PATRON_CODIGO_CATEGORIA = r"\A[a-z0-9]+(_[a-z0-9]+)*\Z"
 validar_codigo_categoria = RegexValidator(
@@ -79,6 +81,7 @@ CAMPOS_EDITABLES = (
     "precio",
     "categoria",
     *CAMPO_DE_MODALIDAD.values(),
+    "fotografia_principal",
 )
 
 
@@ -108,6 +111,13 @@ class Producto(models.Model):
         on_delete=models.PROTECT,
         related_name="productos",
         verbose_name="categoría",
+    )
+    fotografia_principal = models.ImageField(
+        upload_to=ruta_fotografia,
+        null=True,
+        blank=True,
+        max_length=200,
+        validators=[validar_fotografia],
     )
     nombre = models.CharField("nombre", max_length=120)
     descripcion = models.TextField("descripción", max_length=2000)

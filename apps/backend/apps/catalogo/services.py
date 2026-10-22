@@ -6,11 +6,38 @@ recibidos. Solo un taller aprobado opera su catálogo; la vista lo exige con
 Despublicar es un cambio de estado, no un borrado.
 """
 
+import logging
+
+from django.core.exceptions import ValidationError
 from django.db import transaction
 
 from apps.talleres.models import Taller
 
 from .models import CAMPOS_EDITABLES, Producto
+
+logger = logging.getLogger(__name__)
+
+
+class ProductoSinFotografia(Exception):
+    """Publicar exige una fotografía principal persistida."""
+
+
+def _eliminar_archivo(storage, nombre):
+    try:
+        storage.delete(nombre)
+    except OSError:
+        logger.exception("No se pudo limpiar fotografía obsoleta: %s", nombre)
+
+
+def _guardar(producto, **kwargs):
+    foto = producto.fotografia_principal
+    nueva = bool(foto and not foto._committed)
+    try:
+        producto.save(**kwargs)
+    except Exception:
+        if nueva and foto._committed:
+            _eliminar_archivo(foto.storage, foto.name)
+        raise
 
 
 class TallerNoHabilitado(Exception):
@@ -35,7 +62,7 @@ def crear_producto(taller: Taller, **datos) -> Producto:
     producto = Producto(taller=taller, publicado=False, **datos)
     producto.full_clean()
     with transaction.atomic():
-        producto.save()
+        _guardar(producto)
     return producto
 
 
@@ -45,11 +72,19 @@ def actualizar_producto(producto: Producto, **datos) -> Producto:
     _validar_campos(datos)
     with transaction.atomic():
         actual = Producto.objects.select_for_update().select_related("taller").get(pk=producto.pk)
+        anterior = actual.fotografia_principal.name
+        storage = actual.fotografia_principal.storage
         for campo, valor in datos.items():
             setattr(actual, campo, valor)
         # Valida el producto completo: por ejemplo, que no quede sin modalidades.
+        if actual.publicado and "fotografia_principal" in datos and not actual.fotografia_principal:
+            raise ValidationError(
+                {"fotografia_principal": "Un producto publicado requiere fotografía."}
+            )
         actual.full_clean()
-        actual.save(update_fields=[*datos, "actualizado_en"])
+        _guardar(actual, update_fields=[*datos, "actualizado_en"])
+        if anterior and anterior != actual.fotografia_principal.name:
+            transaction.on_commit(lambda: _eliminar_archivo(storage, anterior))
     return actual
 
 
@@ -67,6 +102,9 @@ def _cambiar_publicacion(producto: Producto, *, publicado: bool) -> bool:
     _exigir_habilitado(producto.taller)
     with transaction.atomic():
         actual = Producto.objects.select_for_update().get(pk=producto.pk)
+        foto = actual.fotografia_principal
+        if publicado and (not foto or not foto.storage.exists(foto.name)):
+            raise ProductoSinFotografia
         if actual.publicado == publicado:
             cambio = False
         else:

@@ -589,14 +589,17 @@ paths:
       operationId: crear_producto
       description: Crea el producto sin publicar; se publica con la acción publicar.
         Todos los campos son obligatorios. Taller, publicación y cualquier otro campo
-        se rechazan con 400. La fotografía principal está pendiente de la decisión
-        DR-01.
+        se rechazan con 400. Fotografía opcional JPEG/PNG/WebP de hasta 5 MiB; publicar
+        la exige.
       summary: Registrar un producto en el taller propio
       tags:
       - Productos propios
       requestBody:
         content:
           application/json:
+            schema:
+              $ref: '#/components/schemas/ProductoEntradaRequest'
+          multipart/form-data:
             schema:
               $ref: '#/components/schemas/ProductoEntradaRequest'
         required: true
@@ -700,6 +703,9 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/PatchedProductoEntradaRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedProductoEntradaRequest'
       security:
       - jwtAuth: []
       responses:
@@ -759,6 +765,12 @@ paths:
       security:
       - jwtAuth: []
       responses:
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'producto_sin_fotografia: falta fotografía.'
         '200':
           content:
             application/json:
@@ -800,6 +812,12 @@ paths:
       security:
       - jwtAuth: []
       responses:
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: 'producto_sin_fotografia: falta fotografía.'
         '200':
           content:
             application/json:
@@ -1993,7 +2011,7 @@ components:
       type: object
       description: |-
         Datos que escribe el artesano. Taller, publicación y fechas no son campos de entrada:
-        enviarlos responde 400. La fotografía principal está pendiente de DR-01.
+        enviarlos responde 400. Fotografía opcional hasta publicar (D-DR01-01).
       properties:
         nombre:
           type: string
@@ -2020,6 +2038,12 @@ components:
           description: 'Modalidades de venta que admite el producto, solas o combinadas:
             stock, produccion, personalizacion.'
           minItems: 1
+        fotografia_principal:
+          type: string
+          format: binary
+          nullable: true
+          description: Una imagen estática JPEG, PNG o WebP, máximo 5 MiB. null retira
+            en borrador.
     PerfilTallerEntradaRequest:
       type: object
       description: |-
@@ -2088,7 +2112,7 @@ components:
       type: object
       description: |-
         Datos que escribe el artesano. Taller, publicación y fechas no son campos de entrada:
-        enviarlos responde 400. La fotografía principal está pendiente de DR-01.
+        enviarlos responde 400. Fotografía opcional hasta publicar (D-DR01-01).
       properties:
         nombre:
           type: string
@@ -2115,6 +2139,12 @@ components:
           description: 'Modalidades de venta que admite el producto, solas o combinadas:
             stock, produccion, personalizacion.'
           minItems: 1
+        fotografia_principal:
+          type: string
+          format: binary
+          nullable: true
+          description: Una imagen estática JPEG, PNG o WebP, máximo 5 MiB. null retira
+            en borrador.
       required:
       - categoria
       - descripcion
@@ -2166,6 +2196,11 @@ components:
           type: string
           format: date-time
           readOnly: true
+        fotografia_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
         actualizado_en:
           type: string
           format: date-time
@@ -2175,6 +2210,7 @@ components:
       - categoria
       - creado_en
       - descripcion
+      - fotografia_url
       - id
       - modalidades
       - nombre
@@ -2223,10 +2259,16 @@ components:
           type: string
           format: date-time
           readOnly: true
+        fotografia_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
       required:
       - categoria
       - creado_en
       - descripcion
+      - fotografia_url
       - id
       - modalidades
       - nombre

@@ -42,8 +42,7 @@ export interface CatalogProduct {
   taller: TallerResumen;
   creadoEn: string;
   /**
-   * Fotografía principal. La API real todavía no la ofrece: su política de
-   * archivos está pendiente de DR-01. Solo el servidor simulado la rellena.
+   * URL persistida de la fotografía principal; ausente en productos históricos.
    */
   imagen?: string | undefined;
 }
@@ -68,7 +67,9 @@ export interface ProductInput {
   descripcion: string;
   /** Al menos una; se combinan libremente. */
   modalidades: Modalidad[];
-  /** Solo servidor simulado (DR-01 abierto): la API real no recibe imágenes todavía. */
+  /** Archivo real. Se omite en edición para conservar la fotografía actual. */
+  fotografiaPrincipal?: File | undefined;
+  /** Solo servidor simulado. */
   imagen?: string | undefined;
   /** Solo servidor simulado: inventario de la demo, hasta que exista el dominio real. */
   inventarioDemo?: InventarioDemoInput | undefined;

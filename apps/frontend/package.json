@@ -11,7 +11,7 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/check-demo.mjs && node scripts/check-catalogo-http.mjs && node scripts/check-catalogo-formulario.mjs && node scripts/check-perfil-taller.mjs && node scripts/check-solicitudes.mjs && node scripts/check-solicitudes-http.mjs && node scripts/check-auth.mjs && node scripts/check-auth-ui.mjs && node scripts/check-taller-propio.mjs",
+    "test": "node scripts/check-demo.mjs && node scripts/check-catalogo-http.mjs && node scripts/check-catalogo-formulario.mjs && node scripts/check-imagenes.mjs && node scripts/check-perfil-taller.mjs && node scripts/check-solicitudes.mjs && node scripts/check-solicitudes-http.mjs && node scripts/check-auth.mjs && node scripts/check-auth-ui.mjs && node scripts/check-taller-propio.mjs",
     "check:health": "node ../../infra/scripts/check-health.mjs"
   },
   "dependencies": {

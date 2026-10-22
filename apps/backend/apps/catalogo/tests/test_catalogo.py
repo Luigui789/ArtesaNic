@@ -28,6 +28,7 @@ CAMPOS_PUBLICOS = {
     "modalidades",
     "taller",
     "creado_en",
+    "fotografia_url",
 }
 
 
