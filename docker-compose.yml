@@ -54,6 +54,7 @@ services:
     environment:
       VITE_API_URL: ${VITE_API_URL:-/api/v1}
       VITE_CATALOGO_API: ${VITE_CATALOGO_API:-mock}
+      VITE_AUTH_API: ${VITE_AUTH_API:-mock}
       API_PROXY_TARGET: http://backend:8000
     command: ["pnpm", "dev", "--host", "0.0.0.0", "--port", "5173"]
     ports:

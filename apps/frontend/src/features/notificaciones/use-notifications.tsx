@@ -44,7 +44,7 @@ interface NotificationsContextValue {
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const { usuario } = useSession();
+  const { modo, usuario } = useSession();
   const rol = usuario?.rol ?? "comprador";
   const [noLeidos, setNoLeidos] = useState<Record<number, number>>({});
   const [recientes, setRecientes] = useState<NotificacionMensaje[]>([]);
@@ -60,6 +60,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [rol]);
 
   useEffect(() => {
+    // Los pedidos y mensajes siguen simulados con la identidad de la demo: con la
+    // sesión real no se sondean, para no atribuirlos a una cuenta real.
+    if (modo === "real") return;
     let cancelado = false;
 
     const revisar = async () => {
@@ -108,7 +111,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       cancelado = true;
       clearInterval(id);
     };
-  }, [rol]);
+  }, [modo, rol]);
 
   const marcarLeido = useCallback((pedidoId: number) => {
     setNoLeidos((prev) => {

@@ -34,7 +34,8 @@ async function cargarClienteReal() {
               ? `export * as api from "@/features/solicitudes/api";
                  export * as http from "@/features/solicitudes/http";
                  export * as idem from "@/features/solicitudes/idempotencia";
-                 export * as transporte from "@/features/catalogo/http";`
+                 export * as transporte from "@/features/catalogo/http";
+                 export * as sesionHttp from "@/lib/http";`
               : undefined,
         },
       ],
@@ -52,7 +53,7 @@ async function cargarClienteReal() {
   }
 }
 
-const { api, http, idem, transporte } = await cargarClienteReal();
+const { api, http, idem, transporte, sesionHttp } = await cargarClienteReal();
 const CLAVE = "11111111-2222-4333-8444-555555555555";
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 let peticiones = [];
@@ -151,7 +152,8 @@ const usuarioDemo = {
   artesanoId: 998,
 };
 let token = "token-de-acceso-exclusivo-de-pruebas";
-transporte.configurarTokenDeAcceso(() => token);
+// El token vive en memoria en el cliente común (AUD-18).
+sesionHttp.establecerTokenDeAcceso(token);
 
 await verificar("allowlist y serialización snake_case por modalidad", () => {
   const contaminada = {
@@ -306,6 +308,7 @@ await verificar("400 conserva errores anidados por posición y campo", async () 
 
 await verificar("401 sin token no inventa una sesión ni envía usuario demo", async () => {
   token = null;
+  sesionHttp.establecerTokenDeAcceso(null);
   responder({ status: 401, cuerpo: { detail: "Authentication credentials were not provided." } });
   await assert.rejects(api.crearSolicitud(entrada, usuarioDemo, CLAVE), (error) => {
     assert.equal(error.status, 401);
@@ -315,6 +318,7 @@ await verificar("401 sin token no inventa una sesión ni envía usuario demo", a
   assert.equal(ultima().cabeceras.Authorization, undefined);
   assert.deepEqual(ultima().cuerpo, http.cuerpoSolicitud(entrada));
   token = "token-de-acceso-exclusivo-de-pruebas";
+  sesionHttp.establecerTokenDeAcceso(token);
 });
 
 await verificar("403 conserva motivo y 404 no revela identidad ajena", async () => {
@@ -453,8 +457,24 @@ await verificar("AUD-08: consulta de resultado incierto, propia y de solo lectur
   assert.equal(ultima().cabeceras["Idempotency-Key"], undefined);
   responder({ status: 404, cuerpo: { detail: "No encontrado." } });
   assert.equal(await http.consultarCreacionSolicitud(CLAVE), null);
-  responder({ status: 401, cuerpo: { detail: "Sin sesión." } });
+  // AUD-18: un 401 con token intenta una sola renovación; si también responde 401,
+  // la sesión terminó y la consulta falla sin más reintentos.
+  responder(
+    { status: 401, cuerpo: { detail: "Sin sesión." } },
+    { cuerpo: { csrf_token: "csrf-de-prueba" } },
+    { status: 401, cuerpo: { detail: "La sesión no es válida o expiró." } },
+  );
   await assert.rejects(http.consultarCreacionSolicitud(CLAVE), (e) => e.status === 401);
+  assert.deepEqual(
+    peticiones.map((p) => p.url),
+    [
+      `/api/v1/operaciones/crear_solicitud/${CLAVE}/`,
+      "/api/v1/auth/csrf/",
+      "/api/v1/auth/refrescar/",
+    ],
+  );
+  assert.equal(sesionHttp.tokenDeAcceso(), null);
+  sesionHttp.establecerTokenDeAcceso(token);
 });
 
 await verificar("AUD-08: mock equivalente por usuario demo, sin fetch", async () => {
