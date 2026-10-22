@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/common/page";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Clock, MapPin, Phone } from "lucide-react";
@@ -69,12 +70,12 @@ export default function DetalleProducto() {
   if (producto.isError) {
     return (
       <SiteLayout>
-        <div className="mx-auto max-w-3xl px-4 py-16">
+        <PageContainer>
           <ErrorState
             mensaje="No pudimos cargar este producto."
             onRetry={() => void producto.refetch()}
           />
-        </div>
+        </PageContainer>
       </SiteLayout>
     );
   }
@@ -98,7 +99,7 @@ export default function DetalleProducto() {
 
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-7xl px-4 py-6">
+      <PageContainer>
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
@@ -130,7 +131,15 @@ export default function DetalleProducto() {
             <Badge variant="outline" className="border-secondary/40 text-secondary">
               {p.categoria.nombre}
             </Badge>
-            <h1 className="mt-3 font-display text-3xl font-bold">{p.nombre}</h1>
+            <h1 className="mt-3 text-balance font-display text-3xl font-semibold sm:text-4xl">
+              {p.nombre}
+            </h1>
+            <Link
+              to={`/artesano/${p.taller.id}`}
+              className="mt-2 inline-flex min-h-11 items-center text-sm text-secondary underline-offset-4 hover:underline"
+            >
+              Hecho por {p.taller.nombre}
+            </Link>
 
             <ModalidadesTexto modalidades={p.modalidades} className="mt-2" />
             <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -138,7 +147,7 @@ export default function DetalleProducto() {
               <CurrencySwitcher />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              Tasa simulada: 1 US$ = C$ {TASA_CAMBIO}
+              Conversión informativa: 1 US$ = C$ {TASA_CAMBIO}
             </p>
 
             <div className="mt-6">
@@ -212,7 +221,7 @@ export default function DetalleProducto() {
             ) : null}
           </div>
         </div>
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }

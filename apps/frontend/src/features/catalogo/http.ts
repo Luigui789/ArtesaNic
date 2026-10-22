@@ -239,3 +239,9 @@ export async function unpublishOwnProduct(id: number): Promise<OwnProduct> {
     }),
   );
 }
+
+export async function getOwnProduct(id: number, signal?: AbortSignal): Promise<OwnProduct> {
+  return aProductoPropio(
+    await solicitar<ProductoPropioDTO>(`/productos/mios/${id}/`, { autenticada: true, signal }),
+  );
+}

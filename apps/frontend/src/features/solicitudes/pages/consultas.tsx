@@ -1,6 +1,13 @@
+import { ListPagination } from "@/components/common/pagination";
+import { formatDate } from "@/lib/format";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
+import { PageContainer, PageHeader } from "@/components/common/page";
+import { LoadingState } from "@/components/common/states";
+import { StatusBadge } from "@/components/common/status-badge";
+import { PropuestaFinal } from "../components/propuesta";
+import { FormularioPropuesta, RevisionRenglon } from "../components/revision";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
@@ -29,7 +36,7 @@ const AVISO: Record<EstadoSolicitud, string> = {
   lista_propuesta:
     "El taller ya resolvió todos los productos y preparará su propuesta final con precios y entrega.",
   propuesta_emitida:
-    "El taller emitió su propuesta final. Todavía no es un pedido confirmado ni reserva inventario.",
+    "Consulta la propuesta para conocer sus condiciones, la decisión del comprador y los siguientes pasos.",
   rechazada:
     "La solicitud terminó rechazada. Se conservan los productos y sus motivos; no hay propuesta confirmable ni pedido confirmado.",
 };
@@ -61,18 +68,18 @@ export function ListadoSolicitudes({ recibidas = false }: { recibidas?: boolean 
   });
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-4xl space-y-6 px-4 py-8 [&_button]:min-h-11">
-        <h1 className="font-display text-3xl font-bold">
-          {recibidas ? "Solicitudes recibidas" : "Mis solicitudes"}
-        </h1>
-        <p>Solicitudes con uno o varios productos. Todavía no son pedidos confirmados.</p>
+      <PageContainer>
+        <PageHeader
+          title={recibidas ? "Solicitudes recibidas" : "Mis solicitudes"}
+          description="Consulta cada solicitud, revisa la propuesta y sigue el avance hacia tu pedido."
+        />
         {!recibidas ? (
           <Button asChild>
             <Link to="/solicitudes/nueva">Nueva solicitud</Link>
           </Button>
         ) : null}
         {solicitudes.isPending ? (
-          <p role="status">Cargando solicitudes…</p>
+          <LoadingState label="Cargando solicitudes…" />
         ) : solicitudes.isError ? (
           <ErrorState
             mensaje={solicitudes.error.message}
@@ -98,32 +105,21 @@ export function ListadoSolicitudes({ recibidas = false }: { recibidas?: boolean 
                   Solicitud #{s.id}
                 </Link>
                 <p>
-                  {s.taller.nombre} · {s.renglones.length}{" "}
+                  {"comprador" in s ? s.comprador.nombre : s.taller.nombre} · {s.renglones.length}{" "}
                   {s.renglones.length === 1 ? "producto" : "productos"}
                 </p>
-                <p>{ESTADO[s.estado]}</p>
+                <p className="mb-2 text-xs text-muted-foreground">{formatDate(s.creadoEn)}</p>
+                <StatusBadge tone={s.estado === "rechazada" ? "danger" : "pending"}>
+                  {ESTADO[s.estado]}
+                </StatusBadge>
               </li>
             ))}
           </ul>
         )}
-        {solicitudes.data && solicitudes.data.totalPages > 1 ? (
-          <nav className="flex items-center gap-4" aria-label="Paginación de solicitudes">
-            <Button variant="outline" disabled={page <= 1} onClick={() => setPage(page - 1)}>
-              Anterior
-            </Button>
-            <span>
-              Página {page} de {solicitudes.data.totalPages}
-            </span>
-            <Button
-              variant="outline"
-              disabled={page >= solicitudes.data.totalPages}
-              onClick={() => setPage(page + 1)}
-            >
-              Siguiente
-            </Button>
-          </nav>
+        {solicitudes.data ? (
+          <ListPagination page={page} totalPages={solicitudes.data.totalPages} onPage={setPage} />
         ) : null}
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }
@@ -151,7 +147,7 @@ export function DetalleSolicitud({ recibidas = false }: { recibidas?: boolean })
   const s = solicitud.data;
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">
+      <PageContainer>
         <Link
           to={recibidas ? "/panel/solicitudes" : "/solicitudes"}
           className="inline-flex min-h-11 items-center text-primary"
@@ -160,7 +156,7 @@ export function DetalleSolicitud({ recibidas = false }: { recibidas?: boolean })
         </Link>
         <h1 className="font-display text-3xl font-bold">Solicitud #{id}</h1>
         {solicitud.isPending ? (
-          <p role="status">Cargando solicitud…</p>
+          <LoadingState label="Cargando solicitud…" />
         ) : solicitud.isError ? (
           <ErrorState mensaje={solicitud.error.message} onRetry={() => void solicitud.refetch()} />
         ) : s ? (
@@ -197,6 +193,12 @@ export function DetalleSolicitud({ recibidas = false }: { recibidas?: boolean })
                     </p>
                   ) : null}
                   <p>Resolución: {RESOLUCION[r.resolucion]}</p>
+                  {solicitudesReales &&
+                  recibidas &&
+                  r.resolucion === "pendiente" &&
+                  s.estado === "pendiente_revision" ? (
+                    <RevisionRenglon solicitud={s.id} renglon={r.id} />
+                  ) : null}
                   {r.motivoRechazo ? (
                     <p className="whitespace-pre-wrap break-words">
                       Motivo de rechazo: {r.motivoRechazo}
@@ -205,9 +207,15 @@ export function DetalleSolicitud({ recibidas = false }: { recibidas?: boolean })
                 </li>
               ))}
             </ol>
+            {solicitudesReales && recibidas && s.estado === "lista_propuesta" ? (
+              <FormularioPropuesta solicitud={s} />
+            ) : null}
+            {solicitudesReales && s.estado === "propuesta_emitida" ? (
+              <PropuestaFinal solicitud={s.id} recibida={recibidas} />
+            ) : null}
           </>
         ) : null}
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }

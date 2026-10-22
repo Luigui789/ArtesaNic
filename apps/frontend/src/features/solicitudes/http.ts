@@ -84,6 +84,9 @@ interface PropuestaDTO {
   id: number;
   solicitud: number;
   emitida_en: string;
+  decision?: Propuesta["decision"];
+  decidida_en?: string | null;
+  pedido_id?: number | null;
   moneda: "NIO";
   modalidad_entrega: Propuesta["modalidadEntrega"];
   descripcion_entrega: string;
@@ -163,6 +166,13 @@ function aPropuesta(datos: PropuestaDTO): Propuesta {
     id: datos.id,
     solicitud: datos.solicitud,
     emitidaEn: datos.emitida_en,
+    ...(datos.decision
+      ? {
+          decision: datos.decision,
+          decididaEn: datos.decidida_en ?? null,
+          pedidoId: datos.pedido_id ?? null,
+        }
+      : {}),
     moneda: datos.moneda,
     modalidadEntrega: datos.modalidad_entrega,
     descripcionEntrega: datos.descripcion_entrega,

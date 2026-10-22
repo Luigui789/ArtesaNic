@@ -149,6 +149,9 @@ export interface Propuesta {
   id: number;
   solicitud: number;
   emitidaEn: string;
+  decision?: "pendiente" | "aceptada" | "rechazada";
+  decididaEn?: string | null;
+  pedidoId?: number | null;
   moneda: "NIO";
   modalidadEntrega: ModalidadEntrega;
   descripcionEntrega: string;

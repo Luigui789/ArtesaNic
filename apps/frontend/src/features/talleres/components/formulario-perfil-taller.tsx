@@ -1,3 +1,4 @@
+import { useForm } from "react-hook-form";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -26,7 +27,8 @@ export function FormularioPerfilTaller({ taller, onTerminar }: Props) {
   const { usuario } = useSession();
   const queryClient = useQueryClient();
   const original = perfilEditableDe(taller);
-  const [perfil, setPerfil] = useState<PerfilTallerEntrada>(original);
+  const formulario = useForm<PerfilTallerEntrada>({ defaultValues: original });
+  const perfil = formulario.watch();
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
 
@@ -47,10 +49,11 @@ export function FormularioPerfilTaller({ taller, onTerminar }: Props) {
   });
 
   const campo = (k: keyof PerfilTallerEntrada) => (v: string) =>
-    setPerfil((p) => ({ ...p, [k]: v }));
+    formulario.setValue(k, v, { shouldDirty: true });
 
   const enviar = (e: React.FormEvent) => {
     e.preventDefault();
+    if (guardar.isPending) return;
     setGeneral(null);
     const r = esquemaTaller.safeParse(perfil);
     if (!r.success) {
@@ -84,34 +87,36 @@ export function FormularioPerfilTaller({ taller, onTerminar }: Props) {
       <p className="text-sm text-muted-foreground">
         Editar estos datos no cambia el estado de aprobación del taller.
       </p>
-      <Campo etiqueta="Nombre del taller *" {...comun("nombre", "nombre")} />
-      <Campo etiqueta="Rubro *" {...comun("rubro", "rubro")} />
-      <Campo
-        etiqueta="Dirección completa *"
-        autoComplete="street-address"
-        {...comun("direccionCompleta", "direccion")}
-      />
-      <Campo etiqueta="Historia del taller" multilinea {...comun("historia", "historia")} />
-      <Campo etiqueta="Horario de atención" {...comun("horario", "horario")} />
-      <p className="text-sm text-muted-foreground">
-        Contactos públicos (opcionales). Tu teléfono de acceso no se publica; deja un campo vacío
-        para retirarlo.
-      </p>
-      <Campo
-        etiqueta="Teléfono público"
-        type="tel"
-        inputMode="tel"
-        {...comun("telefonoPublico", "telefono")}
-      />
-      <Campo
-        etiqueta="WhatsApp público"
-        type="tel"
-        inputMode="tel"
-        {...comun("whatsappPublico", "whatsapp")}
-      />
-      <Campo etiqueta="Facebook" type="url" {...comun("facebookUrl", "facebook")} />
-      <Campo etiqueta="Instagram" type="url" {...comun("instagramUrl", "instagram")} />
-      <Campo etiqueta="Sitio web" type="url" {...comun("sitioWeb", "sitio-web")} />
+      <fieldset disabled={guardar.isPending} className="space-y-4">
+        <Campo etiqueta="Nombre del taller *" {...comun("nombre", "nombre")} />
+        <Campo etiqueta="Rubro *" {...comun("rubro", "rubro")} />
+        <Campo
+          etiqueta="Dirección completa *"
+          autoComplete="street-address"
+          {...comun("direccionCompleta", "direccion")}
+        />
+        <Campo etiqueta="Historia del taller" multilinea {...comun("historia", "historia")} />
+        <Campo etiqueta="Horario de atención" {...comun("horario", "horario")} />
+        <p className="text-sm text-muted-foreground">
+          Contactos públicos (opcionales). Tu teléfono de acceso no se publica; deja un campo vacío
+          para retirarlo.
+        </p>
+        <Campo
+          etiqueta="Teléfono público"
+          type="tel"
+          inputMode="tel"
+          {...comun("telefonoPublico", "telefono")}
+        />
+        <Campo
+          etiqueta="WhatsApp público"
+          type="tel"
+          inputMode="tel"
+          {...comun("whatsappPublico", "whatsapp")}
+        />
+        <Campo etiqueta="Facebook" type="url" {...comun("facebookUrl", "facebook")} />
+        <Campo etiqueta="Instagram" type="url" {...comun("instagramUrl", "instagram")} />
+        <Campo etiqueta="Sitio web" type="url" {...comun("sitioWeb", "sitio-web")} />
+      </fieldset>
       {general ? (
         <p role="alert" className="text-sm text-destructive">
           {general}

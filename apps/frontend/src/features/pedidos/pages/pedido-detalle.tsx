@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/common/page";
 import { PaymentPanel } from "@/features/pagos/components/payment-receipt";
 import {
   DeliveryPanel,
@@ -101,12 +102,12 @@ export default function DetallePedido() {
   if (pedido.isError) {
     return (
       <SiteLayout>
-        <div className="mx-auto max-w-3xl px-4 py-16">
+        <PageContainer>
           <ErrorState
             mensaje="No pudimos cargar este pedido."
             onRetry={() => void pedido.refetch()}
           />
-        </div>
+        </PageContainer>
       </SiteLayout>
     );
   }
@@ -114,11 +115,11 @@ export default function DetallePedido() {
   if (pedido.isPending) {
     return (
       <SiteLayout>
-        <div className="mx-auto max-w-5xl space-y-4 px-4 py-8">
+        <PageContainer className="max-w-5xl">
           <Skeleton className="h-10 w-64" />
           <Skeleton className="h-40 w-full rounded-xl" />
           <Skeleton className="h-64 w-full rounded-xl" />
-        </div>
+        </PageContainer>
       </SiteLayout>
     );
   }
@@ -130,7 +131,7 @@ export default function DetallePedido() {
 
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-5xl px-4 py-8">
+      <PageContainer className="max-w-5xl">
         <Link
           to="/pedidos"
           className="inline-flex min-h-11 items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -290,7 +291,7 @@ export default function DetallePedido() {
             ) : null}
           </aside>
         </div>
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }

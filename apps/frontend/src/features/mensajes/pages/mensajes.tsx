@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/common/page";
 import { Link, useSearchParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import { MessageSquare } from "lucide-react";
@@ -81,7 +82,7 @@ export default function MensajesPage() {
 
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-6xl px-4 py-8">
+      <PageContainer className="max-w-6xl">
         <h1 className="font-display text-3xl font-bold">Mensajes</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Cada conversación pertenece a un pedido. La mensajería se habilita cuando el artesano
@@ -176,7 +177,7 @@ export default function MensajesPage() {
             </div>
           </div>
         )}
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }

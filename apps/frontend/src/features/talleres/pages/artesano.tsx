@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/common/page";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -61,12 +62,12 @@ export default function PerfilArtesano() {
   if (artesano.isError) {
     return (
       <SiteLayout>
-        <div className="mx-auto max-w-3xl px-4 py-16">
+        <PageContainer>
           <ErrorState
             mensaje="No pudimos cargar este taller."
             onRetry={() => void artesano.refetch()}
           />
-        </div>
+        </PageContainer>
       </SiteLayout>
     );
   }

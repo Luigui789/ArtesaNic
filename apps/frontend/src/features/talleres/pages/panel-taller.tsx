@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/common/page";
 import { Link } from "react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -39,7 +40,7 @@ export default function PanelTaller({ editarAlAbrir = false }: { editarAlAbrir?:
 
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-4xl space-y-6 px-4 py-8">
+      <PageContainer className="max-w-4xl">
         <header>
           <p className="text-sm font-medium text-secondary">Panel del artesano</p>
           <h1 className="font-display text-3xl font-bold">{taller.data?.nombre ?? "Mi taller"}</h1>
@@ -66,7 +67,7 @@ export default function PanelTaller({ editarAlAbrir = false }: { editarAlAbrir?:
             )}
           </>
         )}
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }

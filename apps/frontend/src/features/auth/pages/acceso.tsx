@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/common/page";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -47,7 +48,7 @@ export default function Auth() {
 
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-md px-4 py-12">
+      <PageContainer className="max-w-md">
         <h1 className="font-display text-3xl font-bold">Acceso</h1>
         {modo === "mock" ? (
           <p className="mt-3 rounded-lg border bg-surface p-3 text-sm text-muted-foreground">
@@ -85,7 +86,7 @@ export default function Auth() {
             </TabsContent>
           </Tabs>
         )}
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }
