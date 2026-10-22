@@ -26,14 +26,14 @@ const PASOS_COMPRA = [
     numero: "3",
     icon: ThumbsUp,
     titulo: "El taller responde",
-    texto: "El artesano revisa la solicitud, cotiza condiciones y decide si puede aceptarla.",
+    texto: "El artesano revisa cada renglón de la solicitud y emite una propuesta final.",
   },
   {
     numero: "4",
     icon: HandCoins,
-    titulo: "Registra el pago",
+    titulo: "Confirma y registra el pago",
     texto:
-      "Si se acepta, el comprador realiza el pago mediante el medio acordado y registra la información.",
+      "Al confirmar la propuesta final se congela el total; luego realizas el pago acordado y registras el comprobante.",
   },
   {
     numero: "5",
@@ -45,8 +45,8 @@ const PASOS_COMPRA = [
 
 const FLUJO_PAGO = [
   "Solicitud",
-  "Aceptación del artesano",
-  "Total acordado",
+  "Propuesta final del taller",
+  "Confirmación del comprador (total congelado)",
   "Pago realizado fuera de ArtesaNic",
   "Registro del pago / comprobante",
   "Verificación del artesano",

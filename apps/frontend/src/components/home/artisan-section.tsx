@@ -17,7 +17,7 @@ const HERRAMIENTAS_TALLER = [
   { icon: Store, label: "Perfil público del taller" },
   { icon: BookOpen, label: "Historia, rubro y horarios" },
   { icon: Boxes, label: "Catálogo de productos propios" },
-  { icon: Sparkles, label: "Piezas en stock, por lote o personalizadas" },
+  { icon: Sparkles, label: "Venta desde stock, producción por cantidad y personalización" },
   { icon: ClipboardSignature, label: "Recepción y revisión de solicitudes" },
   { icon: Receipt, label: "Seguimiento y verificación de pagos" },
   { icon: MessageSquare, label: "Mensajería por pedido" },

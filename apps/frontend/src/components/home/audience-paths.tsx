@@ -48,7 +48,7 @@ export function AudiencePaths() {
                     aria-hidden="true"
                   />
                   <span>
-                    Solicita productos disponibles en stock, por cantidad o con detalles de
+                    Solicita productos en venta desde stock, producción por cantidad o con
                     personalización.
                   </span>
                 </li>
@@ -58,8 +58,7 @@ export function AudiencePaths() {
                     aria-hidden="true"
                   />
                   <span>
-                    Consulta el estado de tu solicitud, registra tu pago y coordina la entrega con
-                    el taller.
+                    Confirma la propuesta del taller, registra tu pago y coordina la entrega.
                   </span>
                 </li>
               </ul>
@@ -105,8 +104,8 @@ export function AudiencePaths() {
                     aria-hidden="true"
                   />
                   <span>
-                    Administra tu catálogo indicando qué piezas vendes desde stock, por producción o
-                    personalizadas.
+                    Administra tu catálogo con modalidades de venta desde stock, producción por
+                    cantidad y personalización.
                   </span>
                 </li>
                 <li className="flex items-start gap-2.5">

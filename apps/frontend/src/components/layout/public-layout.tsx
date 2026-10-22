@@ -2,7 +2,7 @@ import { useEffect, type ReactNode } from "react";
 import { useLocation } from "react-router";
 import { PublicHeader } from "@/components/layout/public-header";
 import { PublicFooter } from "@/components/layout/public-footer";
-import { AvisoPersistencia } from "@/components/layout/site-layout";
+import { AvisoPersistencia } from "@/components/layout/demo-controls";
 
 export function PublicLayout({ children }: { children: ReactNode }) {
   const { pathname, hash } = useLocation();
@@ -13,7 +13,10 @@ export function PublicLayout({ children }: { children: ReactNode }) {
     const scrollToHash = () => {
       const element = document.getElementById(id);
       if (element) {
-        element.scrollIntoView({ behavior: "smooth" });
+        const reduceMotion =
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        element.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth" });
       }
     };
     const timer = window.setTimeout(scrollToHash, 50);

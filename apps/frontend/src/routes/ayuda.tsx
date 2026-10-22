@@ -38,13 +38,13 @@ const PREGUNTAS_FRECUENTES = [
     id: "faq-1",
     pregunta: "¿ArtesaNic cobra o procesa pagos con tarjeta dentro de la plataforma?",
     respuesta:
-      "No. En esta versión ArtesaNic no cuenta con pasarela de pagos ni procesa tarjetas bancarias. El comprador realiza el pago fuera de la plataforma mediante el medio acordado con el taller (como transferencia u otro método acordado) y luego registra la referencia o comprobante en su pedido para que el artesano lo verifique.",
+      "No. En esta versión ArtesaNic no cuenta con pasarela de pagos ni procesa tarjetas bancarias. Una vez que confirmas la propuesta final del taller, realizas el pago fuera de la plataforma mediante el medio acordado (como transferencia u otro método acordado) y luego registras la referencia o comprobante en tu pedido para que el artesano lo verifique.",
   },
   {
     id: "faq-2",
     pregunta: "¿Por qué envío una solicitud en lugar de comprar directamente en un carrito?",
     respuesta:
-      "Muchos productos artesanales se elaboran bajo pedido, requieren confirmar disponibilidad en el taller o admiten detalles de personalización. La solicitud permite que el artesano revise cada renglón, confirme si puede elaborarlo y acuerde las condiciones antes de que realices cualquier pago.",
+      "Muchos productos artesanales se elaboran bajo pedido, requieren confirmar disponibilidad en el taller o admiten detalles de personalización. La solicitud permite que el artesano revise cada renglón y emita una propuesta final completa antes de que confirmes el pedido y realices cualquier pago.",
   },
   {
     id: "faq-3",
@@ -60,9 +60,9 @@ const PREGUNTAS_FRECUENTES = [
   },
   {
     id: "faq-5",
-    pregunta: "¿Cómo se calcula el costo de entrega?",
+    pregunta: "¿Cómo se establece el costo de entrega?",
     respuesta:
-      "Depende de la modalidad acordada. Si eliges recoger el pedido en el taller, el costo de entrega es C$ 0. En otras modalidades (punto de encuentro, entrega por el artesano u otra acordada), el taller indica la cotización o condiciones de entrega antes de cerrar el acuerdo del pedido.",
+      "El artesano define manualmente el plan y el costo de entrega en la propuesta según la modalidad y las condiciones del pedido. Cuando una modalidad no tenga costo asociado (por ejemplo, al recoger el pedido en el taller), puede indicarse C$ 0.",
   },
   {
     id: "faq-6",
@@ -105,8 +105,8 @@ export default function Ayuda() {
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-relaxed text-muted-foreground">
             Aquí encontrarás la información operativa disponible sobre cómo funcionan las
-            solicitudes, los pagos registrados, la coordinación de entregas y la participación de
-            los talleres artesanales en la plataforma.
+            solicitudes, las propuestas, los pagos registrados, la coordinación de entregas y la
+            participación de los talleres artesanales en la plataforma.
           </p>
         </div>
       </section>
@@ -125,7 +125,7 @@ export default function Ayuda() {
                     <li key={sec.id}>
                       <a
                         href={`#${sec.id}`}
-                        className="flex min-h-10 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm font-medium text-foreground/85 transition-colors hover:bg-surface hover:text-foreground"
+                        className="flex min-h-11 items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm font-medium text-foreground/85 transition-colors hover:bg-surface hover:text-foreground"
                       >
                         <sec.icon className="size-4 shrink-0 text-primary" aria-hidden="true" />
                         <span>{sec.label}</span>
@@ -155,7 +155,7 @@ export default function Ayuda() {
               </div>
               <p className="mt-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
                 En ArtesaNic las compras se gestionan mediante solicitudes dirigidas al taller que
-                elabora la pieza:
+                elabora las piezas:
               </p>
               <ol className="mt-4 list-decimal space-y-2.5 pl-5 text-sm leading-relaxed text-foreground/90">
                 <li>
@@ -171,21 +171,22 @@ export default function Ayuda() {
                 </li>
                 <li>
                   <strong>Revisa la modalidad del producto:</strong> cada pieza indica si se ofrece
-                  desde stock, por producción por cantidad o con opción de personalización.
+                  en venta desde stock, producción por cantidad o con personalización.
                 </li>
                 <li>
                   <strong>Prepara tu solicitud:</strong> elige las unidades, indica las
                   especificaciones o personalización cuando aplique y señala tu modalidad de entrega
-                  preferida. Puedes agregar varias piezas del mismo taller en una sola solicitud.
+                  preferida. Puedes incluir varios renglones del mismo taller en una sola solicitud.
                 </li>
                 <li>
-                  <strong>Espera la revisión del taller:</strong> el artesano evalúa cada renglón y
-                  emite la propuesta o respuesta correspondiente.
+                  <strong>Revisión y propuesta del taller:</strong> el artesano evalúa cada renglón
+                  y emite la propuesta final con el plan de entrega y la cotización correspondiente.
                 </li>
                 <li>
-                  <strong>Registra tu pago y coordina la entrega:</strong> una vez aceptado el
-                  pedido y congelada la cotización, realizas el pago por el medio acordado,
-                  registras el comprobante y das seguimiento hasta la entrega.
+                  <strong>Confirmación, pago y entrega:</strong> cuando confirmas la propuesta final
+                  completa, el total queda congelado y se realizan las reservas correspondientes;
+                  después realizas el pago externo, registras el comprobante y das seguimiento hasta
+                  la entrega.
                 </li>
               </ol>
             </section>
@@ -217,17 +218,17 @@ export default function Ayuda() {
                 <li>
                   <strong>Gestión de productos:</strong> registra tus piezas definiendo precio en
                   córdobas, categoría y modalidades de venta combinables (venta desde stock,
-                  producción por cantidad o personalización).
+                  producción por cantidad y personalización).
                 </li>
                 <li>
-                  <strong>Evaluación de solicitudes:</strong> revisa las solicitudes recibidas por
-                  renglón, acepta o rechaza indicando el motivo y emite la propuesta con la
-                  cotización del servidor.
+                  <strong>Evaluación de solicitudes y emisión de propuesta:</strong> revisa las
+                  solicitudes recibidas por renglón, acepta o rechaza indicando el motivo, define el
+                  plan y costo de entrega y emite la propuesta final con la cotización del servidor.
                 </li>
                 <li>
-                  <strong>Control de producción y pagos:</strong> verifica los pagos registrados por
-                  el comprador antes de iniciar la elaboración o marcar la pieza como lista para
-                  entrega.
+                  <strong>Control de producción y pagos:</strong> una vez que el comprador confirma
+                  la propuesta y registra su pago, verifica el comprobante antes de iniciar la
+                  elaboración o marcar el pedido como listo para entrega.
                 </li>
               </ul>
             </section>
@@ -253,11 +254,12 @@ export default function Ayuda() {
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div className="rounded-xl border bg-surface/60 p-4">
                   <h3 className="text-sm font-semibold text-foreground">
-                    1. Pago fuera de la plataforma
+                    1. Confirmación de propuesta y pago externo
                   </h3>
                   <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground sm:text-sm">
-                    Cuando el taller acepta el pedido, el total queda congelado. El comprador
-                    realiza el pago por transferencia u otro método acordado directamente con el
+                    Cuando el comprador confirma la propuesta final, el total y su desglose quedan
+                    congelados y se hacen las reservas correspondientes. A partir de ese momento el
+                    comprador realiza el pago por transferencia u otro método acordado con el
                     taller.
                   </p>
                 </div>
@@ -295,15 +297,16 @@ export default function Ayuda() {
               </div>
               <p className="mt-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
                 La plataforma no utiliza empresas de mensajería automatizadas ni rastreo satelital.
-                La modalidad de entrega se coordina directamente entre comprador y taller según las
-                condiciones del pedido:
+                El artesano define manualmente el plan y el costo de entrega en la propuesta según
+                la modalidad y las condiciones del pedido; cuando no exista un costo asociado, puede
+                indicarse C$ 0:
               </p>
               <ul className="mt-4 grid gap-3 sm:grid-cols-2">
                 <li className="rounded-xl border bg-surface/50 p-4 text-sm">
                   <strong className="block text-foreground">Recoger en el taller</strong>
                   <span className="mt-1 block text-muted-foreground">
-                    El comprador retira la pieza en la ubicación del taller en Masaya sin costo
-                    adicional de entrega (C$ 0).
+                    El comprador retira el pedido en la ubicación del taller en Masaya según el
+                    horario y las condiciones establecidas en la propuesta.
                   </span>
                 </li>
                 <li className="rounded-xl border bg-surface/50 p-4 text-sm">
@@ -321,8 +324,8 @@ export default function Ayuda() {
                 <li className="rounded-xl border bg-surface/50 p-4 text-sm">
                   <strong className="block text-foreground">Otra modalidad acordada</strong>
                   <span className="mt-1 block text-muted-foreground">
-                    Cualquier otro medio convenido entre ambas partes y detallado en la coordinación
-                    del pedido.
+                    Cualquier otro medio convenido entre ambas partes y detallado en el plan de
+                    entrega de la propuesta.
                   </span>
                 </li>
               </ul>
@@ -343,24 +346,27 @@ export default function Ayuda() {
                 </h2>
               </div>
               <p className="mt-4 text-sm leading-relaxed text-muted-foreground sm:text-base">
-                Las reglas operativas de cancelación buscan proteger tanto al comprador como el
-                trabajo material del artesano:
+                Las reglas vigentes de cancelación distinguen el momento de confirmación de la
+                propuesta y el estado de las unidades reservadas:
               </p>
-              <ul className="mt-4 list-disc space-y-2 pl-5 text-sm leading-relaxed text-foreground/90">
+              <ul className="mt-4 list-disc space-y-2.5 pl-5 text-sm leading-relaxed text-foreground/90">
                 <li>
-                  Un pedido puede cancelarse mientras se encuentre en etapa previa al inicio de la
-                  producción o entrega, registrando el motivo correspondiente.
+                  <strong>Cancelación por el comprador:</strong> el comprador puede cancelar
+                  unilateralmente únicamente mientras <strong>no haya confirmado</strong> la
+                  propuesta final.
                 </li>
                 <li>
-                  Cuando un pedido personalizado o por producción ya pasó al estado{" "}
-                  <strong>En producción</strong>, o cuando el pedido ya está{" "}
-                  <strong>Listo para entrega</strong> o <strong>Entregado</strong>, no se admite su
-                  cancelación directa desde el flujo normal.
+                  <strong>Después de confirmar la propuesta final:</strong> el comprador ya no puede
+                  cancelar unilateralmente. Antes de una entrega, quien puede cancelar el pedido por
+                  imposibilidad justificada —registrando el motivo correspondiente— es el{" "}
+                  <strong>artesano</strong>.
                 </li>
                 <li>
-                  Si un pedido aceptado con unidades reservadas se cancela, el taller clasifica las
-                  unidades físicas para reincorporarlas al inventario disponible o darlas de baja
-                  con motivo justificado.
+                  <strong>Liberación y clasificación de inventario:</strong> tras una cancelación,
+                  las unidades reservadas <strong>no manipuladas</strong> vuelven directamente a
+                  estar disponibles; únicamente las unidades manipuladas, devueltas, dañadas o
+                  inciertas pasan por clasificación del taller para reincorporarlas a disponibilidad
+                  o darlas de baja con motivo justificado.
                 </li>
               </ul>
             </section>
@@ -418,7 +424,7 @@ export default function Ayuda() {
                 <li>
                   <strong>Información clara:</strong> cada producto debe especificar su nombre,
                   descripción, categoría artesanal, precio en córdobas (C$) y al menos una modalidad
-                  de venta (stock, producción por cantidad o personalización).
+                  de venta (venta desde stock, producción por cantidad o personalización).
                 </li>
                 <li>
                   <strong>Publicación y retiro:</strong> los productos nuevos se crean inicialmente
@@ -445,9 +451,15 @@ export default function Ayuda() {
               </div>
               <ul className="mt-4 list-disc space-y-2.5 pl-5 text-sm leading-relaxed text-foreground/90">
                 <li>
-                  <strong>Visibilidad restringida a las partes:</strong> las solicitudes, pedidos,
-                  mensajes y comprobantes de pago solo son accesibles para el comprador y el taller
-                  involucrados en la operación.
+                  <strong>Chats y comprobantes restringidos a las partes:</strong> los mensajes del
+                  pedido (chats) y los comprobantes de pago son accesibles únicamente para el
+                  comprador y el taller involucrados en la operación.
+                </li>
+                <li>
+                  <strong>Alcance de supervisión administrativa:</strong> el administrador puede
+                  consultar información general, estados e importes de los pedidos en modo
+                  supervisión, pero específicamente no puede acceder a los chats ni a los
+                  comprobantes de pago.
                 </li>
                 <li>
                   <strong>Inventario interno protegido:</strong> las existencias físicas exactas y

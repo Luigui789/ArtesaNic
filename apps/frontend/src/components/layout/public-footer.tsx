@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { CurrencySwitcher } from "@/components/common/currency-switcher";
-import { RestablecerDemo, SelectorVista } from "@/components/layout/site-layout";
+import { RestablecerDemo, SelectorVista } from "@/components/layout/demo-controls";
 
 export function PublicFooter() {
   return (
@@ -21,11 +21,11 @@ export function PublicFooter() {
           <h2 className="font-sans text-xs font-semibold uppercase tracking-wider text-foreground">
             Explorar
           </h2>
-          <ul className="mt-3 space-y-2 text-sm">
+          <ul className="mt-3 space-y-1 text-sm">
             <li>
               <Link
                 to="/descubrir"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Descubrir
               </Link>
@@ -33,7 +33,7 @@ export function PublicFooter() {
             <li>
               <Link
                 to="/catalogo"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Marketplace
               </Link>
@@ -41,7 +41,7 @@ export function PublicFooter() {
             <li>
               <Link
                 to="/descubrir#talleres"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Talleres
               </Link>
@@ -49,7 +49,7 @@ export function PublicFooter() {
             <li>
               <Link
                 to="/#como-funciona"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Cómo funciona
               </Link>
@@ -61,11 +61,11 @@ export function PublicFooter() {
           <h2 className="font-sans text-xs font-semibold uppercase tracking-wider text-foreground">
             Para artesanos
           </h2>
-          <ul className="mt-3 space-y-2 text-sm">
+          <ul className="mt-3 space-y-1 text-sm">
             <li>
               <Link
                 to="/#para-artesanos"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Cómo funciona
               </Link>
@@ -73,7 +73,7 @@ export function PublicFooter() {
             <li>
               <Link
                 to="/auth"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Acceso
               </Link>
@@ -81,7 +81,7 @@ export function PublicFooter() {
             <li>
               <Link
                 to="/ayuda#como-vender"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Ayuda
               </Link>
@@ -93,11 +93,11 @@ export function PublicFooter() {
           <h2 className="font-sans text-xs font-semibold uppercase tracking-wider text-foreground">
             Información
           </h2>
-          <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 text-sm sm:grid-cols-1">
+          <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-1">
             <li>
               <Link
                 to="/ayuda#pagos"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Pagos
               </Link>
@@ -105,7 +105,7 @@ export function PublicFooter() {
             <li>
               <Link
                 to="/ayuda#entregas"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Entregas
               </Link>
@@ -113,7 +113,7 @@ export function PublicFooter() {
             <li>
               <Link
                 to="/ayuda#cancelaciones"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Cancelaciones
               </Link>
@@ -121,7 +121,7 @@ export function PublicFooter() {
             <li>
               <Link
                 to="/ayuda#reembolsos"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Reembolsos
               </Link>
@@ -129,7 +129,7 @@ export function PublicFooter() {
             <li>
               <Link
                 to="/ayuda#normas"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Normas
               </Link>
@@ -137,7 +137,7 @@ export function PublicFooter() {
             <li>
               <Link
                 to="/ayuda#privacidad"
-                className="inline-flex min-h-9 items-center text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
               >
                 Privacidad
               </Link>
