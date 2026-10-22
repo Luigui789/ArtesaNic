@@ -65,7 +65,7 @@ export function RequiereSesion({ rol, children }: { rol?: Role; children: ReactN
 
 /**
  * Pantallas que siguen sobre el servidor simulado y la identidad de la demo (pedidos,
- * pagos, mensajes, panel y perfil de la demo). En modo real no se muestran: usar la
+ * pagos, mensajes y el resumen del panel de la demo). En modo real no se muestran: usar la
  * identidad de la demo con una cuenta real mezclaría personas y datos.
  */
 export function SoloDemo({ children }: { children: ReactNode }) {

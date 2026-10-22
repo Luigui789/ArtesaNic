@@ -1,6 +1,7 @@
 import { Link } from "react-router";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Pencil, RefreshCw, XCircle } from "lucide-react";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { ErrorState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
@@ -8,6 +9,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSession } from "@/features/auth/use-session";
 import { getMiTaller, type TallerPropio } from "@/features/talleres/api";
 import { reintentarSalvoErrorDelCliente } from "@/features/catalogo/api";
+import { FormularioPerfilTaller } from "@/features/talleres/components/formulario-perfil-taller";
+import { claveMiTaller } from "@/features/talleres/perfil-propio";
+import { formatDate } from "@/lib/format";
 import { useDocumentHead } from "@/hooks/use-document-head";
 
 /**
@@ -15,8 +19,11 @@ import { useDocumentHead } from "@/hooks/use-document-head";
  * `GET /talleres/mi-taller/`; la interfaz no lo deduce. Los enlaces operativos se
  * muestran solo con el taller aprobado por comodidad: el servidor responde `403` a
  * cualquier operación de un taller no aprobado aunque se llegue por otra vía.
+ *
+ * «Mi taller» permite editar el perfil público en cualquier estado (RF-008,
+ * `PATCH /talleres/mi-taller/`); `/panel/perfil` abre la misma pantalla en edición.
  */
-export default function PanelTaller() {
+export default function PanelTaller({ editarAlAbrir = false }: { editarAlAbrir?: boolean }) {
   useDocumentHead({
     title: "Panel del artesano | Artesanías de Masaya",
     meta: [{ name: "robots", content: "noindex" }],
@@ -24,10 +31,11 @@ export default function PanelTaller() {
   });
   const { usuario } = useSession();
   const taller = useQuery({
-    queryKey: ["mi-taller", usuario?.id],
+    queryKey: claveMiTaller(usuario?.id),
     queryFn: ({ signal }) => getMiTaller(signal),
     retry: reintentarSalvoErrorDelCliente,
   });
+  const [editando, setEditando] = useState(editarAlAbrir);
 
   return (
     <SiteLayout>
@@ -51,7 +59,11 @@ export default function PanelTaller() {
               actualizando={taller.isFetching}
               onActualizar={() => void taller.refetch()}
             />
-            <DatosDelTaller taller={taller.data} />
+            {editando ? (
+              <FormularioPerfilTaller taller={taller.data} onTerminar={() => setEditando(false)} />
+            ) : (
+              <DatosDelTaller taller={taller.data} onEditar={() => setEditando(true)} />
+            )}
           </>
         )}
       </div>
@@ -104,11 +116,14 @@ function EstadoDelTaller({
           <XCircle className="mt-0.5 size-5 shrink-0 text-destructive" aria-hidden="true" />
           <div className="space-y-2">
             <h2 className="font-semibold">La administración rechazó tu taller.</h2>
+            <Revision taller={taller} />
             {taller.motivoRechazo ? (
               <p className="text-sm">Motivo: {taller.motivoRechazo}</p>
             ) : null}
             <p className="text-sm text-muted-foreground">
-              No puedes publicar productos ni gestionar solicitudes.
+              No puedes publicar productos ni gestionar solicitudes. Puedes corregir los datos de tu
+              perfil, pero la aplicación todavía no ofrece una forma de volver a solicitar la
+              revisión.
             </p>
             {actualizar}
           </div>
@@ -122,6 +137,7 @@ function EstadoDelTaller({
         <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-secondary" aria-hidden="true" />
         <div className="space-y-3">
           <h2 className="font-semibold">Tu taller está aprobado.</h2>
+          <Revision taller={taller} />
           <div className="flex flex-wrap gap-2">
             <Button asChild className="touch-target">
               <Link to="/panel/solicitudes">Solicitudes recibidas</Link>
@@ -139,7 +155,7 @@ function EstadoDelTaller({
   );
 }
 
-function DatosDelTaller({ taller }: { taller: TallerPropio }) {
+function DatosDelTaller({ taller, onEditar }: { taller: TallerPropio; onEditar: () => void }) {
   const filas: [string, string][] = [
     ["Rubro", taller.rubro],
     ["Dirección", taller.direccion],
@@ -152,9 +168,19 @@ function DatosDelTaller({ taller }: { taller: TallerPropio }) {
   ];
   return (
     <section aria-labelledby="datos-taller" className="rounded-xl border bg-card p-5">
-      <h2 id="datos-taller" className="font-semibold">
-        Datos del taller
-      </h2>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 id="datos-taller" className="font-semibold">
+          Mi taller
+        </h2>
+        <Button variant="outline" className="touch-target" onClick={onEditar}>
+          <Pencil className="size-4" aria-hidden="true" />
+          Editar perfil
+        </Button>
+      </div>
+      <p className="mt-2 text-sm">
+        <span className="text-muted-foreground">Nombre: </span>
+        {taller.nombre}
+      </p>
       {taller.historia ? <p className="mt-2 text-sm">{taller.historia}</p> : null}
       <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
         {filas.map(([etiqueta, valor]) => (
@@ -165,5 +191,13 @@ function DatosDelTaller({ taller }: { taller: TallerPropio }) {
         ))}
       </dl>
     </section>
+  );
+}
+
+/** Fecha de la revisión administrativa, de solo lectura. */
+function Revision({ taller }: { taller: TallerPropio }) {
+  if (!taller.revisadoEn) return null;
+  return (
+    <p className="text-sm text-muted-foreground">Revisado el {formatDate(taller.revisadoEn)}</p>
   );
 }

@@ -74,6 +74,7 @@ const NAV_REAL: Record<Role | "anonima", Enlace[]> = {
     { to: "/panel", label: "Panel", end: true },
     { to: "/panel/solicitudes", label: "Solicitudes" },
     { to: "/panel/productos", label: "Mis productos" },
+    { to: "/panel/perfil", label: "Perfil del taller" },
   ],
 };
 

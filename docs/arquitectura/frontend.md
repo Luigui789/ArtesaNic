@@ -46,10 +46,12 @@ src/features/auth/
 
 El usuario autenticado es exactamente `usuario` del servidor (`id`, `nombre`, `telefono`, `rol`). El login no pide rol; el registro elige endpoint (`registro/comprador/` o `registro/artesano/`) según la intención, sin enviar `rol`. El artesano envía su taller inicial y queda pendiente; `/panel` muestra el estado de `GET /talleres/mi-taller/`.
 
+**Mi taller (RF-008):** `/panel` y `/panel/perfil` permiten editar el perfil público con `PATCH /talleres/mi-taller/` en cualquier estado (pendiente, aprobado o rechazado). Solo viajan los campos de `CAMPOS_PERFIL` modificados; estado, motivo de rechazo y fecha de revisión se muestran como solo lectura. Editar no cambia la aprobación. Tras guardar, la respuesta reemplaza la caché `["mi-taller", usuario]` y se invalidan `["perfil-taller", id]`, el filtro de talleres y el catálogo ([D-AUD18-10](../decisiones/v1.md#concreciones-de-aud-18-primer-tramo-cliente-común-y-sesión)).
+
 ## Caché de TanStack Query
 
 Al iniciar sesión (con cualquier identidad), registrarse, cerrar sesión o expirar, el controlador cancela las consultas y vacía la caché antes de publicar la identidad nueva. Ninguna pantalla puede mostrar datos de la cuenta anterior.
 
 ## Pruebas
 
-`scripts/check-auth.mjs` usa un backend simulado con estado (CSRF, rotación de la cookie de renovación, revocación) y `scripts/check-auth-ui.mjs` renderiza formularios, cabecera y guards con `react-dom/server`. Las dos forman parte de `pnpm test`.
+`scripts/check-taller-propio.mjs` cubre `GET`/`PATCH` del taller propio y el panel renderizado. `scripts/check-auth.mjs` usa un backend simulado con estado (CSRF, rotación de la cookie de renovación, revocación) y `scripts/check-auth-ui.mjs` renderiza formularios, cabecera y guards con `react-dom/server`. Las tres forman parte de `pnpm test`.

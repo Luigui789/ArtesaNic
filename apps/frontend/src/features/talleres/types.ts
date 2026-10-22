@@ -36,3 +36,17 @@ export interface TallerPropio extends PerfilTaller {
   motivoRechazo: string;
   revisadoEn: string | null;
 }
+
+/** Perfil editable por el artesano: exactamente `CAMPOS_PERFIL` del backend. */
+export interface PerfilTallerEntrada {
+  nombre: string;
+  rubro: string;
+  direccionCompleta: string;
+  historia: string;
+  horario: string;
+  telefonoPublico: string;
+  whatsappPublico: string;
+  facebookUrl: string;
+  instagramUrl: string;
+  sitioWeb: string;
+}

@@ -76,7 +76,12 @@ export function App() {
                     path="/panel"
                     element={artesano(authReal ? <PanelTaller /> : <PanelIndex />)}
                   />
-                  <Route path="/panel/perfil" element={demo(<PanelPerfil />)} />
+                  <Route
+                    path="/panel/perfil"
+                    element={
+                      authReal ? artesano(<PanelTaller editarAlAbrir />) : demo(<PanelPerfil />)
+                    }
+                  />
                   <Route path="/panel/productos" element={artesano(<PanelProductos />)} />
                   <Route path="/panel/pedidos" element={demo(<PanelPedidosIndex />)} />
                   <Route path="/panel/pedidos/:id" element={demo(<PanelPedidosDetalle />)} />
