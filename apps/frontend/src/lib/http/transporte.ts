@@ -23,12 +23,17 @@ function esCancelacion(error: unknown): boolean {
 
 export async function enviar(ruta: string, { metodo, cuerpo, cabeceras, signal }: Envio) {
   const headers: Record<string, string> = { ...cabeceras, Accept: "application/json" };
-  if (cuerpo !== undefined) headers["Content-Type"] = "application/json";
+  const multipart = cuerpo instanceof FormData;
+  if (multipart) {
+    for (const key of Object.keys(headers)) {
+      if (key.toLowerCase() === "content-type") delete headers[key];
+    }
+  } else if (cuerpo !== undefined) headers["Content-Type"] = "application/json";
   try {
     return await fetch(`${BASE_API}${ruta}`, {
       method: metodo,
       headers,
-      body: cuerpo === undefined ? null : JSON.stringify(cuerpo),
+      body: multipart ? cuerpo : cuerpo === undefined ? null : JSON.stringify(cuerpo),
       credentials: "include",
       signal: signal ?? null,
     });

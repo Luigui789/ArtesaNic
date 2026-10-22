@@ -34,7 +34,7 @@ export const unpublishOwnProduct = catalogoReal
   ? http.unpublishOwnProduct
   : mock.unpublishOwnProduct;
 
-/** Fotografía simulada (DR-01 abierto): solo existe en el servidor simulado. */
+/** Fotografía de la demo: el modo real envía File mediante el cliente HTTP. */
 export const processImage = mock.processImage;
 
 // ---------- Lecturas del servidor simulado para dominios todavía simulados ----------

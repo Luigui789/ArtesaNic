@@ -58,6 +58,7 @@ interface ProductoDTO {
   modalidades: Modalidad[];
   taller: TallerResumen;
   creado_en: string;
+  fotografia_url?: string | null;
 }
 
 interface ProductoPropioDTO extends ProductoDTO {
@@ -73,6 +74,12 @@ interface PaginaDTO<T> {
 }
 
 // ---------- Mapeo ----------
+
+function resolverFotografia(url: string): string {
+  const base = import.meta.env["VITE_API_URL"] as string | undefined;
+  if (base && /^https?:\/\//.test(base)) return new URL(url, base).href;
+  return url;
+}
 
 const aCategoria = (c: CategoriaDTO): Category => ({
   id: c.id,
@@ -91,6 +98,7 @@ export function aProductoCatalogo(p: ProductoDTO): CatalogProduct {
     modalidades: [...p.modalidades],
     taller: { id: p.taller.id, nombre: p.taller.nombre },
     creadoEn: p.creado_en,
+    ...(p.fotografia_url ? { imagen: resolverFotografia(p.fotografia_url) } : {}),
   };
 }
 
@@ -136,17 +144,25 @@ export function parametrosCatalogo(filtros: CatalogFilters): URLSearchParams {
 }
 
 /**
- * Cuerpo de alta o edición. Solo los campos del contrato: la imagen y el inventario de
- * la demo no viajan (la API los rechazaría con 400).
+ * Cuerpo JSON sin reemplazo; multipart con el archivo real. Nunca envía imágenes de la demo.
  */
 export function cuerpoProducto(input: ProductInput) {
-  return {
+  const datos = {
     nombre: input.nombre,
     descripcion: input.descripcion,
     precio: input.precio.toFixed(2),
     categoria: input.categoria,
     modalidades: [...input.modalidades],
   };
+  if (!input.fotografiaPrincipal) return datos;
+  const form = new FormData();
+  form.set("nombre", datos.nombre);
+  form.set("descripcion", datos.descripcion);
+  form.set("precio", datos.precio);
+  form.set("categoria", datos.categoria);
+  for (const modalidad of datos.modalidades) form.append("modalidades", modalidad);
+  form.set("fotografia_principal", input.fotografiaPrincipal);
+  return form;
 }
 
 // ---------- Endpoints ----------

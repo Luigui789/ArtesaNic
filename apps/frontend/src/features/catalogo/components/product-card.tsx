@@ -60,8 +60,7 @@ export function ModalidadesTexto({
 }
 
 /**
- * Fotografía principal, o un aviso si el producto no la tiene. La API real todavía no
- * entrega fotografías (DR-01): no se sustituye por una imagen que aparente ser del producto.
+ * Fotografía persistida, o placeholder neutral para históricos sin fotografía.
  */
 export function ProductImage({
   src,

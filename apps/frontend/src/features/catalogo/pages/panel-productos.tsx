@@ -6,6 +6,8 @@ import { toast } from "sonner";
 import { ArrowLeft, Eye, EyeOff, Pencil, Plus } from "lucide-react";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { EmptyState, ErrorState } from "@/components/common/states";
+import { FotografiaPrincipal } from "@/features/catalogo/components/fotografia-principal";
+import { ApiError } from "@/lib/http";
 import { ImageUploader } from "@/features/catalogo/components/image-uploader";
 import { ModalidadesTexto, ProductImage } from "@/features/catalogo/components/product-card";
 import { Badge } from "@/components/ui/badge";
@@ -87,6 +89,7 @@ export default function MisProductos() {
   const [tipoUnidades, setTipoUnidades] = useState<UnitType | "">("");
   const [existencias, setExistencias] = useState("");
   const [motivoAjuste, setMotivoAjuste] = useState("");
+  const [fotografia, setFotografia] = useState<File>();
   const [imageBusy, setImageBusy] = useState(false);
   const [imagen, setImagen] = useState<string | undefined>(undefined);
   const [errores, setErrores] = useState<Record<string, string>>({});
@@ -120,6 +123,7 @@ export default function MisProductos() {
     setExistencias("");
     setMotivoAjuste("");
     setImagen(p?.imagen);
+    setFotografia(undefined);
     setErrores({});
     setAbierto(true);
   };
@@ -152,7 +156,16 @@ export default function MisProductos() {
       );
       setAbierto(false);
     },
-    onError: (e: Error) => toast.error(e.message),
+    onError: (e: Error) => {
+      if (e instanceof ApiError) {
+        setErrores(
+          Object.fromEntries(
+            Object.entries(e.campos).map(([campo, mensajes]) => [campo, mensajes.join(" ")]),
+          ),
+        );
+      }
+      toast.error(e.message);
+    },
   });
 
   const publicacion = useMutation({
@@ -196,6 +209,7 @@ export default function MisProductos() {
     guardar.mutate({
       ...r.data,
       imagen: catalogoReal ? undefined : imagen,
+      fotografiaPrincipal: catalogoReal ? fotografia : undefined,
       inventarioDemo: pideInventario
         ? {
             tipoUnidades: tipoActual as UnitType,
@@ -502,10 +516,16 @@ export default function MisProductos() {
             ) : null}
 
             {catalogoReal ? (
-              <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
-                La fotografía principal se podrá cargar cuando se defina la política de imágenes
-                (formatos, tamaño y almacenamiento).
-              </p>
+              <FotografiaPrincipal
+                key={`${editando?.id ?? "nuevo"}-${abierto}`}
+                actual={imagen}
+                archivo={fotografia}
+                onChange={(file) => {
+                  setFotografia(file);
+                  setErrores((prev) => ({ ...prev, fotografia_principal: "" }));
+                }}
+                error={errores["fotografia_principal"]}
+              />
             ) : (
               <ImageUploader
                 key={editando?.id ?? "nuevo"}
