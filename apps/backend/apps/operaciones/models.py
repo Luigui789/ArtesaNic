@@ -17,11 +17,21 @@ MAX_CLAVE = 128
 
 
 class TipoOperacion(models.TextChoices):
-    """Mutaciones protegidas. AUD-07/10+ añaden aquí las suyas al implementarlas."""
+    """Mutaciones protegidas. AUD-10+ añaden aquí las suyas al implementarlas."""
 
     CREAR_SOLICITUD = "crear_solicitud", "Crear solicitud"
     RESOLVER_RENGLON = "resolver_renglon", "Resolver renglón de solicitud"
     FINALIZAR_PROPUESTA = "finalizar_propuesta", "Emitir propuesta final"
+    DECIDIR_PROPUESTA = "decidir_propuesta", "Decidir propuesta final"
+    ESTABLECER_INVENTARIO_INICIAL = (
+        "establecer_inventario_inicial",
+        "Registrar existencia inicial",
+    )
+    REGISTRAR_ENTRADA_INVENTARIO = (
+        "registrar_entrada_inventario",
+        "Registrar entrada de inventario",
+    )
+    AJUSTAR_INVENTARIO = "ajustar_inventario", "Ajustar inventario"
 
 
 class EstadoOperacion(models.TextChoices):

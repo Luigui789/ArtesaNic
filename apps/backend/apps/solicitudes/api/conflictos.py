@@ -52,7 +52,7 @@ def errores_de_dominio():
         raise exceptions.ValidationError(exc.errores) from None
     except services.SolicitudNoEncontrada:
         raise exceptions.NotFound() from None
-    except services.ArtesanoNoHabilitado:
+    except (services.ArtesanoNoHabilitado, services.CompradorNoValido):
         raise exceptions.PermissionDenied() from None
     except services.ConflictoSolicitud as exc:
         raise Conflicto(exc) from None

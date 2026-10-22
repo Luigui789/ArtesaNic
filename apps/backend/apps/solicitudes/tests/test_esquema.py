@@ -1,4 +1,4 @@
-"""RNF-005: contrato cerrado de solicitudes, revisión y propuesta, sin anticipar AUD-07."""
+"""RNF-005: contrato cerrado de solicitudes, revisión, propuesta y decisión del comprador."""
 
 from django.test import SimpleTestCase
 from drf_spectacular.generators import SchemaGenerator
@@ -9,6 +9,7 @@ RUTA_MIA = URL_MIAS + "{solicitud_id}/"
 RUTA_RECIBIDA = URL_RECIBIDAS + "{solicitud_id}/"
 RUTA_RESOLVER = RUTA_RECIBIDA + "renglones/{renglon_id}/resolver/"
 RUTA_PROPUESTA_MIA = RUTA_MIA + "propuesta/"
+RUTA_DECISION = RUTA_PROPUESTA_MIA + "decision/"
 RUTA_PROPUESTA_RECIBIDA = RUTA_RECIBIDA + "propuesta/"
 RUTAS = {
     URL_CREAR: {"post"},
@@ -18,6 +19,7 @@ RUTAS = {
     RUTA_RECIBIDA: {"get"},
     RUTA_RESOLVER: {"post"},
     RUTA_PROPUESTA_MIA: {"get"},
+    RUTA_DECISION: {"post"},
     RUTA_PROPUESTA_RECIBIDA: {"get", "post"},
 }
 CLAVES_COMPRADOR = {

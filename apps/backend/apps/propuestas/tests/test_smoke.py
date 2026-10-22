@@ -201,10 +201,10 @@ class SmokePropuestaTests(LiveServerTestCase):
         self.assertEqual(cabeceras.get("Idempotency-Replayed"), "true")
         self.assertEqual(Propuesta.objects.count(), 1)
 
-        # 15–16. Ni pedido ni reserva: no existen esos dominios ni se crean filas ajenas.
-        self.assertFalse(
-            {"pedidos", "inventario", "reservas"} & {m._meta.app_label for m in apps.get_models()}
-        )
+        # 15–16. Emitir la propuesta no crea pedido ni reserva antes de la decisión del comprador.
+        for etiqueta in ("pedidos", "inventario"):
+            for modelo in apps.get_app_config(etiqueta).get_models():
+                self.assertEqual(modelo.objects.count(), 0)
 
         # 17–20. Solicitud nueva totalmente rechazada: DR-03, sin propuesta, historial.
         _, otra, _ = self.peticion(

@@ -62,13 +62,15 @@ class EntradaInvalida(Exception):
 
 
 class CodigoConflicto:
-    """Códigos estables de los 409 de negocio de revisión y propuesta."""
+    """Códigos estables de los 409 de negocio de revisión, propuesta y confirmación."""
 
     RENGLON_YA_RESUELTO = "renglon_ya_resuelto"
     RENGLONES_PENDIENTES = "solicitud_con_renglones_pendientes"
     SOLICITUD_RECHAZADA = "solicitud_rechazada"
     SIN_RENGLONES_ACEPTADOS = "solicitud_sin_renglones_aceptados"
     PROPUESTA_YA_EMITIDA = "propuesta_ya_emitida"
+    PROPUESTA_YA_DECIDIDA = "propuesta_ya_decidida"
+    STOCK_INSUFICIENTE = "stock_insuficiente"
 
     MENSAJES = {
         RENGLON_YA_RESUELTO: "Este renglón ya tiene una resolución final y no se modifica.",
@@ -76,6 +78,10 @@ class CodigoConflicto:
         SOLICITUD_RECHAZADA: "La solicitud fue rechazada: todos sus renglones se rechazaron.",
         SIN_RENGLONES_ACEPTADOS: "La propuesta requiere al menos un renglón aceptado.",
         PROPUESTA_YA_EMITIDA: "La propuesta final de esta solicitud ya fue emitida.",
+        PROPUESTA_YA_DECIDIDA: (
+            "Esta propuesta ya tiene una decisión final del comprador y no se modifica."
+        ),
+        STOCK_INSUFICIENTE: "No hay disponibilidad suficiente para confirmar la propuesta.",
     }
 
 
@@ -201,6 +207,24 @@ def crear_solicitud_idempotente(
             descripcion_entrega_preferida=descripcion_entrega_preferida,
         ),
     )
+
+
+def verificar_comprador_activo(comprador) -> None:
+    """Defensa en el servicio, además del permiso de la vista (``EsComprador``)."""
+    if not comprador.is_active or comprador.rol != Rol.COMPRADOR:
+        raise CompradorNoValido
+
+
+def bloquear_solicitud_propia(comprador, solicitud_id: int) -> Solicitud:
+    """``SELECT … FOR UPDATE`` de una solicitud del comprador propio; ownership en SQL."""
+    solicitud = (
+        Solicitud.objects.select_for_update(of=("self",))
+        .filter(pk=solicitud_id, comprador=comprador)
+        .first()
+    )
+    if solicitud is None:
+        raise SolicitudNoEncontrada
+    return solicitud
 
 
 def verificar_artesano_habilitado(artesano) -> None:

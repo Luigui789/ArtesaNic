@@ -13,14 +13,18 @@ from apps.solicitudes.services import CodigoConflicto
 from apps.talleres.api.permissions import EsArtesanoAprobado
 
 from .. import selectors, services
-from .serializers import PropuestaEntradaSerializer, PropuestaSerializer
+from .serializers import (
+    DecisionPropuestaEntradaSerializer,
+    DecisionPropuestaSerializer,
+    PropuestaEntradaSerializer,
+    PropuestaSerializer,
+)
 
 DESCRIPCION_LECTURA = (
     "Propuesta final emitida: solo renglones aceptados, precio unitario cotizado por el "
     "servidor, subtotales, cargos de personalización, otros cargos, plan y costo de "
-    "entrega, y total en C$. Los rechazados se consultan en la solicitud. No es un pedido "
-    "confirmado: la aceptación del comprador, la congelación contractual y las reservas "
-    "pertenecen a AUD-07. 404 si aún no se emitió o la solicitud es ajena."
+    "entrega, total en C$ y estado de decisión (`pendiente`, `aceptada`, `rechazada`). "
+    "404 si aún no se emitió o la solicitud es ajena."
 )
 
 
@@ -101,3 +105,52 @@ class PropuestaRecibidaView(APIView):
             )
         propuesta = selectors.propuesta_del_taller(request.user.taller, solicitud_id)
         return idempotencia.respuesta_idempotente(resultado, PropuestaSerializer(propuesta).data)
+
+
+@method_decorator(never_cache, name="dispatch")
+class DecisionPropuestaView(APIView):
+    permission_classes = [EsComprador]
+
+    @extend_schema(
+        tags=[TAG],
+        operation_id="decidir_propuesta",
+        summary="Aceptar o rechazar la propuesta final de una solicitud propia",
+        description="Decisión final e inmutable del comprador propietario sobre la propuesta "
+        "emitida (AUD-07; RF-005, RF-006, RF-018, RF-022; RN-009, RN-011, RN-016). "
+        "Si envía `rechazar`, registra la decisión histórica sin crear pedido ni reservar "
+        "inventario (`pedido: null`). Si envía `aceptar`, en una única transacción PostgreSQL "
+        "agrega las unidades estándar requeridas por producto (`stock` y `personalizacion` con "
+        "`unidad_estandar`), bloquea y revalida el inventario disponible, registra la decisión "
+        "`aceptada`, congela el `Pedido` con su snapshot contractual y crea las reservas "
+        "activas y los movimientos de reserva. Una propuesta ya decidida con otra clave "
+        "responde `409 propuesta_ya_decidida`; la falta de stock disponible revierte toda la "
+        "transacción y responde `409 stock_insuficiente`. Protegida por `Idempotency-Key` "
+        "(AUD-08). " + idempotencia.CLAVE_INVALIDA,
+        request=DecisionPropuestaEntradaSerializer,
+        parameters=[idempotencia.PARAMETRO_CLAVE, idempotencia.parametro_repetida(200)],
+        responses={
+            200: DecisionPropuestaSerializer,
+            400: ERROR_ENTRADA,
+            **ERRORES,
+            404: NO_ENCONTRADO,
+            409: respuesta_conflicto(
+                CodigoConflicto.PROPUESTA_YA_DECIDIDA,
+                CodigoConflicto.STOCK_INSUFICIENTE,
+            ),
+        },
+    )
+    def post(self, request, solicitud_id: int):
+        clave = idempotencia.clave_de_peticion(request)
+        entrada = DecisionPropuestaEntradaSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        with errores_de_dominio():
+            resultado = services.decidir_propuesta_idempotente(
+                comprador=request.user,
+                clave=clave,
+                solicitud_id=solicitud_id,
+                **entrada.validated_data,
+            )
+        decision = selectors.decision_del_comprador(request.user, solicitud_id)
+        return idempotencia.respuesta_idempotente(
+            resultado, DecisionPropuestaSerializer(decision).data
+        )

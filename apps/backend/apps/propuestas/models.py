@@ -1,12 +1,13 @@
-"""Propuesta final del artesano (AUD-06; RF-005, RF-006, RF-016, RN-008, RN-010).
+"""Propuesta final del artesano y decisión del comprador (AUD-06/07; RF-005/006/016/018).
 
 Solicitud ≠ Propuesta ≠ Pedido confirmado. La propuesta es la oferta comercial que el
 comprador revisa antes de decidir: renglones aceptados, precio cotizado, cargos, plan
 y costo de entrega, y total en córdobas. Una vez emitida es estable: no se edita, no se
 regenera ni se recalcula con cambios posteriores del catálogo.
 
-No es el snapshot contractual: al aceptarla el comprador (AUD-07) se revalida el stock,
-se reserva y se congela el desglose del pedido confirmado. Aquí no hay pedido ni reserva.
+La decisión final del comprador (``DecisionPropuesta``) es única e inmutable: si rechaza,
+queda como constancia histórica sin crear pedido ni reserva; si acepta, en la misma
+transacción (AUD-07) se revalida el stock, se reserva y se congela el Pedido confirmado.
 
 Los CHECK de una fila garantizan importes no negativos y aritmética por fila. Las sumas
 entre tablas y la pertenencia de renglones/cargos a la misma solicitud se validan en el
@@ -208,3 +209,58 @@ class CargoPropuesta(_Inmutable):
 
     def __str__(self):
         return f"Cargo {self.posicion} de la propuesta {self.propuesta_id}"
+
+
+class AccionDecisionPropuesta(models.TextChoices):
+    """Acción enviada por el comprador al decidir sobre la propuesta emitida."""
+
+    ACEPTAR = "aceptar", "Aceptar propuesta"
+    RECHAZAR = "rechazar", "Rechazar propuesta"
+
+
+class ResultadoDecisionPropuesta(models.TextChoices):
+    """Resultado persistido en ``DecisionPropuesta``."""
+
+    ACEPTADA = "aceptada", "Aceptada"
+    RECHAZADA = "rechazada", "Rechazada"
+
+
+class EstadoDecisionPropuesta(models.TextChoices):
+    """Estado de decisión expuesto en la lectura de ``Propuesta``."""
+
+    PENDIENTE = "pendiente", "Pendiente"
+    ACEPTADA = "aceptada", "Aceptada"
+    RECHAZADA = "rechazada", "Rechazada"
+
+
+class DecisionPropuesta(_Inmutable):
+    """Decisión final e inmutable del comprador propietario sobre la propuesta (RN-009, RN-011)."""
+
+    propuesta = models.OneToOneField(
+        Propuesta,
+        on_delete=models.PROTECT,
+        related_name="decision",
+    )
+    comprador = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="decisiones_propuesta",
+    )
+    decision = models.CharField(
+        max_length=10,
+        choices=ResultadoDecisionPropuesta.choices,
+    )
+    decidida_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "decisión de propuesta"
+        verbose_name_plural = "decisiones de propuestas"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(decision__in=ResultadoDecisionPropuesta.values),
+                name="decision_propuesta_valor_valido",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Decisión {self.decision} de la propuesta #{self.propuesta_id}"

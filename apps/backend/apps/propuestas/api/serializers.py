@@ -1,7 +1,10 @@
+from django.core.exceptions import ObjectDoesNotExist
 from django.core.validators import MaxLengthValidator, MinLengthValidator
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.accounts.api.serializers import SinCamposDesconocidosMixin
+from apps.pedidos.api.serializers import PedidoCompradorSerializer
 from apps.solicitudes.api.serializers import ProductoSolicitudSerializer
 from apps.solicitudes.models import MAX_DESCRIPCION_ENTREGA, ModalidadEntrega
 from apps.solicitudes.services import MAX_RENGLONES
@@ -13,9 +16,13 @@ from ..models import (
     MAX_DESCRIPCION_CARGO,
     MAX_OTROS_CARGOS,
     MONEDA,
+    AccionDecisionPropuesta,
     CargoPropuesta,
+    DecisionPropuesta,
+    EstadoDecisionPropuesta,
     LineaPropuesta,
     Propuesta,
+    ResultadoDecisionPropuesta,
 )
 
 
@@ -130,10 +137,25 @@ class CargoPropuestaSerializer(serializers.ModelSerializer):
 
 
 class PropuestaSerializer(serializers.ModelSerializer):
-    """Oferta del artesano antes de la decisión del comprador. No es pedido confirmado."""
+    """Oferta comercial del artesano y estado de decisión del comprador (AUD-06/07)."""
 
     solicitud = serializers.IntegerField(source="solicitud_id", read_only=True)
     moneda = serializers.SerializerMethodField(help_text="Importes en córdobas (RN-010).")
+    decision = serializers.SerializerMethodField(
+        help_text="Estado de decisión del comprador: pendiente, aceptada o rechazada."
+    )
+    decidida_en = serializers.DateTimeField(
+        source="decision.decidida_en",
+        read_only=True,
+        allow_null=True,
+        help_text="Momento de la decisión final del comprador; null si está pendiente.",
+    )
+    pedido_id = serializers.IntegerField(
+        source="pedido.id",
+        read_only=True,
+        allow_null=True,
+        help_text="ID del pedido confirmado cuando fue aceptada; null en otro caso.",
+    )
     lineas = LineaPropuestaSerializer(many=True, read_only=True)
     otros_cargos = CargoPropuestaSerializer(source="cargos", many=True, read_only=True)
 
@@ -143,6 +165,9 @@ class PropuestaSerializer(serializers.ModelSerializer):
             "id",
             "solicitud",
             "emitida_en",
+            "decision",
+            "decidida_en",
+            "pedido_id",
             "moneda",
             "modalidad_entrega",
             "descripcion_entrega",
@@ -158,3 +183,45 @@ class PropuestaSerializer(serializers.ModelSerializer):
 
     def get_moneda(self, obj) -> str:
         return MONEDA
+
+    @extend_schema_field(serializers.ChoiceField(choices=EstadoDecisionPropuesta.choices))
+    def get_decision(self, obj) -> str:
+        try:
+            return obj.decision.decision
+        except ObjectDoesNotExist:
+            return EstadoDecisionPropuesta.PENDIENTE
+
+
+class DecisionPropuestaEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
+    """Decisión del comprador sobre la propuesta final completa (RN-009, RN-011)."""
+
+    decision = serializers.ChoiceField(
+        choices=AccionDecisionPropuesta.choices,
+        help_text="«aceptar» confirma el pedido y reserva stock; «rechazar» registra el rechazo.",
+    )
+
+
+class DecisionPropuestaSerializer(serializers.ModelSerializer):
+    """Resultado de la decisión final del comprador sobre la propuesta (AUD-07)."""
+
+    solicitud = serializers.IntegerField(source="propuesta.solicitud_id", read_only=True)
+    propuesta = serializers.IntegerField(source="propuesta_id", read_only=True)
+    decision = serializers.ChoiceField(choices=ResultadoDecisionPropuesta.choices, read_only=True)
+    pedido = PedidoCompradorSerializer(
+        source="propuesta.pedido",
+        read_only=True,
+        allow_null=True,
+        help_text="Snapshot contractual del pedido confirmado al aceptar; null al rechazar.",
+    )
+
+    class Meta:
+        model = DecisionPropuesta
+        fields = [
+            "id",
+            "solicitud",
+            "propuesta",
+            "decision",
+            "decidida_en",
+            "pedido",
+        ]
+        read_only_fields = fields

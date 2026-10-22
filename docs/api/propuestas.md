@@ -1,13 +1,14 @@
-# Contrato de API — Revisión y propuesta final V1 (AUD-06)
+# Contrato de API — Revisión, propuesta final y decisión del comprador V1 (AUD-06 / AUD-07)
 
-**Fecha:** 21 de octubre de 2026 (America/Managua).
-**Estado:** revisión individual de renglones con historial, DR-03 y propuesta comercial final
-persistente, visible para el comprador. La aceptación o el rechazo del comprador, el pedido
-confirmado y las reservas pertenecen a AUD-07/AUD-09.
-**Fuentes:** RF-005, RF-006, RF-016, RF-017, RF-018; RN-007, RN-008, RN-009, RN-010.
-**Esquema:** [OpenAPI generado](openapi.yaml), etiqueta `Solicitudes`.
-**Decisiones:** [DR-03 y D-AUD06-01 a D-AUD06-15](../decisiones/v1.md#concreciones-de-aud-06).
-**Relacionados:** [solicitudes](solicitudes.md), [idempotencia](idempotencia.md).
+**Fecha:** 21 de octubre de 2026; decisión del comprador añadida el 22 de octubre de 2026 (America/Managua).
+**Estado:** revisión individual de renglones con historial, DR-03, propuesta comercial final
+persistente y decisión final del comprador (`aceptada` / `rechazada`) que al aceptar crea el
+pedido confirmado, congela el snapshot contractual y reserva inventario en una transacción.
+La interfaz pertenece a AUD-09.
+**Fuentes:** RF-005, RF-006, RF-016, RF-017, RF-018, RF-022, RF-023; RN-007, RN-008, RN-009, RN-010, RN-011, RN-021, RN-024.
+**Esquema:** [OpenAPI generado](openapi.yaml), etiquetas `Solicitudes` y `Pedidos`.
+**Decisiones:** [DR-03, D-AUD06-01 a D-AUD06-15](../decisiones/v1.md#concreciones-de-aud-06) y [D-AUD07-01 a D-AUD07-12](../decisiones/v1.md#concreciones-de-aud-07).
+**Relacionados:** [solicitudes](solicitudes.md), [pedidos confirmados](pedidos.md), [inventario y reservas](inventario.md), [idempotencia](idempotencia.md).
 
 ## Etapas
 
@@ -17,12 +18,16 @@ Solicitud (comprador)
        ├─ todos rechazados ─────────────► rechazada (DR-03, terminal, sin propuesta)
        └─ todos resueltos, ≥1 aceptado ─► lista_propuesta
                                             └─ emisión ─► propuesta_emitida + Propuesta
-                                                             └─ AUD-07: decisión del comprador,
-                                                                snapshot contractual y reservas
+                                                             └─ decisión del comprador (AUD-07)
+                                                                  ├─ rechazar ─► DecisionPropuesta("rechazada")
+                                                                  └─ aceptar  ─► DecisionPropuesta("aceptada")
+                                                                                 + Pedido (snapshot contractual)
+                                                                                 + ReservaInventario + MovimientoInventario
 ```
 
 Solicitud ≠ Propuesta ≠ Pedido confirmado. Una propuesta emitida es una oferta comercial
-estable; **no** es un pedido, no reserva inventario y no congela el snapshot contractual.
+estable; solo cuando el comprador propietario la acepta nace el `Pedido`, se congela el
+snapshot contractual y se reservan las unidades estándar requeridas.
 
 ## Estados de la solicitud
 
@@ -30,7 +35,7 @@ estable; **no** es un pedido, no reserva inventario y no congela el snapshot con
 |---|---|
 | `pendiente_revision` | Al menos un renglón sigue `pendiente` |
 | `lista_propuesta` | Todos resueltos y al menos uno `aceptado`; el artesano puede emitir la propuesta |
-| `propuesta_emitida` | Existe la propuesta final; la decisión del comprador es de AUD-07 |
+| `propuesta_emitida` | Existe la propuesta final; el estado comercial posterior vive en `DecisionPropuesta` y `Pedido` |
 | `rechazada` | DR-03: todos resueltos y ninguno aceptado. Terminal |
 
 El estado se deriva en un único lugar (`estado_tras_revision`) dentro de la misma transacción
@@ -133,6 +138,7 @@ tres consultas de dominio, sin importar el número de líneas o cargos.
 ```json
 {
   "id": 4, "solicitud": 25, "emitida_en": "2026-10-21T10:00:00-06:00", "moneda": "NIO",
+  "decision": "pendiente", "decidida_en": null, "pedido_id": null,
   "modalidad_entrega": "entrega_artesano", "descripcion_entrega": "Entrega en Masaya centro",
   "lineas": [{
     "id": 1, "renglon": 71, "posicion": 2,
@@ -147,53 +153,91 @@ tres consultas de dominio, sin importar el número de líneas o cargos.
 ```
 
 La propuesta contiene solo los renglones aceptados. Los rechazados, con su motivo e
-historial, se consultan en la solicitud. Nombre y categoría del producto son referencias
-vigentes del catálogo; los importes, en cambio, quedan fijados en la propuesta.
+historial, se consultan en la solicitud. Nombre y categoría del producto en la propuesta
+son referencias vigentes del catálogo; en el pedido confirmado, en cambio, quedan congelados
+como snapshot histórico ([pedidos confirmados](pedidos.md)).
+
+Campos de decisión expuestos en la lectura de la propuesta:
+
+- `decision`: `"pendiente"` | `"aceptada"` | `"rechazada"`.
+- `decidida_en`: fecha/hora ISO-8601 o `null` mientras siga pendiente.
+- `pedido_id`: identificador del `Pedido` creado al aceptar o `null` si está pendiente o fue rechazada.
+
+## Decisión del comprador (AUD-07)
+
+`POST /api/v1/solicitudes/mias/{solicitud_id}/propuesta/decision/`
+con `Authorization: Bearer` (exclusivo del comprador propietario) e `Idempotency-Key`.
+
+```json
+{"decision": "aceptar"}
+{"decision": "rechazar"}
+```
+
+| Condición | Respuesta |
+|---|---|
+| Solicitud ajena, inexistente o aún sin propuesta emitida | `404` |
+| Cuenta de artesano o comprador inactivo | `403` |
+| Valor distinto de `"aceptar"` o `"rechazar"`, o campos extra | `400` |
+| Propuesta ya decidida con otra clave de idempotencia | `409 propuesta_ya_decidida` |
+| Stock estándar insuficiente al aceptar | `409 stock_insuficiente` |
+
+Respuesta (`200`):
+
+```json
+{
+  "solicitud": 25,
+  "propuesta": 4,
+  "decision": "aceptada",
+  "decidida_en": "2026-10-22T09:15:00-06:00",
+  "pedido_id": 9
+}
+```
+
+- Si `"decision": "rechazar"`: registra `DecisionPropuesta(decision="rechazada")`, devuelve `pedido_id: null` y **no** crea `Pedido`, `ReservaInventario` ni `MovimientoInventario`.
+- Si `"decision": "aceptar"`: dentro de la misma transacción bloquea la solicitud, la propuesta y el inventario estándar requerido (en orden ascendente de `producto_id`), revalida disponibilidad, registra `DecisionPropuesta(decision="aceptada")`, crea `Pedido`, `LineaPedido` y `CargoPedido` con snapshot contractual completo, y crea `ReservaInventario` + `MovimientoInventario(tipo="reserva")` para las líneas en `stock` y `personalizacion` con `unidad_estandar` ([inventario y reservas](inventario.md)).
 
 ## Cotización frente a snapshot contractual
 
-| | AUD-06 (esta fase) | AUD-07 |
+| | AUD-06 (propuesta) | AUD-07 (pedido confirmado) |
 |---|---|---|
-| Qué es | Oferta del artesano: precio cotizado, cargos, entrega y total | Pedido confirmado al aceptar el comprador |
-| Precio | Tomado del producto vigente al emitir y guardado en la línea | Se congela el desglose contractual del pedido |
-| Estabilidad | No se edita, regenera ni recalcula por cambios del catálogo | No cambia por catálogo ni por tasa de conversión |
-| Inventario | No consulta disponibilidad definitiva ni reserva | Revalida stock y reserva de forma atómica |
+| Qué es | Oferta del artesano: precio cotizado, cargos, entrega y total | Pedido confirmado al aceptar el comprador ([pedidos](pedidos.md)) |
+| Precio | Tomado del producto vigente al emitir y guardado en la línea | Se congela el desglose contractual completo (incluidos nombre y categoría) |
+| Estabilidad | No se edita, regenera ni recalcula por cambios del catálogo | Independiente de cambios futuros de precio, nombre, categoría o publicación |
+| Inventario | No consulta disponibilidad definitiva ni reserva | Revalida stock bajo `FOR UPDATE` y reserva de forma atómica ([inventario](inventario.md)) |
 
 ## Idempotencia y concurrencia
 
-Ambas mutaciones usan `ejecutar_idempotente` (AUD-08), con los tipos `resolver_renglon`
-(código registrado `200`, recurso `revisionrenglonsolicitud`) y `finalizar_propuesta`
-(`201`, recurso `propuesta`). Huellas:
+Las tres mutaciones usan `ejecutar_idempotente` (AUD-08), con los tipos `resolver_renglon`
+(código registrado `200`, recurso `revisionrenglonsolicitud`), `finalizar_propuesta`
+(`201`, recurso `propuesta`) y `decidir_propuesta` (`200`, recurso `decisionpropuesta`). Huellas:
 
 - `resolver_renglon`: `{solicitud_id, renglon_id, resolucion, motivo_rechazo normalizado}`.
 - `finalizar_propuesta`: `{solicitud_id, modalidad_entrega, descripcion_entrega,
   costo_entrega, lineas, otros_cargos}` validados y normalizados, en su orden.
+- `decidir_propuesta`: `{solicitud_id, decision}`.
 
 | Caso | Resultado |
 |---|---|
-| Misma clave, mismo destino y cuerpo | Replay: mismo recurso, `Idempotency-Replayed: true`, sin duplicar historial ni propuesta |
+| Misma clave, mismo destino y cuerpo | Replay: mismo recurso, `Idempotency-Replayed: true`, sin duplicar historial, propuesta, decisión, pedido ni reservas |
 | Misma clave, otro renglón, otra solicitud u otro cuerpo | `409 clave_idempotencia_reutilizada` |
 | Clave distinta contra un renglón ya resuelto | `409 renglon_ya_resuelto` (conflicto de negocio) |
 | Clave distinta con propuesta ya emitida | `409 propuesta_ya_emitida` |
+| Clave distinta con propuesta ya decidida | `409 propuesta_ya_decidida` |
+| Clave distinta al aceptar sin stock disponible suficiente | `409 stock_insuficiente` |
 
-AUD-08 no evita carreras entre claves distintas. Toda mutación de revisión o propuesta
-bloquea primero la fila de la solicitud (`SELECT … FOR UPDATE`) y valida el estado dentro
-del lock. Así, aceptar y rechazar a la vez el mismo renglón deja una sola resolución; dos
-renglones resueltos a la vez como «últimos» producen un estado final determinista
-(`lista_propuesta` o `rechazada`); y dos emisiones simultáneas crean una sola propuesta.
-Un conflicto o fallo revierte también el registro idempotente. Las restricciones `UNIQUE`
-(revisión por renglón, propuesta por solicitud, línea por renglón) son la última garantía.
+AUD-08 no evita carreras entre claves distintas. Toda mutación bloquea primero la fila de la
+solicitud (`SELECT … FOR UPDATE`) —y, al decidir la propuesta, también la propuesta y los
+inventarios requeridos— y valida dentro del lock. Un conflicto o fallo revierte también el
+registro idempotente. Las restricciones `UNIQUE` y `CHECK` son la última garantía.
 
 ## Permisos
 
-Mutaciones: Bearer de artesano activo con taller aprobado y propietario del taller
-destinatario. Comprador o taller pendiente/rechazado: `403`; taller ajeno o renglón de otra
-solicitud: `404`; sin token: `401`. La administración no tiene acceso comercial por la API
-(`401`, política vigente). Actor, taller y comprador nunca se leen del cuerpo.
+- Revisión y emisión de propuesta: Bearer de artesano activo con taller aprobado y propietario del taller destinatario. Comprador o taller pendiente/rechazado: `403`; taller ajeno o renglón de otra solicitud: `404`.
+- Decisión de la propuesta: Bearer de comprador activo propietario de la solicitud. Artesano: `403`; solicitud ajena o sin propuesta: `404`.
+- Sin token o cuenta de administración en la API comercial: `401`. Actor, taller y comprador nunca se leen del cuerpo.
 
 ## Fuera de alcance
 
-Aceptar o rechazar la propuesta en nombre del comprador, pedido confirmado, reservas,
-movimientos de inventario, snapshot contractual, plazo de pago y pagos (AUD-07/09/10).
-Tampoco hay edición de propuesta emitida, contraofertas ni negociación de precio: requerirían
-un requisito o una decisión nueva.
+Interfaz de decisión y vista del pedido (AUD-09), plazo de pago y pagos (AUD-10), entregas
+(AUD-11) y cancelaciones/reembolsos (AUD-12/13). Tampoco hay edición de propuesta emitida,
+contraofertas ni negociación de precio: requerirían un requisito o una decisión nueva.
