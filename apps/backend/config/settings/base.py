@@ -67,6 +67,8 @@ INSTALLED_APPS = [
     "apps.catalogo",
     "apps.solicitudes",
     "apps.propuestas",
+    "apps.pedidos",
+    "apps.inventario",
     "apps.operaciones",
 ]
 
@@ -228,6 +230,12 @@ SPECTACULAR_SETTINGS = {
         "ModalidadEntregaEnum": "apps.solicitudes.models.ModalidadEntrega",
         "ResolucionFinalEnum": "apps.solicitudes.api.serializers.RESOLUCIONES_FINALES",
         "CodigoConflictoSolicitudEnum": "apps.solicitudes.api.conflictos.CODIGOS_CONFLICTO",
+        "AccionDecisionPropuestaEnum": "apps.propuestas.models.AccionDecisionPropuesta",
+        "ResultadoDecisionPropuestaEnum": "apps.propuestas.models.ResultadoDecisionPropuesta",
+        "EstadoDecisionPropuestaEnum": "apps.propuestas.models.EstadoDecisionPropuesta",
+        "TipoMovimientoInventarioEnum": "apps.inventario.models.TipoMovimientoInventario",
+        "EstadoReservaEnum": "apps.inventario.models.EstadoReserva",
+        "CodigoConflictoInventarioEnum": "apps.inventario.api.conflictos.CODIGOS_CONFLICTO",
         "TipoOperacionEnum": "apps.operaciones.models.TipoOperacion",
         "EstadoOperacionEnum": "apps.operaciones.api.serializers.ESTADOS_VISIBLES",
         "CodigoConflictoIdempotenciaEnum": "apps.operaciones.api.serializers.CODIGOS_CONFLICTO",

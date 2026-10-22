@@ -1,8 +1,10 @@
-"""Emisión transaccional e idempotente de la propuesta final (AUD-06).
+"""Emisión y decisión transaccional e idempotente de la propuesta final (AUD-06/07).
 
-Una sola operación: la solicitud ya revisada más las condiciones comerciales del
-artesano producen la propuesta completa, o nada. No hay borradores persistentes,
-edición posterior, pedido confirmado ni reservas (AUD-07).
+Emisión (AUD-06): la solicitud ya revisada más las condiciones comerciales del artesano
+producen la propuesta completa, o nada.
+Decisión (AUD-07): el comprador propietario acepta o rechaza la propuesta emitida; si
+acepta, se revalida disponibilidad agregada, se congela el Pedido confirmado y se
+reservan las unidades estándar en una única transacción ACID (RN-011).
 """
 
 from decimal import Decimal
@@ -12,8 +14,10 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.catalogo.models import Modalidad
+from apps.inventario import services as inventario
 from apps.operaciones import services as operaciones
 from apps.operaciones.models import TipoOperacion
+from apps.pedidos import services as pedidos
 from apps.solicitudes import services as solicitudes
 from apps.solicitudes.models import EstadoSolicitud, ResolucionRenglon, errores_entrega
 from apps.solicitudes.services import CodigoConflicto, ConflictoSolicitud, EntradaInvalida
@@ -23,9 +27,12 @@ from .models import (
     DECIMALES,
     DIGITOS_IMPORTE,
     MAX_OTROS_CARGOS,
+    AccionDecisionPropuesta,
     CargoPropuesta,
+    DecisionPropuesta,
     LineaPropuesta,
     Propuesta,
+    ResultadoDecisionPropuesta,
 )
 
 # Mayor importe representable con DIGITOS_IMPORTE dígitos y dos decimales.
@@ -202,4 +209,90 @@ def finalizar_propuesta_idempotente(
             artesano=artesano, solicitud_id=solicitud_id, **condiciones
         ),
         codigo_http=HTTPStatus.CREATED,
+    )
+
+
+def _bloquear_propuesta_de_solicitud(solicitud) -> Propuesta:
+    propuesta = (
+        Propuesta.objects.select_for_update(of=("self",)).filter(solicitud=solicitud).first()
+    )
+    if propuesta is None:
+        raise solicitudes.SolicitudNoEncontrada
+    return propuesta
+
+
+@transaction.atomic
+def decidir_propuesta(*, comprador, solicitud_id: int, decision: str) -> DecisionPropuesta:
+    """Registra la decisión final del comprador sobre la propuesta emitida (AUD-07, RN-009, RN-011).
+
+    Si ``decision == 'rechazar'``, registra únicamente ``DecisionPropuesta(rechazada)``
+    sin crear Pedido ni reservar inventario.
+    Si ``decision == 'aceptar'``, agrega requerimientos de stock por producto, bloquea
+    los inventarios en orden determinista de ``producto_id``, revalida disponibilidad,
+    crea ``DecisionPropuesta(aceptada)``, congela el ``Pedido`` con su snapshot
+    contractual y crea las reservas y movimientos en la misma transacción.
+    """
+    solicitudes.verificar_comprador_activo(comprador)
+    if decision not in AccionDecisionPropuesta.values:
+        raise EntradaInvalida({"decision": ["Elige aceptar o rechazar."]})
+
+    solicitud = solicitudes.bloquear_solicitud_propia(comprador, solicitud_id)
+    propuesta = _bloquear_propuesta_de_solicitud(solicitud)
+    if DecisionPropuesta.objects.filter(propuesta=propuesta).exists():
+        raise ConflictoSolicitud(CodigoConflicto.PROPUESTA_YA_DECIDIDA)
+
+    if decision == AccionDecisionPropuesta.RECHAZAR:
+        return DecisionPropuesta.objects.create(
+            propuesta=propuesta,
+            comprador=comprador,
+            decision=ResultadoDecisionPropuesta.RECHAZADA,
+        )
+
+    lineas_propuesta = list(
+        propuesta.lineas.select_related("renglon__producto__categoria").order_by(
+            "renglon__posicion", "id"
+        )
+    )
+    cargos_propuesta = list(propuesta.cargos.order_by("posicion", "id"))
+    requerimientos = inventario.calcular_requerimientos_stock(lineas_propuesta)
+    try:
+        inventarios = inventario.bloquear_y_validar_disponibilidad(requerimientos)
+    except inventario.StockInsuficienteError:
+        raise ConflictoSolicitud(CodigoConflicto.STOCK_INSUFICIENTE) from None
+
+    ahora = timezone.now()
+    registro = DecisionPropuesta.objects.create(
+        propuesta=propuesta,
+        comprador=comprador,
+        decision=ResultadoDecisionPropuesta.ACEPTADA,
+        decidida_en=ahora,
+    )
+    pedido, lineas_pedido = pedidos.crear_pedido_desde_propuesta(
+        propuesta=propuesta,
+        lineas_propuesta=lineas_propuesta,
+        cargos_propuesta=cargos_propuesta,
+        confirmado_en=ahora,
+    )
+    inventario.reservar_para_pedido(
+        pedido=pedido,
+        lineas_pedido=lineas_pedido,
+        inventarios=inventarios,
+        actor=comprador,
+    )
+    return registro
+
+
+def decidir_propuesta_idempotente(
+    *, comprador, clave: str, solicitud_id: int, decision: str
+) -> operaciones.ResultadoIdempotente:
+    """Protege la decisión del comprador contra reintentos y respuestas perdidas (AUD-08)."""
+    return operaciones.ejecutar_idempotente(
+        actor=comprador,
+        tipo=TipoOperacion.DECIDIR_PROPUESTA,
+        clave=clave,
+        datos={"solicitud_id": solicitud_id, "decision": decision},
+        operacion=lambda: decidir_propuesta(
+            comprador=comprador, solicitud_id=solicitud_id, decision=decision
+        ),
+        codigo_http=HTTPStatus.OK,
     )
