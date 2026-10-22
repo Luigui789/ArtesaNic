@@ -1,8 +1,8 @@
 # Contrato de idempotencia V1 (AUD-08)
 
-**Fecha:** 20 de octubre de 2026; tipos de AUD-06 añadidos el 21 de octubre (America/Managua).
+**Fecha:** 20 de octubre de 2026; tipos de AUD-06 añadidos el 21 de octubre y tipos de AUD-07 añadidos el 22 de octubre (America/Managua).
 **Fuentes:** RF-009.7, RNF-011, RNF-014.3–5, RNF-015.7; regla de no duplicar solicitudes por reintentos.
-**Esquema:** [OpenAPI generado](openapi.yaml), etiquetas `Solicitudes` y `Operaciones`.
+**Esquema:** [OpenAPI generado](openapi.yaml), etiquetas `Solicitudes`, `Pedidos`, `Inventario` y `Operaciones`.
 **Decisiones:** [D-AUD08-01 a D-AUD08-08](../decisiones/v1.md#concreciones-de-aud-08).
 
 ## Principio
@@ -47,12 +47,17 @@ renglones de AUD-06), un replay muestra ese estado actual.
 | `crear_solicitud` | `POST /api/v1/solicitudes/` | `renglones` validados y normalizados, en su orden: producto, modalidad, cantidad, fecha solicitada, características y origen cuando aplican; más `modalidad_entrega_preferida` y `descripcion_entrega_preferida` solo si se indican (AUD-06), de modo que las huellas anteriores siguen siendo válidas |
 | `resolver_renglon` | `POST /api/v1/solicitudes/recibidas/{id}/renglones/{renglon_id}/resolver/` | `solicitud_id`, `renglon_id`, `resolucion` y `motivo_rechazo` recortado. Código registrado `200` |
 | `finalizar_propuesta` | `POST /api/v1/solicitudes/recibidas/{id}/propuesta/` | `solicitud_id` y todas las condiciones validadas: modalidad y descripción de entrega, costo, líneas y otros cargos, en su orden. Código registrado `201` |
+| `decidir_propuesta` | `POST /api/v1/solicitudes/mias/{id}/propuesta/decision/` | `solicitud_id` y `decision` (`"aceptar"` o `"rechazar"`). Recurso `decisionpropuesta`, código registrado `200` |
+| `establecer_inventario_inicial` | `POST /api/v1/inventario/productos/{producto_id}/inicial/` | `producto_id`, `cantidad` y `motivo` recortado. Recurso `inventarioproducto`, código registrado `201` |
+| `registrar_entrada_inventario` | `POST /api/v1/inventario/productos/{producto_id}/entradas/` | `producto_id`, `cantidad` y `motivo` recortado. Recurso `inventarioproducto`, código registrado `200` |
+| `ajustar_inventario` | `POST /api/v1/inventario/productos/{producto_id}/ajustes/` | `producto_id`, `delta` y `motivo` recortado. Recurso `inventarioproducto`, código registrado `200` |
 
-Las huellas de AUD-06 incluyen el destino: la misma clave contra otro renglón u otra
-solicitud es otra petición (`409 clave_idempotencia_reutilizada`), nunca una repetición.
-Claves distintas contra un renglón ya resuelto o una propuesta ya emitida no son un
-problema de idempotencia sino de negocio: `409 renglon_ya_resuelto` o
-`409 propuesta_ya_emitida` ([revisión y propuesta](propuestas.md)).
+Las huellas de AUD-06 y AUD-07 incluyen el destino: la misma clave contra otro renglón, otra
+solicitud u otro producto es otra petición (`409 clave_idempotencia_reutilizada`), nunca una repetición.
+Claves distintas contra un renglón ya resuelto, una propuesta ya emitida, una propuesta ya
+decidida o un inventario ya inicializado no son un problema de idempotencia sino de negocio:
+`409 renglon_ya_resuelto`, `409 propuesta_ya_emitida`, `409 propuesta_ya_decidida` o
+`409 inventario_ya_inicializado` ([revisión y propuesta](propuestas.md), [inventario](inventario.md)).
 
 La huella es SHA-256 de un JSON canónico (claves ordenadas, sin espacios, fechas ISO).
 No incluye comprador, taller, estado, cabeceras, token ni timestamps; el orden de las
@@ -137,8 +142,10 @@ dominio se envuelve con `apps.operaciones.services.ejecutar_idempotente(actor=..
 clave=..., datos=<contrato normalizado>, operacion=<mutación>)`. La vista usa
 `apps.operaciones.api.contrato` para la cabecera, el `409` y `Idempotency-Replayed`.
 Implementadas: creación de solicitud (AUD-08), resolución de renglón y emisión de
-propuesta (AUD-06). Pendientes: aceptación de propuesta y confirmación/reserva (AUD-07); registro de pago (AUD-10); entregas, ajustes
-de inventario y reembolsos (AUD-11 en adelante).
+propuesta (AUD-06), decisión de propuesta (`decidir_propuesta`) y operaciones de inventario
+estándar (`establecer_inventario_inicial`, `registrar_entrada_inventario`,
+`ajustar_inventario`) en AUD-07. Pendientes: registro de pago (AUD-10); entregas,
+clasificación/liberación y reembolsos (AUD-11 en adelante).
 
 ## Tema operativo pendiente
 

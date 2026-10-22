@@ -367,6 +367,404 @@ paths:
                 items:
                   $ref: '#/components/schemas/Categoria'
           description: ''
+  /api/v1/inventario/:
+    get:
+      operationId: listar_mi_inventario
+      description: Existencia física, reservada y disponible de los productos con
+        inventario inicializado del taller propio aprobado (RF-022, RN-021).
+      summary: Listar el inventario inicializado del taller propio
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      tags:
+      - Inventario
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedInventarioProductoList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+  /api/v1/inventario/productos/{producto_id}/:
+    get:
+      operationId: consultar_inventario_de_producto
+      description: Devuelve existencia física, cantidad reservada y disponibilidad
+        de un producto del taller propio aprobado. 404 si el producto es ajeno, no
+        existe o aún no tiene existencia inicial registrada.
+      summary: Consultar existencias y disponibilidad de un producto propio
+      parameters:
+      - in: path
+        name: producto_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Inventario
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventarioProducto'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/inventario/productos/{producto_id}/ajustes/:
+    post:
+      operationId: ajustar_inventario
+      description: 'Registra un ajuste positivo (`delta > 0`) o negativo (`delta <
+        0`) con motivo obligatorio (RF-022, RN-021). Nunca reduce la existencia física
+        por debajo de la cantidad reservada ni de cero (`409 ajuste_bajo_comprometido`).
+        Exige inventario inicializado (`409 inventario_no_inicializado`). Protegida
+        por `Idempotency-Key` (AUD-08). `Idempotency-Key` ausente o con formato inválido
+        responde `{"Idempotency-Key": ["..."]}`, antes de validar el cuerpo.'
+      summary: Ajustar la existencia física de un producto propio con motivo
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: producto_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Inventario
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AjusteInventarioRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventarioProducto'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoInventario'
+          description: 'Conflicto sin efectos; `codigo` estable: `inventario_no_inicializado`,
+            `ajuste_bajo_comprometido`, `clave_idempotencia_reutilizada`.'
+  /api/v1/inventario/productos/{producto_id}/entradas/:
+    post:
+      operationId: registrar_entrada_inventario
+      description: 'Incrementa la existencia física (cantidad ≥ 1) y registra el movimiento
+        `entrada` en la misma transacción. Exige inventario previamente inicializado
+        (`409 inventario_no_inicializado`). Protegida por `Idempotency-Key` (AUD-08).
+        `Idempotency-Key` ausente o con formato inválido responde `{"Idempotency-Key":
+        ["..."]}`, antes de validar el cuerpo.'
+      summary: Registrar una entrada de inventario en un producto propio
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: producto_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Inventario
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntradaInventarioRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventarioProducto'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoInventario'
+          description: 'Conflicto sin efectos; `codigo` estable: `inventario_no_inicializado`,
+            `clave_idempotencia_reutilizada`.'
+  /api/v1/inventario/productos/{producto_id}/inicial/:
+    post:
+      operationId: establecer_inventario_inicial
+      description: 'Inicializa por única vez el inventario del producto (cantidad
+        ≥ 0) y registra el movimiento `existencia_inicial` en la misma transacción.
+        Una segunda inicialización con otra clave responde `409 inventario_ya_inicializado`.
+        Protegida por `Idempotency-Key` (AUD-08). `Idempotency-Key` ausente o con
+        formato inválido responde `{"Idempotency-Key": ["..."]}`, antes de validar
+        el cuerpo.'
+      summary: Registrar la existencia inicial de un producto propio
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: producto_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Inventario
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExistenciaInicialEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventarioProducto'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoInventario'
+          description: 'Conflicto sin efectos; `codigo` estable: `inventario_ya_inicializado`,
+            `clave_idempotencia_reutilizada`.'
+  /api/v1/inventario/productos/{producto_id}/movimientos/:
+    get:
+      operationId: listar_movimientos_de_producto
+      description: Historial append-only de movimientos del producto del taller propio
+        (RF-023, RN-021), del más reciente al más antiguo (`-creado_en, -id`). 404
+        si el producto es ajeno o no existe.
+      summary: Consultar el historial de movimientos de un producto propio
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      - in: path
+        name: producto_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Inventario
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedMovimientoInventarioList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
   /api/v1/operaciones/{tipo}/{clave}/:
     get:
       operationId: consultar_operacion
@@ -387,8 +785,12 @@ paths:
         schema:
           type: string
           enum:
+          - ajustar_inventario
           - crear_solicitud
+          - decidir_propuesta
+          - establecer_inventario_inicial
           - finalizar_propuesta
+          - registrar_entrada_inventario
           - resolver_renglon
         required: true
       tags:
@@ -414,6 +816,174 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe, no se completó o pertenece a otro actor.
+  /api/v1/pedidos/mios/:
+    get:
+      operationId: listar_mis_pedidos
+      description: Pedidos confirmados del comprador autenticado, ordenados por `-confirmado_en,
+        -id`. Todos los importes y datos de producto proceden del snapshot contractual
+        congelado al confirmar (RN-011).
+      summary: Listar los pedidos confirmados propios
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      tags:
+      - Pedidos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPedidoCompradorList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+  /api/v1/pedidos/mios/{pedido_id}/:
+    get:
+      operationId: consultar_mi_pedido
+      description: Detalle contractual del pedido confirmado del comprador autenticado.
+        No consulta el precio ni los datos vivos del catálogo. 404 si no existe o
+        es ajeno.
+      summary: Consultar un pedido confirmado propio
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Pedidos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoComprador'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/recibidos/:
+    get:
+      operationId: listar_pedidos_recibidos
+      description: Pedidos confirmados del taller del artesano autenticado y aprobado,
+        con su snapshot contractual congelado.
+      summary: Listar pedidos confirmados del taller propio aprobado
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      tags:
+      - Pedidos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPedidoArtesanoList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+  /api/v1/pedidos/recibidos/{pedido_id}/:
+    get:
+      operationId: consultar_pedido_recibido
+      description: Detalle contractual del pedido confirmado destinado al taller propio
+        aprobado. 404 si no existe o pertenece a otro taller.
+      summary: Consultar un pedido confirmado del taller propio
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Pedidos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PedidoArtesano'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
   /api/v1/productos/:
     get:
       operationId: listar_catalogo
@@ -1025,10 +1595,8 @@ paths:
       operationId: consultar_propuesta_de_mi_solicitud
       description: 'Propuesta final emitida: solo renglones aceptados, precio unitario
         cotizado por el servidor, subtotales, cargos de personalización, otros cargos,
-        plan y costo de entrega, y total en C$. Los rechazados se consultan en la
-        solicitud. No es un pedido confirmado: la aceptación del comprador, la congelación
-        contractual y las reservas pertenecen a AUD-07. 404 si aún no se emitió o
-        la solicitud es ajena.'
+        plan y costo de entrega, total en C$ y estado de decisión (`pendiente`, `aceptada`,
+        `rechazada`). 404 si aún no se emitió o la solicitud es ajena.'
       summary: Consultar la propuesta final de una solicitud propia
       parameters:
       - in: path
@@ -1065,6 +1633,101 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe o no pertenece a esta parte.
+  /api/v1/solicitudes/mias/{solicitud_id}/propuesta/decision/:
+    post:
+      operationId: decidir_propuesta
+      description: 'Decisión final e inmutable del comprador propietario sobre la
+        propuesta emitida (AUD-07; RF-005, RF-006, RF-018, RF-022; RN-009, RN-011,
+        RN-016). Si envía `rechazar`, registra la decisión histórica sin crear pedido
+        ni reservar inventario (`pedido: null`). Si envía `aceptar`, en una única
+        transacción PostgreSQL agrega las unidades estándar requeridas por producto
+        (`stock` y `personalizacion` con `unidad_estandar`), bloquea y revalida el
+        inventario disponible, registra la decisión `aceptada`, congela el `Pedido`
+        con su snapshot contractual y crea las reservas activas y los movimientos
+        de reserva. Una propuesta ya decidida con otra clave responde `409 propuesta_ya_decidida`;
+        la falta de stock disponible revierte toda la transacción y responde `409
+        stock_insuficiente`. Protegida por `Idempotency-Key` (AUD-08). `Idempotency-Key`
+        ausente o con formato inválido responde `{"Idempotency-Key": ["..."]}`, antes
+        de validar el cuerpo.'
+      summary: Aceptar o rechazar la propuesta final de una solicitud propia
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: solicitud_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Solicitudes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DecisionPropuestaEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionPropuesta'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoSolicitud'
+          description: 'Conflicto sin efectos; `codigo` estable: `propuesta_ya_decidida`,
+            `stock_insuficiente`, `clave_idempotencia_reutilizada`. Nunca sobrescribe
+            una resolución ni una propuesta ya registrada.'
   /api/v1/solicitudes/recibidas/:
     get:
       operationId: listar_solicitudes_recibidas
@@ -1155,10 +1818,8 @@ paths:
       operationId: consultar_propuesta_recibida
       description: 'Propuesta final emitida: solo renglones aceptados, precio unitario
         cotizado por el servidor, subtotales, cargos de personalización, otros cargos,
-        plan y costo de entrega, y total en C$. Los rechazados se consultan en la
-        solicitud. No es un pedido confirmado: la aceptación del comprador, la congelación
-        contractual y las reservas pertenecen a AUD-07. 404 si aún no se emitió o
-        la solicitud es ajena.'
+        plan y costo de entrega, total en C$ y estado de decisión (`pendiente`, `aceptada`,
+        `rechazada`). 404 si aún no se emitió o la solicitud es ajena.'
       summary: Consultar la propuesta final de una solicitud del taller propio
       parameters:
       - in: path
@@ -1521,6 +2182,37 @@ paths:
           description: Esta cuenta no tiene un taller registrado.
 components:
   schemas:
+    AccionDecisionPropuestaEnum:
+      enum:
+      - aceptar
+      - rechazar
+      type: string
+      description: |-
+        * `aceptar` - Aceptar propuesta
+        * `rechazar` - Rechazar propuesta
+    AjusteInventarioRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        delta:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483647
+          description: Variación entera distinta de cero (> 0 ajuste positivo, < 0
+            ajuste negativo).
+        motivo:
+          type: string
+          minLength: 1
+          description: Motivo obligatorio del ajuste (RF-022, RN-021).
+          maxLength: 500
+          pattern: \S
+      required:
+      - delta
+      - motivo
     BlankEnum:
       enum:
       - ''
@@ -1549,6 +2241,30 @@ components:
       required:
       - descripcion
       - monto
+    CargoPedido:
+      type: object
+      properties:
+        posicion:
+          type: integer
+          readOnly: true
+        descripcion:
+          type: string
+          readOnly: true
+        monto:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        renglon:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Renglón aceptado al que se atribuye; null si es un cargo global.
+      required:
+      - descripcion
+      - monto
+      - posicion
+      - renglon
     CargoPropuesta:
       type: object
       properties:
@@ -1592,12 +2308,40 @@ components:
       - codigo
       - id
       - nombre
+    CategoriaSnapshot:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        codigo:
+          type: string
+          readOnly: true
+        nombre:
+          type: string
+          readOnly: true
+      required:
+      - codigo
+      - id
+      - nombre
     CodigoConflictoIdempotenciaEnum:
       enum:
       - clave_idempotencia_reutilizada
       type: string
       description: '* `clave_idempotencia_reutilizada` - Clave reutilizada con otra
         petición'
+    CodigoConflictoInventarioEnum:
+      enum:
+      - inventario_ya_inicializado
+      - inventario_no_inicializado
+      - ajuste_bajo_comprometido
+      - clave_idempotencia_reutilizada
+      type: string
+      description: |-
+        * `inventario_ya_inicializado` - La existencia inicial de este producto ya fue registrada.
+        * `inventario_no_inicializado` - Registra primero la existencia inicial del producto antes de operar.
+        * `ajuste_bajo_comprometido` - El ajuste negativo no puede reducir la existencia física por debajo de las unidades reservadas ni de cero.
+        * `clave_idempotencia_reutilizada` - Clave reutilizada con otra petición
     CodigoConflictoSolicitudEnum:
       enum:
       - renglon_ya_resuelto
@@ -1605,6 +2349,8 @@ components:
       - solicitud_rechazada
       - solicitud_sin_renglones_aceptados
       - propuesta_ya_emitida
+      - propuesta_ya_decidida
+      - stock_insuficiente
       - clave_idempotencia_reutilizada
       type: string
       description: |-
@@ -1613,6 +2359,8 @@ components:
         * `solicitud_rechazada` - La solicitud fue rechazada: todos sus renglones se rechazaron.
         * `solicitud_sin_renglones_aceptados` - La propuesta requiere al menos un renglón aceptado.
         * `propuesta_ya_emitida` - La propuesta final de esta solicitud ya fue emitida.
+        * `propuesta_ya_decidida` - Esta propuesta ya tiene una decisión final del comprador y no se modifica.
+        * `stock_insuficiente` - No hay disponibilidad suficiente para confirmar la propuesta.
         * `clave_idempotencia_reutilizada` - Clave reutilizada con otra petición
     CompradorSolicitud:
       type: object
@@ -1636,6 +2384,16 @@ components:
       required:
       - codigo
       - detail
+    ConflictoInventario:
+      type: object
+      properties:
+        detail:
+          type: string
+        codigo:
+          $ref: '#/components/schemas/CodigoConflictoInventarioEnum'
+      required:
+      - codigo
+      - detail
     ConflictoSolicitud:
       type: object
       properties:
@@ -1646,6 +2404,76 @@ components:
       required:
       - codigo
       - detail
+    DecisionPropuesta:
+      type: object
+      description: Resultado de la decisión final del comprador sobre la propuesta
+        (AUD-07).
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        solicitud:
+          type: integer
+          readOnly: true
+        propuesta:
+          type: integer
+          readOnly: true
+        decision:
+          allOf:
+          - $ref: '#/components/schemas/ResultadoDecisionPropuestaEnum'
+          readOnly: true
+        decidida_en:
+          type: string
+          format: date-time
+          readOnly: true
+        pedido:
+          allOf:
+          - $ref: '#/components/schemas/PedidoComprador'
+          readOnly: true
+          nullable: true
+          description: Snapshot contractual del pedido confirmado al aceptar; null
+            al rechazar.
+      required:
+      - decidida_en
+      - decision
+      - id
+      - pedido
+      - propuesta
+      - solicitud
+    DecisionPropuestaEntradaRequest:
+      type: object
+      description: Decisión del comprador sobre la propuesta final completa (RN-009,
+        RN-011).
+      properties:
+        decision:
+          allOf:
+          - $ref: '#/components/schemas/AccionDecisionPropuestaEnum'
+          description: |-
+            «aceptar» confirma el pedido y reserva stock; «rechazar» registra el rechazo.
+
+            * `aceptar` - Aceptar propuesta
+            * `rechazar` - Rechazar propuesta
+      required:
+      - decision
+    EntradaInventarioRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        cantidad:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+          description: Cantidad física positiva a incorporar (entero ≥ 1).
+        motivo:
+          type: string
+          description: Observación opcional de la entrada.
+          maxLength: 500
+      required:
+      - cantidad
     Error:
       type: object
       description: Forma de los errores que no son de validación de campos.
@@ -1654,6 +2482,12 @@ components:
           type: string
       required:
       - detail
+    EstadoDecisionPropuestaEnum:
+      enum:
+      - pendiente
+      - aceptada
+      - rechazada
+      type: string
     EstadoOperacionEnum:
       enum:
       - completada
@@ -1681,6 +2515,130 @@ components:
         * `pendiente` - Pendiente de aprobación
         * `aprobado` - Aprobado
         * `rechazado` - Rechazado
+    ExistenciaInicialEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        cantidad:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Existencia física inicial del producto (entero ≥ 0).
+      required:
+      - cantidad
+    InventarioProducto:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        producto:
+          allOf:
+          - $ref: '#/components/schemas/ProductoSolicitud'
+          readOnly: true
+        existencia_fisica:
+          type: integer
+          readOnly: true
+        reservada:
+          type: integer
+          readOnly: true
+        disponible:
+          type: integer
+          readOnly: true
+        inicializado_en:
+          type: string
+          format: date-time
+          readOnly: true
+        actualizado_en:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actualizado_en
+      - disponible
+      - existencia_fisica
+      - id
+      - inicializado_en
+      - producto
+      - reservada
+    LineaPedido:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        renglon:
+          type: integer
+          readOnly: true
+        linea_propuesta:
+          type: integer
+          readOnly: true
+        posicion:
+          type: integer
+          readOnly: true
+        producto:
+          allOf:
+          - $ref: '#/components/schemas/ProductoSnapshot'
+          readOnly: true
+        modalidad:
+          allOf:
+          - $ref: '#/components/schemas/ModalidadEnum'
+          readOnly: true
+        cantidad:
+          type: integer
+          readOnly: true
+        precio_unitario:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        subtotal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        cargo_personalizacion:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        fecha_solicitada:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        fecha_comprometida:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        caracteristicas:
+          type: string
+          readOnly: true
+        origen_personalizacion:
+          readOnly: true
+          oneOf:
+          - $ref: '#/components/schemas/OrigenPersonalizacionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+      required:
+      - cantidad
+      - caracteristicas
+      - cargo_personalizacion
+      - fecha_comprometida
+      - fecha_solicitada
+      - id
+      - linea_propuesta
+      - modalidad
+      - origen_personalizacion
+      - posicion
+      - precio_unitario
+      - producto
+      - renglon
+      - subtotal
     LineaPropuesta:
       type: object
       properties:
@@ -1802,6 +2760,74 @@ components:
         * `stock` - Venta desde stock
         * `produccion` - Producción por cantidad
         * `personalizacion` - Personalización
+    MovimientoInventario:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        producto:
+          allOf:
+          - $ref: '#/components/schemas/ProductoSolicitud'
+          readOnly: true
+        tipo:
+          allOf:
+          - $ref: '#/components/schemas/TipoMovimientoInventarioEnum'
+          readOnly: true
+        cantidad:
+          type: integer
+          readOnly: true
+        existencia_antes:
+          type: integer
+          readOnly: true
+        existencia_despues:
+          type: integer
+          readOnly: true
+        reservada_antes:
+          type: integer
+          readOnly: true
+        reservada_despues:
+          type: integer
+          readOnly: true
+        actor:
+          allOf:
+          - $ref: '#/components/schemas/Revisor'
+          readOnly: true
+          nullable: true
+        pedido:
+          type: integer
+          readOnly: true
+          nullable: true
+        linea_pedido:
+          type: integer
+          readOnly: true
+          nullable: true
+        reserva:
+          type: integer
+          readOnly: true
+          nullable: true
+        motivo:
+          type: string
+          readOnly: true
+        creado_en:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - actor
+      - cantidad
+      - creado_en
+      - existencia_antes
+      - existencia_despues
+      - id
+      - linea_pedido
+      - motivo
+      - pedido
+      - producto
+      - reserva
+      - reservada_antes
+      - reservada_despues
+      - tipo
     OperacionIdempotente:
       type: object
       description: Resultado propio. Nunca expone la huella, la petición original
@@ -1847,6 +2873,106 @@ components:
       description: |-
         * `desde_cero` - Fabricación desde cero
         * `unidad_estandar` - Unidad estándar como base
+    PaginatedInventarioProductoList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/InventarioProducto'
+    PaginatedMovimientoInventarioList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/MovimientoInventario'
+    PaginatedPedidoArtesanoList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PedidoArtesano'
+    PaginatedPedidoCompradorList:
+      type: object
+      required:
+      - count
+      - next
+      - previous
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PedidoComprador'
     PaginatedProductoPropioList:
       type: object
       required:
@@ -2044,6 +3170,175 @@ components:
           nullable: true
           description: Una imagen estática JPEG, PNG o WebP, máximo 5 MiB. null retira
             en borrador.
+    PedidoArtesano:
+      type: object
+      description: Snapshot contractual del pedido confirmado para el taller destinatario.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        solicitud:
+          type: integer
+          readOnly: true
+        propuesta:
+          type: integer
+          readOnly: true
+        taller:
+          allOf:
+          - $ref: '#/components/schemas/TallerResumen'
+          readOnly: true
+        confirmado_en:
+          type: string
+          format: date-time
+          readOnly: true
+        moneda:
+          type: string
+          readOnly: true
+        modalidad_entrega:
+          allOf:
+          - $ref: '#/components/schemas/ModalidadEntregaEnum'
+          readOnly: true
+        descripcion_entrega:
+          type: string
+          readOnly: true
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaPedido'
+          readOnly: true
+        otros_cargos:
+          type: array
+          items:
+            $ref: '#/components/schemas/CargoPedido'
+          readOnly: true
+        costo_entrega:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        subtotal_productos:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        total_personalizacion:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        total_otros_cargos:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        comprador:
+          allOf:
+          - $ref: '#/components/schemas/CompradorSolicitud'
+          readOnly: true
+      required:
+      - comprador
+      - confirmado_en
+      - costo_entrega
+      - descripcion_entrega
+      - id
+      - lineas
+      - modalidad_entrega
+      - moneda
+      - otros_cargos
+      - propuesta
+      - solicitud
+      - subtotal_productos
+      - taller
+      - total
+      - total_otros_cargos
+      - total_personalizacion
+    PedidoComprador:
+      type: object
+      description: Snapshot contractual del pedido confirmado para el comprador propietario.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        solicitud:
+          type: integer
+          readOnly: true
+        propuesta:
+          type: integer
+          readOnly: true
+        taller:
+          allOf:
+          - $ref: '#/components/schemas/TallerResumen'
+          readOnly: true
+        confirmado_en:
+          type: string
+          format: date-time
+          readOnly: true
+        moneda:
+          type: string
+          readOnly: true
+        modalidad_entrega:
+          allOf:
+          - $ref: '#/components/schemas/ModalidadEntregaEnum'
+          readOnly: true
+        descripcion_entrega:
+          type: string
+          readOnly: true
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaPedido'
+          readOnly: true
+        otros_cargos:
+          type: array
+          items:
+            $ref: '#/components/schemas/CargoPedido'
+          readOnly: true
+        costo_entrega:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        subtotal_productos:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        total_personalizacion:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        total_otros_cargos:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - confirmado_en
+      - costo_entrega
+      - descripcion_entrega
+      - id
+      - lineas
+      - modalidad_entrega
+      - moneda
+      - otros_cargos
+      - propuesta
+      - solicitud
+      - subtotal_productos
+      - taller
+      - total
+      - total_otros_cargos
+      - total_personalizacion
     PerfilTallerEntradaRequest:
       type: object
       description: |-
@@ -2274,6 +3569,25 @@ components:
       - nombre
       - precio
       - taller
+    ProductoSnapshot:
+      type: object
+      description: Representación contractual del producto congelada al confirmar
+        el pedido (RN-003).
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          readOnly: true
+        categoria:
+          allOf:
+          - $ref: '#/components/schemas/CategoriaSnapshot'
+          readOnly: true
+      required:
+      - categoria
+      - id
+      - nombre
     ProductoSolicitud:
       type: object
       description: Referencia al catálogo vigente, sin precio ni snapshot contractual.
@@ -2294,8 +3608,8 @@ components:
       - nombre
     Propuesta:
       type: object
-      description: Oferta del artesano antes de la decisión del comprador. No es pedido
-        confirmado.
+      description: Oferta comercial del artesano y estado de decisión del comprador
+        (AUD-06/07).
       properties:
         id:
           type: integer
@@ -2307,6 +3621,23 @@ components:
           type: string
           format: date-time
           readOnly: true
+        decision:
+          allOf:
+          - $ref: '#/components/schemas/EstadoDecisionPropuestaEnum'
+          description: 'Estado de decisión del comprador: pendiente, aceptada o rechazada.'
+          readOnly: true
+        decidida_en:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Momento de la decisión final del comprador; null si está pendiente.
+        pedido_id:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: ID del pedido confirmado cuando fue aceptada; null en otro
+            caso.
         moneda:
           type: string
           readOnly: true
@@ -2355,6 +3686,8 @@ components:
           readOnly: true
       required:
       - costo_entrega
+      - decidida_en
+      - decision
       - descripcion_entrega
       - emitida_en
       - id
@@ -2362,6 +3695,7 @@ components:
       - modalidad_entrega
       - moneda
       - otros_cargos
+      - pedido_id
       - solicitud
       - subtotal_productos
       - total
@@ -2670,6 +4004,14 @@ components:
         * `pendiente` - Pendiente
         * `aceptado` - Aceptado
         * `rechazado` - Rechazado
+    ResultadoDecisionPropuestaEnum:
+      enum:
+      - aceptada
+      - rechazada
+      type: string
+      description: |-
+        * `aceptada` - Aceptada
+        * `rechazada` - Rechazada
     Revisor:
       type: object
       properties:
@@ -3009,16 +4351,46 @@ components:
       required:
       - id
       - nombre
+    TipoMovimientoInventarioEnum:
+      enum:
+      - existencia_inicial
+      - entrada
+      - ajuste_positivo
+      - ajuste_negativo
+      - reserva
+      - liberacion
+      - consumo
+      - reincorporacion
+      - baja
+      type: string
+      description: |-
+        * `existencia_inicial` - Existencia inicial
+        * `entrada` - Entrada
+        * `ajuste_positivo` - Ajuste positivo
+        * `ajuste_negativo` - Ajuste negativo
+        * `reserva` - Reserva
+        * `liberacion` - Liberación
+        * `consumo` - Consumo
+        * `reincorporacion` - Reincorporación
+        * `baja` - Baja
     TipoOperacionEnum:
       enum:
       - crear_solicitud
       - resolver_renglon
       - finalizar_propuesta
+      - decidir_propuesta
+      - establecer_inventario_inicial
+      - registrar_entrada_inventario
+      - ajustar_inventario
       type: string
       description: |-
         * `crear_solicitud` - Crear solicitud
         * `resolver_renglon` - Resolver renglón de solicitud
         * `finalizar_propuesta` - Emitir propuesta final
+        * `decidir_propuesta` - Decidir propuesta final
+        * `establecer_inventario_inicial` - Registrar existencia inicial
+        * `registrar_entrada_inventario` - Registrar entrada de inventario
+        * `ajustar_inventario` - Ajustar inventario
     TokenAcceso:
       type: object
       properties:
