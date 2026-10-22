@@ -14,138 +14,31 @@ import type {
   ProductInput,
   TallerResumen,
 } from "./types";
+import { solicitar as solicitarComun, type Opciones as OpcionesComunes } from "@/lib/http";
 
-const BASE = (import.meta.env["VITE_API_URL"] as string | undefined) ?? "/api/v1";
 /** Contrato §1.8: el cliente envía siempre `page_size` para reconstruir `totalPages`. */
 export const PAGE_SIZE = 12;
 
-// ---------- Errores ----------
+// ---------- Transporte (cliente común de AUD-18) ----------
 
+export { ApiError, reintentarSalvoErrorDelCliente } from "@/lib/http";
+
+/** Mensajes del catálogo por código; los demás dominios pasan los suyos. */
 const MENSAJES: Record<number, string> = {
   401: "Inicia sesión con tu cuenta de artesano para gestionar tus productos.",
   403: "Tu cuenta no puede realizar esta operación.",
   404: "No encontramos este producto.",
 };
 
-export class ApiError extends Error {
-  constructor(
-    readonly status: number,
-    message: string,
-    /** Errores por campo de un `400`, con los nombres de campo de la API. */
-    readonly campos: Record<string, string[]> = {},
-    /** `codigo` legible por máquina de un `409` (contrato §1.9). */
-    readonly codigo?: string,
-  ) {
-    super(message);
-    this.name = "ApiError";
-  }
-}
+export type Opciones = Omit<OpcionesComunes, "esquema" | "csrf">;
 
 /**
- * Criterio de reintento para TanStack Query: un 4xx (sesión, permiso, inexistente o
- * validación) no cambia al repetir la petición; los fallos de red o del servidor sí.
+ * Petición JSON a la API con los mensajes del catálogo por defecto. Delega en el
+ * cliente común (`@/lib/http`): Bearer, renovación, `credentials` y errores son los
+ * mismos para todos los dominios. La usan también talleres y solicitudes.
  */
-export function reintentarSalvoErrorDelCliente(intentos: number, error: Error): boolean {
-  const delCliente = error instanceof ApiError && error.status >= 400 && error.status < 500;
-  return !delCliente && intentos < 3;
-}
-
-/** DRF también devuelve errores anidados por renglón; conserva su posición y campo. */
-function camposDeError(cuerpo: unknown, prefijo = ""): Record<string, string[]> {
-  if (Array.isArray(cuerpo) && cuerpo.every((v) => typeof v === "string"))
-    return { [prefijo]: cuerpo };
-  if (cuerpo && typeof cuerpo === "object")
-    return Object.assign(
-      {},
-      ...Object.entries(cuerpo).map(([campo, valor]) =>
-        camposDeError(valor, prefijo ? `${prefijo}.${campo}` : campo),
-      ),
-    );
-  return cuerpo == null ? {} : { [prefijo]: [String(cuerpo)] };
-}
-
-async function aError(
-  respuesta: Response,
-  mensajes: Partial<Record<number, string>> = {},
-): Promise<ApiError> {
-  let cuerpo: unknown;
-  try {
-    cuerpo = await respuesta.json();
-  } catch {
-    cuerpo = undefined;
-  }
-  const detalle =
-    cuerpo && typeof cuerpo === "object" && "detail" in cuerpo
-      ? String((cuerpo as { detail: unknown }).detail)
-      : undefined;
-  if (respuesta.status === 400 && cuerpo && typeof cuerpo === "object" && !detalle) {
-    const campos = camposDeError(cuerpo);
-    const primero = Object.values(campos)[0]?.[0];
-    return new ApiError(400, primero ?? "Revisa los datos enviados.", campos);
-  }
-  const codigo =
-    respuesta.status === 409 && cuerpo && typeof cuerpo === "object" && "codigo" in cuerpo
-      ? String((cuerpo as { codigo: unknown }).codigo)
-      : undefined;
-  // 403 trae el motivo del servidor (por ejemplo, taller no aprobado); se respeta.
-  const mensaje =
-    respuesta.status === 403 && detalle
-      ? detalle
-      : (mensajes[respuesta.status] ??
-        MENSAJES[respuesta.status] ??
-        detalle ??
-        "El servidor no pudo completar la operación.");
-  return new ApiError(respuesta.status, mensaje, {}, codigo);
-}
-
-// ---------- Transporte ----------
-
-let obtenerToken: () => string | null = () => null;
-
-/**
- * Proveedor del token de acceso Bearer. La sesión real (AUD-18) lo registra; mientras
- * no exista, las operaciones de gestión responden 401 y la interfaz lo comunica.
- */
-export function configurarTokenDeAcceso(proveedor: () => string | null): void {
-  obtenerToken = proveedor;
-}
-
-export interface Opciones {
-  metodo?: "GET" | "POST" | "PATCH";
-  cuerpo?: unknown;
-  autenticada?: boolean;
-  /** Mensajes propios del recurso por código de estado (por ejemplo, el 404 de un taller). */
-  mensajes?: Partial<Record<number, string>>;
-  /** Cabeceras propias de la operación, como `Idempotency-Key` (AUD-08). */
-  cabeceras?: Record<string, string>;
-}
-
-/**
- * Petición JSON a la API. Lo usan también otros dominios que ya leen de Django
- * (perfil público del taller) hasta que exista el cliente común de AUD-18.
- */
-export async function solicitar<T>(
-  ruta: string,
-  { metodo = "GET", cuerpo, autenticada, mensajes, cabeceras: propias }: Opciones = {},
-) {
-  const cabeceras: Record<string, string> = { ...propias, Accept: "application/json" };
-  if (cuerpo !== undefined) cabeceras["Content-Type"] = "application/json";
-  if (autenticada) {
-    const token = obtenerToken();
-    if (token) cabeceras["Authorization"] = `Bearer ${token}`;
-  }
-  let respuesta: Response;
-  try {
-    respuesta = await fetch(`${BASE}${ruta}`, {
-      method: metodo,
-      headers: cabeceras,
-      body: cuerpo === undefined ? null : JSON.stringify(cuerpo),
-    });
-  } catch {
-    throw new ApiError(0, "No pudimos conectar con el servidor. Revisa tu conexión.");
-  }
-  if (!respuesta.ok) throw await aError(respuesta, mensajes);
-  return (await respuesta.json()) as T;
+export function solicitar<T>(ruta: string, { mensajes, ...opciones }: Opciones = {}) {
+  return solicitarComun<T>(ruta, { ...opciones, mensajes: { ...MENSAJES, ...mensajes } });
 }
 
 // ---------- Forma de la API ----------

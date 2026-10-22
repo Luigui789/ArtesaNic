@@ -1,6 +1,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router";
 import { SessionProvider } from "@/features/auth/use-session";
+import { authReal } from "@/features/auth/api";
+import { RequiereSesion, SoloDemo } from "@/features/auth/components/requiere-sesion";
 import { CurrencyProvider } from "@/hooks/use-currency";
 import { NotificationsProvider } from "@/features/notificaciones/use-notifications";
 import { Toaster } from "@/components/ui/sonner";
@@ -21,12 +23,26 @@ import PedidosIndex from "@/features/pedidos/pages/pedidos";
 import PedidosDetalle from "@/features/pedidos/pages/pedido-detalle";
 import Mensajes from "@/features/mensajes/pages/mensajes";
 import PanelIndex from "@/features/talleres/pages/panel-inicio";
+import PanelTaller from "@/features/talleres/pages/panel-taller";
 import PanelPerfil from "@/features/talleres/pages/panel-perfil";
 import PanelProductos from "@/features/catalogo/pages/panel-productos";
 import PanelPedidosIndex from "@/features/pedidos/pages/panel-pedidos";
 import PanelPedidosDetalle from "@/features/pedidos/pages/panel-pedido-detalle";
 
 const queryClient = new QueryClient();
+
+/**
+ * Rutas privadas: el guard es de UX y solo actúa con la sesión real; el servidor vuelve
+ * a comprobar sesión, rol y taller aprobado en cada petición. Las pantallas que siguen
+ * simuladas con la identidad de la demo se envuelven en `SoloDemo`.
+ */
+const comprador = (pagina: React.ReactNode) => (
+  <RequiereSesion rol="comprador">{pagina}</RequiereSesion>
+);
+const artesano = (pagina: React.ReactNode) => (
+  <RequiereSesion rol="artesano">{pagina}</RequiereSesion>
+);
+const demo = (pagina: React.ReactNode) => <SoloDemo>{pagina}</SoloDemo>;
 
 export function App() {
   return (
@@ -45,20 +61,34 @@ export function App() {
                   <Route path="/catalogo" element={<Catalogo />} />
                   <Route path="/producto/:id" element={<Producto />} />
                   <Route path="/artesano/:id" element={<Artesano />} />
-                  <Route path="/solicitar/:productId" element={<Solicitar />} />
-                  <Route path="/solicitudes/nueva" element={<Solicitar />} />
-                  <Route path="/solicitudes" element={<ListadoSolicitudes />} />
-                  <Route path="/solicitudes/:id" element={<DetalleSolicitud />} />
-                  <Route path="/panel/solicitudes" element={<ListadoSolicitudes recibidas />} />
-                  <Route path="/panel/solicitudes/:id" element={<DetalleSolicitud recibidas />} />
-                  <Route path="/pedidos" element={<PedidosIndex />} />
-                  <Route path="/pedidos/:id" element={<PedidosDetalle />} />
-                  <Route path="/mensajes" element={<Mensajes />} />
-                  <Route path="/panel" element={<PanelIndex />} />
-                  <Route path="/panel/perfil" element={<PanelPerfil />} />
-                  <Route path="/panel/productos" element={<PanelProductos />} />
-                  <Route path="/panel/pedidos" element={<PanelPedidosIndex />} />
-                  <Route path="/panel/pedidos/:id" element={<PanelPedidosDetalle />} />
+                  <Route path="/solicitar/:productId" element={comprador(<Solicitar />)} />
+                  <Route path="/solicitudes/nueva" element={comprador(<Solicitar />)} />
+                  <Route path="/solicitudes" element={comprador(<ListadoSolicitudes />)} />
+                  <Route path="/solicitudes/:id" element={comprador(<DetalleSolicitud />)} />
+                  <Route
+                    path="/panel/solicitudes"
+                    element={artesano(<ListadoSolicitudes recibidas />)}
+                  />
+                  <Route
+                    path="/panel/solicitudes/:id"
+                    element={artesano(<DetalleSolicitud recibidas />)}
+                  />
+                  <Route path="/pedidos" element={demo(<PedidosIndex />)} />
+                  <Route path="/pedidos/:id" element={demo(<PedidosDetalle />)} />
+                  <Route path="/mensajes" element={demo(<Mensajes />)} />
+                  <Route
+                    path="/panel"
+                    element={artesano(authReal ? <PanelTaller /> : <PanelIndex />)}
+                  />
+                  <Route
+                    path="/panel/perfil"
+                    element={
+                      authReal ? artesano(<PanelTaller editarAlAbrir />) : demo(<PanelPerfil />)
+                    }
+                  />
+                  <Route path="/panel/productos" element={artesano(<PanelProductos />)} />
+                  <Route path="/panel/pedidos" element={demo(<PanelPedidosIndex />)} />
+                  <Route path="/panel/pedidos/:id" element={demo(<PanelPedidosDetalle />)} />
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </AppErrorBoundary>

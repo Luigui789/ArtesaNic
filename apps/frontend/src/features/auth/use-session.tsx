@@ -1,89 +1,81 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
+import type { ReactNode } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { adaptadorSesion, modoAuth, type ModoAuth } from "@/features/auth/api";
+import { crearControladorSesion, type ControladorSesion, type EstadoSesion } from "./sesion";
+import type {
+  Credenciales,
+  RegistroArtesanoEntrada,
+  RegistroCompradorEntrada,
+  SesionUsuario,
+} from "./types";
 import type { Role } from "@/types";
-import { DEMO_ARTISAN_ID, DEMO_ARTISAN_RESPONSABLE, DEMO_USER_ID } from "@/features/auth/api";
 
-export interface SesionUsuario {
-  id: number;
-  nombre: string;
-  telefono: string;
-  rol: Role;
-  artesanoId?: number;
-}
-
-/**
- * Los dos perfiles siguientes son **estados de sesión alternativos** del
- * prototipo, no dos personas usuarias simultáneas: comparten `DEMO_USER_ID`
- * a propósito, para poder demostrar ambas navegaciones con un solo dataset.
- * Esto no es el modelo de identidad del sistema real, donde cada cuenta tiene
- * un identificador único y el rol lo determina el backend (D-6).
- *
- * `id` identifica a la persona; `artesanoId`, al taller. No son el mismo dato.
- */
-const COMPRADOR: SesionUsuario = {
-  id: DEMO_USER_ID,
-  nombre: "Ana Lucía Delgado",
-  telefono: "8555 1234",
-  rol: "comprador",
-};
-
-const ARTESANO: SesionUsuario = {
-  id: DEMO_USER_ID,
-  nombre: DEMO_ARTISAN_RESPONSABLE,
-  telefono: "8777 9090",
-  rol: "artesano",
-  artesanoId: DEMO_ARTISAN_ID,
-};
+export type { SesionUsuario } from "./types";
 
 interface SessionContextValue {
+  modo: ModoAuth;
+  estado: EstadoSesion["estado"];
+  /** Identidad devuelta por el servidor (o la vista simulada en modo demo). */
   usuario: SesionUsuario | null;
-  ingresar: (rol: Role, nombre?: string) => void;
-  salir: () => void;
-  cambiarRol: (rol: Role) => void;
+  /** Motivo cuando la sesión no se pudo comprobar (estado `error`). */
+  error: string | null;
+  iniciarSesion: (credenciales: Credenciales) => Promise<SesionUsuario>;
+  registrarComprador: (entrada: RegistroCompradorEntrada) => Promise<SesionUsuario>;
+  registrarArtesano: (entrada: RegistroArtesanoEntrada) => Promise<SesionUsuario>;
+  cerrarSesion: () => Promise<void>;
+  reintentar: () => Promise<void>;
+  /** Solo en modo demo; `null` en modo real, donde el rol lo asigna el servidor. */
+  cambiarVistaDemo: ((rol: Role) => void) | null;
 }
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
 /**
- * Clave versionada. La v1 guardaba identificadores de texto ("art-1") que hoy
- * entrarían en un tipo `number` sin que nada lo detecte, porque la lectura usa
- * una aserción y no valida. No se migra el objeto antiguo: convertirlo sería
- * fabricar una sesión aparentemente válida a partir de otro modelo de datos.
+ * Sesión de la aplicación. Debe estar dentro de `QueryClientProvider`: al cambiar de
+ * identidad vacía la caché de consultas. `controlador` permite inyectar uno en pruebas.
  */
-const KEY = "masaya-artisan-connect.session.v2";
+export function SessionProvider({
+  children,
+  controlador: inyectado,
+}: {
+  children: ReactNode;
+  controlador?: ControladorSesion;
+}) {
+  const queryClient = useQueryClient();
+  const [controlador] = useState(
+    () => inyectado ?? crearControladorSesion(adaptadorSesion, queryClient),
+  );
+  const actual = useSyncExternalStore(
+    controlador.suscribir,
+    controlador.obtener,
+    controlador.obtener,
+  );
 
-export function SessionProvider({ children }: { children: ReactNode }) {
-  const [usuario, setUsuario] = useState<SesionUsuario | null>(null);
+  useEffect(() => controlador.iniciar(), [controlador]);
 
-  // Se lee después de hidratar para evitar diferencias entre servidor y cliente.
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(KEY);
-      setUsuario(raw ? (JSON.parse(raw) as SesionUsuario) : COMPRADOR);
-    } catch {
-      setUsuario(COMPRADOR);
-    }
-  }, []);
-
-  const value = useMemo<SessionContextValue>(() => {
-    const persist = (u: SesionUsuario | null) => {
-      setUsuario(u);
-      try {
-        if (u) localStorage.setItem(KEY, JSON.stringify(u));
-        else localStorage.removeItem(KEY);
-      } catch {
-        /* almacenamiento no disponible */
-      }
-    };
-    return {
-      usuario,
-      ingresar: (rol, nombre) => {
-        const base = rol === "artesano" ? ARTESANO : COMPRADOR;
-        persist(nombre ? { ...base, nombre } : base);
-      },
-      salir: () => persist(null),
-      cambiarRol: (rol) => persist(rol === "artesano" ? ARTESANO : COMPRADOR),
-    };
-  }, [usuario]);
+  const value = useMemo<SessionContextValue>(
+    () => ({
+      modo: modoAuth,
+      estado: actual.estado,
+      usuario: actual.usuario,
+      error: actual.error,
+      iniciarSesion: controlador.iniciarSesion,
+      registrarComprador: controlador.registrarComprador,
+      registrarArtesano: controlador.registrarArtesano,
+      cerrarSesion: controlador.cerrarSesion,
+      reintentar: controlador.reintentar,
+      cambiarVistaDemo: controlador.cambiarVistaDemo,
+    }),
+    [actual, controlador],
+  );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }

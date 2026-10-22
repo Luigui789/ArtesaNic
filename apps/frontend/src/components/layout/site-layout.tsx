@@ -1,6 +1,7 @@
 import { Link, NavLink, useLocation } from "react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { LogIn, Menu, X } from "lucide-react";
+import { Menu, X } from "lucide-react";
+import { MenuSesion } from "@/components/layout/menu-sesion";
 import { CurrencySwitcher } from "@/components/common/currency-switcher";
 import {
   AvisoPersistencia,
@@ -24,6 +25,8 @@ function NavBadge({ cantidad }: { cantidad: number }) {
   );
 }
 
+type Enlace = { to: string; label: string; end?: boolean };
+
 /** Navegación de cada vista. Solo enlaza pantallas existentes. */
 const NAV: Record<Role, { to: string; label: string; end?: boolean }[]> = {
   comprador: [
@@ -44,12 +47,40 @@ const NAV: Record<Role, { to: string; label: string; end?: boolean }[]> = {
   ],
 };
 
+/**
+ * Navegación con la sesión real: solo pantallas conectadas a Django. Pedidos, pagos y
+ * mensajes siguen simulados con la identidad de la demo y no se enlazan.
+ */
+const NAV_REAL: Record<Role | "anonima", Enlace[]> = {
+  anonima: [
+    { to: "/", label: "Inicio", end: true },
+    { to: "/catalogo", label: "Catálogo" },
+  ],
+  comprador: [
+    { to: "/", label: "Inicio", end: true },
+    { to: "/catalogo", label: "Catálogo" },
+    { to: "/solicitudes", label: "Solicitudes" },
+  ],
+  artesano: [
+    { to: "/panel", label: "Panel", end: true },
+    { to: "/panel/solicitudes", label: "Solicitudes" },
+    { to: "/panel/productos", label: "Mis productos" },
+    { to: "/panel/perfil", label: "Perfil del taller" },
+  ],
+};
+
+function useEnlaces(): Enlace[] {
+  const { modo, usuario } = useSession();
+  if (modo === "real") return NAV_REAL[usuario?.rol ?? "anonima"];
+  return NAV[usuario?.rol ?? "comprador"];
+}
+
 function Header() {
   const [abierto, setAbierto] = useState(false);
-  const { usuario } = useSession();
+  const { modo } = useSession();
   const { total } = useNotifications();
   const { pathname } = useLocation();
-  const enlaces = NAV[usuario?.rol ?? "comprador"];
+  const enlaces = useEnlaces();
 
   // El menú móvil se cierra al navegar y con la tecla Escape.
   useEffect(() => setAbierto(false), [pathname]);
@@ -95,18 +126,7 @@ function Header() {
 
         <div className="ml-auto flex items-center gap-2 lg:ml-2">
           {/* RF-004: la pantalla de acceso es siempre alcanzable desde la cabecera. */}
-          <NavLink
-            to="/auth"
-            className={({ isActive }) =>
-              cn(
-                "flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-surface hover:text-foreground",
-                isActive && "bg-surface text-foreground",
-              )
-            }
-          >
-            <LogIn className="size-4" aria-hidden="true" />
-            Acceso
-          </NavLink>
+          <MenuSesion />
           <SelectorVista className="hidden lg:inline-flex" idDescripcion="selector-vista-desc" />
           <CurrencySwitcher className="hidden xl:inline-flex" />
           <button
@@ -151,18 +171,17 @@ function Header() {
             </ul>
           </nav>
           <div className="mx-auto max-w-7xl space-y-3 border-t px-4 py-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Vista de demostración
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Herramienta del prototipo; no es un inicio de sesión.
-              </p>
-            </div>
-            <SelectorVista
-              onCambio={() => setAbierto(false)}
-              idDescripcion="selector-vista-movil-desc"
-            />
+            {modo === "mock" ? (
+              <>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Vista de demostración
+                </p>
+                <SelectorVista
+                  onCambio={() => setAbierto(false)}
+                  idDescripcion="selector-vista-movil-desc"
+                />
+              </>
+            ) : null}
             <div>
               <CurrencySwitcher />
             </div>
@@ -174,6 +193,7 @@ function Header() {
 }
 
 function Footer() {
+  const { modo } = useSession();
   return (
     <footer className="mt-16 border-t bg-surface">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-3">
@@ -228,7 +248,9 @@ function Footer() {
       </div>
       <div className="flex flex-col items-center gap-1 border-t px-4 py-3 text-center sm:flex-row sm:justify-center sm:gap-4">
         <p className="text-xs text-muted-foreground">
-          Prototipo académico con datos simulados · Masaya, Nicaragua
+          {modo === "mock"
+            ? "Prototipo académico con datos simulados · Masaya, Nicaragua"
+            : "Prototipo académico · Masaya, Nicaragua"}
         </p>
         <RestablecerDemo />
       </div>
@@ -238,7 +260,9 @@ function Footer() {
 
 export function SiteLayout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
-  const pedidosLegacy = pathname.startsWith("/pedidos") || pathname.startsWith("/panel/pedidos");
+  const { modo } = useSession();
+  const pedidosLegacy =
+    modo === "mock" && (pathname.startsWith("/pedidos") || pathname.startsWith("/panel/pedidos"));
   return (
     <div className="flex min-h-screen flex-col">
       <Header />

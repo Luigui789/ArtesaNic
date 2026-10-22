@@ -1,6 +1,8 @@
+import { MenuSesion } from "@/components/layout/menu-sesion";
+import { useSession } from "@/features/auth/use-session";
 import { useEffect, useState } from "react";
 import { Link, NavLink, useLocation } from "react-router";
-import { Compass, LogIn, Menu, X } from "lucide-react";
+import { Compass, Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +16,8 @@ const PUBLIC_NAV = [
 ] as const;
 
 export function PublicHeader() {
+  const { modo, usuario } = useSession();
+  const destinoCuenta = usuario?.rol === "artesano" ? "/panel" : "/solicitudes";
   const [abierto, setAbierto] = useState(false);
   const { pathname, hash } = useLocation();
 
@@ -32,7 +36,7 @@ export function PublicHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3">
+      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3">
         <Link to="/" className="flex min-w-0 items-center gap-2.5">
           <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 font-display text-lg font-bold text-primary">
             A
@@ -45,7 +49,10 @@ export function PublicHeader() {
           </span>
         </Link>
 
-        <nav aria-label="Navegación pública" className="hidden items-center gap-1 lg:flex">
+        <nav
+          aria-label="Navegación pública"
+          className="order-last hidden w-full items-center justify-center gap-1 lg:flex"
+        >
           {PUBLIC_NAV.map((item) => {
             if (item.isHash) {
               const targetHash = item.to.slice(1);
@@ -82,14 +89,16 @@ export function PublicHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
-          <Link
-            to="/auth"
-            className="hidden min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface hover:text-foreground sm:inline-flex"
-          >
-            <LogIn className="size-4" aria-hidden="true" />
-            Acceso
-          </Link>
-          <Button asChild className="hidden touch-target sm:inline-flex">
+          <MenuSesion compacto />
+          {modo === "real" && usuario ? (
+            <Link
+              to={destinoCuenta}
+              className="touch-target hidden items-center rounded-lg px-3 text-sm font-medium hover:bg-surface lg:inline-flex"
+            >
+              {usuario.rol === "artesano" ? "Mi taller" : "Mis solicitudes"}
+            </Link>
+          ) : null}
+          <Button asChild className="hidden touch-target lg:inline-flex">
             <Link to="/catalogo">
               <Compass className="size-4" aria-hidden="true" />
               Explorar catálogo
@@ -137,16 +146,22 @@ export function PublicHeader() {
               })}
             </ul>
             <div className="mt-4 flex flex-col gap-2.5 border-t pt-4">
+              {modo === "real" && usuario ? (
+                <Button
+                  asChild
+                  variant="outline"
+                  size="lg"
+                  className="w-full touch-target text-base"
+                >
+                  <Link to={destinoCuenta} onClick={() => setAbierto(false)}>
+                    {usuario.rol === "artesano" ? "Mi taller" : "Mis solicitudes"}
+                  </Link>
+                </Button>
+              ) : null}
               <Button asChild size="lg" className="w-full touch-target text-base">
                 <Link to="/catalogo" onClick={() => setAbierto(false)}>
                   <Compass className="size-4" aria-hidden="true" />
                   Explorar catálogo
-                </Link>
-              </Button>
-              <Button asChild variant="outline" size="lg" className="w-full touch-target text-base">
-                <Link to="/auth" onClick={() => setAbierto(false)}>
-                  <LogIn className="size-4" aria-hidden="true" />
-                  Acceso
                 </Link>
               </Button>
             </div>

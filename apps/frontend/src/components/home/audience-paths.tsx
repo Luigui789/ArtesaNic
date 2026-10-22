@@ -20,7 +20,7 @@ export function AudiencePaths() {
 
         <div className="mt-10 grid gap-6 lg:grid-cols-2">
           {/* Card Comprador */}
-          <article className="flex flex-col justify-between rounded-2xl border-2 border-primary/25 bg-card p-6 sm:p-8">
+          <article className="flex min-w-0 flex-col justify-between rounded-2xl border-2 border-primary/25 bg-card p-6 sm:p-8">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-primary">
                 <ShoppingBag className="size-3.5" aria-hidden="true" />
@@ -64,7 +64,11 @@ export function AudiencePaths() {
               </ul>
             </div>
             <div className="mt-8 pt-2">
-              <Button asChild size="lg" className="w-full touch-target sm:w-auto">
+              <Button
+                asChild
+                size="lg"
+                className="w-full touch-target h-auto whitespace-normal sm:w-auto"
+              >
                 <Link to="/catalogo">
                   Explorar productos
                   <ArrowRight className="size-4" aria-hidden="true" />
@@ -74,7 +78,7 @@ export function AudiencePaths() {
           </article>
 
           {/* Card Artesano */}
-          <article className="flex flex-col justify-between rounded-2xl border-2 border-secondary/30 bg-card p-6 sm:p-8">
+          <article className="flex min-w-0 flex-col justify-between rounded-2xl border-2 border-secondary/30 bg-card p-6 sm:p-8">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-secondary/15 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-secondary">
                 <Hammer className="size-3.5" aria-hidden="true" />
@@ -125,7 +129,7 @@ export function AudiencePaths() {
                 asChild
                 variant="secondary"
                 size="lg"
-                className="w-full touch-target sm:w-auto"
+                className="w-full touch-target h-auto whitespace-normal sm:w-auto"
               >
                 <a href="#para-artesanos">
                   Conocer ArtesaNic para talleres

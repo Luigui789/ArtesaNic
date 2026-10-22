@@ -1,8 +1,10 @@
+import { useSession } from "@/features/auth/use-session";
 import { Link } from "react-router";
 import { CurrencySwitcher } from "@/components/common/currency-switcher";
 import { RestablecerDemo, SelectorVista } from "@/components/layout/demo-controls";
 
 export function PublicFooter() {
+  const { modo } = useSession();
   return (
     <footer className="mt-16 border-t bg-surface text-surface-foreground">
       <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
@@ -149,7 +151,9 @@ export function PublicFooter() {
       <div className="border-t bg-background/50">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-4 text-center lg:flex-row lg:text-left">
           <p className="text-xs text-muted-foreground">
-            Prototipo académico con datos simulados · Masaya, Nicaragua
+            {modo === "mock"
+              ? "Prototipo académico con datos simulados · Masaya, Nicaragua"
+              : "Prototipo académico · Masaya, Nicaragua"}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-2">
             <SelectorVista idDescripcion="selector-vista-public-footer" />

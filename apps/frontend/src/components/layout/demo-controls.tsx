@@ -36,9 +36,10 @@ export function SelectorVista({
   className?: string;
   idDescripcion: string;
 }) {
-  const { usuario, cambiarRol } = useSession();
+  const { usuario, cambiarVistaDemo } = useSession();
   const navigate = useNavigate();
   const rol = usuario?.rol ?? "comprador";
+  if (!cambiarVistaDemo) return null;
 
   return (
     <div
@@ -65,7 +66,7 @@ export function SelectorVista({
           aria-pressed={rol === r}
           onClick={() => {
             if (r !== rol) {
-              cambiarRol(r);
+              cambiarVistaDemo(r);
               void navigate(INICIO_DE_VISTA[r]);
             }
             onCambio?.();
@@ -90,7 +91,8 @@ export function SelectorVista({
  * vuelve además a la vista de comprador, que es donde empieza la demostración.
  */
 export function RestablecerDemo() {
-  const { cambiarRol } = useSession();
+  const { cambiarVistaDemo } = useSession();
+  if (!cambiarVistaDemo) return null;
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
@@ -113,7 +115,7 @@ export function RestablecerDemo() {
             onClick={async () => {
               try {
                 await resetDemo();
-                cambiarRol("comprador");
+                cambiarVistaDemo("comprador");
                 window.location.assign("/");
               } catch {
                 toast.error("No se pudieron borrar los datos guardados. Intenta de nuevo.");
@@ -133,12 +135,14 @@ export function RestablecerDemo() {
  * Nada se borra hasta que la persona elige «Restablecer datos de demostración».
  */
 export function AvisoPersistencia() {
+  const { modo } = useSession();
   const { data } = useQuery({
     queryKey: ["persistencia-demo"],
     queryFn: getPersistenceStatus,
     staleTime: Infinity,
+    enabled: modo === "mock",
   });
-  if (!data || data.modo === "guardando") return null;
+  if (modo !== "mock" || !data || data.modo === "guardando") return null;
   return (
     <div role="alert" className="border-b border-destructive/30 bg-destructive/10">
       <p className="mx-auto max-w-7xl px-4 py-3 text-sm text-destructive">
