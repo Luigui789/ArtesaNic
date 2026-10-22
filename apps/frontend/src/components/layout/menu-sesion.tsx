@@ -18,7 +18,7 @@ export function MenuSesion({ compacto = false }: { compacto?: boolean }) {
         <span
           className={cn(
             "hidden max-w-40 truncate text-sm text-muted-foreground",
-            compacto ? "lg:inline" : "sm:inline",
+            compacto ? "2xl:inline" : "sm:inline",
           )}
         >
           {usuario.nombre}

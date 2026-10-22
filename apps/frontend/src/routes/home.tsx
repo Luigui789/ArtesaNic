@@ -1,14 +1,8 @@
 import { PublicLayout } from "@/components/layout/public-layout";
 import { HeroSection } from "@/components/home/hero-section";
-import { PlatformPurpose } from "@/components/home/platform-purpose";
-import { AudiencePaths } from "@/components/home/audience-paths";
-import { BenefitsSection } from "@/components/home/benefits-section";
 import { HowItWorksSection } from "@/components/home/how-it-works-section";
-import { TrustSection } from "@/components/home/trust-section";
 import { ArtisanSection } from "@/components/home/artisan-section";
-import { HelpPreview } from "@/components/home/help-preview";
 import { DiscoverPreview } from "@/components/home/discover-preview";
-import { FinalCta } from "@/components/home/final-cta";
 import { useDocumentHead } from "@/hooks/use-document-head";
 
 export default function Home() {
@@ -34,15 +28,9 @@ export default function Home() {
   return (
     <PublicLayout>
       <HeroSection />
-      <PlatformPurpose />
-      <AudiencePaths />
-      <BenefitsSection />
-      <HowItWorksSection />
-      <TrustSection />
-      <ArtisanSection />
-      <HelpPreview />
       <DiscoverPreview />
-      <FinalCta />
+      <HowItWorksSection />
+      <ArtisanSection />
     </PublicLayout>
   );
 }
