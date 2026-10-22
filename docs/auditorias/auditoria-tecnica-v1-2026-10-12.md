@@ -1624,3 +1624,13 @@ ArtesaNic ofrece piezas reutilizables relevantes: UI/catálogo, filtros, compone
 Las matrices mantienen RF-001 a RF-024 y RNF-001 a RNF-015; distinguen 21 RF activos de la ficha integrada y las dos postergadas. Se revisaron RN-001 a RN-024, los doce flujos y los dominios mock. No se concluyó cumplimiento de rendimiento, disponibilidad, escalabilidad, navegadores, recuperación, privacidad o concurrencia a partir de apariencia o presencia nominal de código.
 
 El backlog y el reparto entre tres desarrolladores son **propuestas para decidir el trabajo siguiente**, no cambios autorizados ni implementados. Se dejó el working tree preexistente intacto y este informe es el único archivo nuevo del proyecto producido por la auditoría.
+
+
+## Seguimiento DR-01 — 21 de octubre de 2026
+
+La observación histórica DR-01 queda **cerrada para fotografía principal de productos**
+mediante [D-DR01-01 a D-DR01-07](../decisiones/v1.md#concreciones-de-dr-01-fotografía-principal-de-producto)
+y el [contrato actualizado](../api/catalogo.md#7-fotografía-principal-dr-01).
+AUD-04 añade carga, persistencia y publicación condicionada a la foto. Las tablas anteriores
+conservan el diagnóstico del 12 de octubre, no describen el estado posterior.
+AUD-10 (comprobantes privados) requiere decisiones adicionales; no queda cerrado por esta política.
