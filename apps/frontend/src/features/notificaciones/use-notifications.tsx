@@ -19,6 +19,7 @@ import { useSession } from "@/features/auth/use-session";
 const POLL_MS = 20000;
 
 export interface NotificacionMensaje {
+  leida?: boolean;
   pedidoId: number;
   codigo: string;
   autorNombre: string;
@@ -57,7 +58,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     setRecientes([]);
     desde.current = {};
     inicio.current = new Date().toISOString();
-  }, [rol]);
+  }, [rol, usuario?.id, modo]);
 
   useEffect(() => {
     // Los pedidos y mensajes siguen simulados con la identidad de la demo: con la
@@ -88,6 +89,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           setRecientes((prev) =>
             [
               {
+                leida: false,
                 pedidoId: pedido.id,
                 codigo: pedido.codigo,
                 autorNombre: nota.autorNombre,
@@ -120,12 +122,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       delete next[pedidoId];
       return next;
     });
-    setRecientes((prev) => prev.filter((n) => n.pedidoId !== pedidoId));
+    setRecientes((prev) => prev.map((n) => (n.pedidoId === pedidoId ? { ...n, leida: true } : n)));
   }, []);
 
   const marcarTodoLeido = useCallback(() => {
     setNoLeidos({});
-    setRecientes([]);
+    setRecientes((prev) => prev.map((n) => ({ ...n, leida: true })));
   }, []);
 
   const value = useMemo<NotificationsContextValue>(

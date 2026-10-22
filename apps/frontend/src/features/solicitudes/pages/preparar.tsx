@@ -1,3 +1,4 @@
+import { PageContainer } from "@/components/common/page";
 import { useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -128,21 +129,21 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
   if (productoId !== undefined && !producto.data) {
     return (
       <SiteLayout>
-        <div className="mx-auto max-w-5xl space-y-6 px-4 py-8">
+        <PageContainer className="max-w-5xl">
           <h1 className="font-display text-3xl font-bold">Preparar solicitud</h1>
           {producto.isError ? (
             <ErrorState mensaje={producto.error.message} onRetry={() => void producto.refetch()} />
           ) : (
             <p role="status">Cargando producto…</p>
           )}
-        </div>
+        </PageContainer>
       </SiteLayout>
     );
   }
 
   return (
     <SiteLayout>
-      <div className="mx-auto max-w-5xl space-y-6 px-4 py-8 [&_button]:min-h-11 [&_input]:min-h-11">
+      <PageContainer className="max-w-5xl">
         <Link to="/solicitudes" className="inline-flex min-h-11 items-center text-primary">
           Mis solicitudes
         </Link>
@@ -476,7 +477,7 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
             </div>
           ) : null}
         </form>
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }
