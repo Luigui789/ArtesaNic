@@ -17,6 +17,7 @@ from urllib.request import HTTPCookieProcessor, Request, build_opener
 from uuid import uuid4
 
 from django.apps import apps
+from django.core.cache import cache
 from django.db import connection
 from django.test import LiveServerTestCase, override_settings
 from django.utils import timezone
@@ -37,6 +38,7 @@ RUTA = "/api/v1/solicitudes/"
 )
 class SmokePropuestaTests(LiveServerTestCase):
     def setUp(self):
+        cache.clear()  # contadores de la limitación de intentos de otros tests
         self.taller = crear_artesano_con_taller("82222222")
         talleres.aprobar_taller(self.taller, revisor=crear_administrador())
         self.comprador = crear_usuario("86666666")

@@ -13,6 +13,7 @@ from urllib.error import HTTPError
 from urllib.request import HTTPCookieProcessor, Request, build_opener
 from uuid import uuid4
 
+from django.core.cache import cache
 from django.db import connection
 from django.test import LiveServerTestCase, override_settings
 
@@ -32,6 +33,7 @@ RUTA = "/api/v1/solicitudes/"
 )
 class SmokeIdempotenciaTests(LiveServerTestCase):
     def setUp(self):
+        cache.clear()  # contadores de la limitación de intentos de otros tests
         admin = crear_administrador()
         self.taller_a = crear_artesano_con_taller("82222222")
         self.taller_b = crear_artesano_con_taller("83333333")
