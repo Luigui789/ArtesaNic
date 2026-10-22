@@ -96,6 +96,8 @@ fetch(`${API}/auth/perfil/`, {
 | **Logout** | `POST /auth/logout/` y descartar `accessToken`. |
 | **`403` por CSRF** | Pedir otro token a `GET /auth/csrf/` y reintentar una vez. |
 
+**Implementación en la SPA (AUD-18):** `apps/frontend/src/lib/http/` y `src/features/auth/` siguen esta tabla con `VITE_AUTH_API=real`. El `403` de CSRF se reconoce por el inicio de su detalle («Falta el token CSRF»), porque DRF no envía su código. Ante un `401` de `refrescar` la sesión se da por terminada sin reintentar (ver el aviso siguiente). Detalle en [arquitectura del frontend](../arquitectura/frontend.md).
+
 > Varias pestañas que renuevan a la vez pueden competir por la misma cookie: la primera la rota y la segunda recibe `401`. Ante un `401` de `refrescar`, conviene reintentar una vez antes de dar la sesión por terminada, porque la cookie del navegador ya puede ser la nueva.
 
 ---
