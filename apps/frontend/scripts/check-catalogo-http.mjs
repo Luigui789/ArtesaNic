@@ -1,9 +1,13 @@
 // Verifica el cliente HTTP del catálogo (src/features/catalogo/http.ts) contra el contrato
 // de docs/api/catalogo.md, con un fetch simulado y sin añadir un framework de pruebas.
 import assert from "node:assert/strict";
-import { cargarModulo } from "./cargar-modulo.mjs";
+import { cargarModulos } from "./cargar-modulo.mjs";
 
-const http = await cargarModulo("src/features/catalogo/http.ts");
+// El token de acceso vive en el cliente común (@/lib/http, AUD-18): mismo bundle.
+const { http, sesion } = await cargarModulos({
+  http: "@/features/catalogo/http",
+  sesion: "@/lib/http",
+});
 
 // ---------- fetch simulado ----------
 
@@ -142,7 +146,7 @@ await assert.rejects(http.listCatalog(), (e) => e.status === 0 && /conectar/.tes
 
 // ---------- Gestión del artesano (RF-001, RF-017, RF-019) ----------
 
-// Sin sesión real todavía (AUD-18): no se envía token y el servidor responde 401.
+// Sin sesión: no se envía token, el servidor responde 401 y no se intenta renovar.
 responder({ status: 401, cuerpo: { detail: "No se proporcionaron las credenciales." } });
 await assert.rejects(http.listOwnProducts(), (e) => {
   assert.equal(e.status, 401);
@@ -151,7 +155,7 @@ await assert.rejects(http.listOwnProducts(), (e) => {
 });
 assert.equal(ultima().cabeceras.Authorization, undefined);
 
-http.configurarTokenDeAcceso(() => "token-de-prueba");
+sesion.establecerTokenDeAcceso("token-de-prueba");
 
 responder({ cuerpo: pagina([propioDTO], 13) });
 const propios = await http.listOwnProducts(2);
