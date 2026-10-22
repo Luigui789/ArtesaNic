@@ -35,7 +35,12 @@ export default tseslint.config(
     // La interfaz obtiene los datos solo mediante src/features/<dominio>/api.ts,
     // el único lugar que cambia al conectar Django (ver src/features/README.md).
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/features/*/api.ts", "src/mocks/**", "src/components/layout/site-layout.tsx"],
+    ignores: [
+      "src/features/*/api.ts",
+      "src/mocks/**",
+      "src/components/layout/site-layout.tsx",
+      "src/components/layout/demo-controls.tsx",
+    ],
     rules: {
       "no-restricted-imports": [
         "error",

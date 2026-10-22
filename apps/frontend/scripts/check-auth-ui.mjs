@@ -25,6 +25,10 @@ const MODULOS = {
   guard: "@/features/auth/components/requiere-sesion",
   acceso: "@/features/auth/pages/acceso",
   layout: "@/components/layout/site-layout",
+  publico: "@/components/layout/public-layout",
+  home: "@/routes/home",
+  ayuda: "@/routes/ayuda",
+  descubrir: "@/features/catalogo/pages/inicio",
   moneda: "@/hooks/use-currency",
   notificaciones: "@/features/notificaciones/use-notifications",
 };
@@ -50,6 +54,7 @@ async function renderizar(m, nodo, { usuario = null, ruta = "/auth", controlador
   const queryClient = new m.rq.QueryClient(SIN_TEMPORIZADORES);
   const ctrl = controlador ?? m.sesion.crearControladorSesion(adaptador(usuario), queryClient);
   if (usuario && !controlador) await ctrl.iniciarSesion({ telefono: "", password: "" });
+  if (!usuario && !controlador) await ctrl.reintentar();
   return m.servidor.renderToStaticMarkup(
     h(
       m.rq.QueryClientProvider,
@@ -146,6 +151,38 @@ await verificar("33. modo real: sin «Vista de demostración» ni cambio de rol"
   assert.equal(navegacion.trim(), "Panel Solicitudes Mis productos Perfil del taller");
 });
 
+await verificar(
+  "páginas públicas reales: anónimo, comprador y artesano conservan sesión y navegación",
+  async () => {
+    for (const [pagina, ruta] of [
+      ["home", "/"],
+      ["ayuda", "/ayuda"],
+      ["descubrir", "/descubrir"],
+    ]) {
+      for (const usuario of [null, CARLA, ARTURO]) {
+        const html = await renderizar(real, (h) => h(real[pagina].default), { usuario, ruta });
+        assert.match(html, /Navegación pública/);
+        assert.match(html, /<footer/);
+        assert.doesNotMatch(
+          html,
+          /Vista de demostración|Restablecer datos de demostración|datos simulados/,
+        );
+        assert.doesNotMatch(html, /href="\/(?:pedidos|mensajes|panel\/pedidos)"/);
+        if (usuario) {
+          assert.match(texto(html), /Cerrar sesión/);
+          assert.ok(texto(html).includes(usuario.nombre));
+          const header = html.match(/<header.*?<\/header>/s)[0];
+          const destino = usuario.rol === "artesano" ? "/panel" : "/solicitudes";
+          assert.ok(header.includes(`href="${destino}"`));
+          assert.ok(
+            !header.includes(`href="${usuario.rol === "artesano" ? "/solicitudes" : "/panel"}"`),
+          );
+        } else assert.match(texto(html), /Acceso/);
+      }
+    }
+  },
+);
+
 await verificar("modo demo: el selector existe solo con VITE_AUTH_API=mock", async () => {
   const queryClient = new demo.rq.QueryClient(SIN_TEMPORIZADORES);
   const ctrl = demo.sesion.crearControladorSesion(
@@ -159,6 +196,11 @@ await verificar("modo demo: el selector existe solo con VITE_AUTH_API=mock", asy
   });
   assert.match(html, /aria-label="Vista de demostración"/);
   assert.match(texto(html), /Restablecer datos de demostración/);
+  const publico = await renderizar(demo, (h) => h(demo.publico.PublicLayout, null, ""), {
+    controlador: ctrl,
+  });
+  assert.match(publico, /aria-label="Vista de demostración"/);
+  assert.match(texto(publico), /Restablecer datos de demostración/);
 });
 
 await verificar("guards: cargando, anónimo, rol distinto y pantallas solo demo", async () => {

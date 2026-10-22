@@ -1,11 +1,9 @@
-import { Link, useLocation } from "react-router";
-import { useEffect } from "react";
+import { Link } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, ClipboardList, HandCoins, PackageCheck, ThumbsUp } from "lucide-react";
-import heroImg from "@/assets/hero-masaya.jpg";
+import { ArrowRight, Search, Sparkles } from "lucide-react";
 import { CATEGORY_IMAGE } from "@/lib/category-images";
 import { Button } from "@/components/ui/button";
-import { SiteLayout } from "@/components/layout/site-layout";
+import { PublicLayout } from "@/components/layout/public-layout";
 import { ProductCard, ProductCardSkeleton } from "@/features/catalogo/components/product-card";
 import { ArtisanCard } from "@/features/talleres/components/artisan-card";
 import { ErrorState } from "@/components/common/states";
@@ -13,59 +11,28 @@ import { listArtisans } from "@/features/talleres/api";
 import { listCatalog, listCategories } from "@/features/catalogo/api";
 import { useDocumentHead } from "@/hooks/use-document-head";
 
-/** RF-009, RF-005, RF-011, RF-010 y RF-016, en el orden en que ocurren. */
-const PASOS = [
-  {
-    icon: ClipboardList,
-    titulo: "Envías una solicitud",
-    texto: "Eliges una pieza e indicas la cantidad y los detalles que necesitas.",
-  },
-  {
-    icon: ThumbsUp,
-    titulo: "El taller la evalúa",
-    texto: "El artesano revisa la solicitud y la acepta o la rechaza, indicando el motivo.",
-  },
-  {
-    icon: HandCoins,
-    titulo: "Registras el pago",
-    texto:
-      "Pagas fuera de la plataforma, por transferencia u otro medio, y registras la referencia. El taller confirma que lo recibió.",
-  },
-  {
-    icon: PackageCheck,
-    titulo: "Elaboración y entrega",
-    texto:
-      "Con el pago confirmado, el taller prepara tu pedido y coordinan la entrega por la mensajería del pedido.",
-  },
-];
-
 export default function Index() {
   useDocumentHead({
-    title: "ArtesaNic | Artesanías de Masaya",
+    title: "Descubrir | ArtesaNic",
     meta: [
       {
         name: "description",
         content:
-          "Catálogo de piezas artesanales de los talleres de Masaya. Solicita tu pedido directamente al taller.",
+          "Descubre nuevas piezas, categorías y talleres artesanales disponibles en ArtesaNic.",
       },
-      { property: "og:title", content: "ArtesaNic | Artesanías de Masaya" },
+      { property: "og:title", content: "Descubrir | ArtesaNic" },
       {
         property: "og:description",
-        content: "Piezas artesanales de las PYMEs de Masaya, solicitadas directamente al taller.",
+        content:
+          "Descubre nuevas piezas, categorías y talleres artesanales disponibles en ArtesaNic.",
       },
-      { property: "og:url", content: "/" },
+      { property: "og:url", content: "/descubrir" },
     ],
-    canonical: "/",
+    canonical: "/descubrir",
   });
 
-  // Enlaces a «Cómo funciona» desde otras páginas.
-  const { hash } = useLocation();
-  useEffect(() => {
-    if (hash) document.getElementById(hash.slice(1))?.scrollIntoView();
-  }, [hash]);
-
   const categorias = useQuery({ queryKey: ["categorias"], queryFn: listCategories });
-  // Contrato §12.1: la portada no muestra «destacados», sino lo más reciente.
+  // Contrato §12.1: se muestran los productos más recientes publicados.
   const productos = useQuery({
     queryKey: ["catalogo", "portada"],
     queryFn: () => listCatalog({ orden: "recientes", pageSize: 8 }),
@@ -73,62 +40,47 @@ export default function Index() {
   const artesanos = useQuery({ queryKey: ["artesanos"], queryFn: listArtisans });
 
   return (
-    <SiteLayout>
-      {/* Hero */}
-      <section className="relative isolate overflow-hidden border-b">
-        <img
-          src={heroImg}
-          alt="Artesano tejiendo una hamaca en un taller de Masaya"
-          width={1600}
-          height={1080}
-          className="absolute inset-0 -z-20 h-full w-full object-cover"
-        />
-        {/* Velo para la legibilidad del texto; la fotografía queda visible a la derecha. */}
-        <div
-          aria-hidden="true"
-          className="absolute inset-0 -z-10 bg-background/85 md:bg-transparent md:bg-linear-to-r md:from-background md:via-background/90 md:to-background/15"
-        />
-        <div className="mx-auto max-w-7xl px-4 py-16 sm:py-24 lg:py-28">
+    <PublicLayout>
+      {/* Hero corto editorial */}
+      <section className="border-b bg-surface py-12 sm:py-16">
+        <div className="mx-auto flex max-w-7xl flex-col justify-between gap-6 px-4 lg:flex-row lg:items-end">
           <div className="max-w-2xl">
-            <p className="text-sm font-semibold uppercase tracking-widest text-primary">
-              ArtesaNic · Masaya, Nicaragua
+            <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-primary">
+              <Sparkles className="size-3.5" aria-hidden="true" />
+              Exploración y novedades · Masaya
             </p>
-            <h1 className="mt-3 text-balance font-display text-4xl font-bold leading-tight sm:text-5xl lg:text-6xl">
-              Artesanía de Masaya, directo del taller
+            <h1 className="mt-2 text-balance font-display text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
+              Descubre lo nuevo en ArtesaNic
             </h1>
-            <p className="mt-5 max-w-xl text-base text-foreground/80 sm:text-lg">
-              ArtesaNic reúne las piezas de los talleres artesanales del municipio. Cada compra
-              empieza con una solicitud al taller: el artesano la revisa, la acepta y coordinan
-              contigo el pago y la entrega.
+            <p className="mt-3 text-base leading-relaxed text-muted-foreground sm:text-lg">
+              Recorre las piezas recién publicadas por los talleres artesanales del municipio,
+              explora los oficios tradicionales y conoce a quienes elaboran cada creación.
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Button asChild size="lg" className="touch-target text-base">
-                <Link to="/catalogo">
-                  Explorar el catálogo
-                  <ArrowRight className="size-5" aria-hidden="true" />
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline" className="touch-target text-base">
-                <a href="#como-funciona">Cómo funciona</a>
-              </Button>
-            </div>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Button asChild size="lg" className="touch-target">
+              <Link to="/catalogo">
+                <Search className="size-4" aria-hidden="true" />
+                Ir al marketplace completo
+              </Link>
+            </Button>
           </div>
         </div>
       </section>
 
       {/* Categorías */}
-      {/*
-        Sección de descubrimiento: si las categorías no cargan se oculta por
-        completo, en lugar de plantar un estado de error en la portada.
-      */}
       {categorias.isError ? null : (
         <section className="mx-auto max-w-7xl px-4 py-12" aria-labelledby="titulo-categorias">
-          <h2 id="titulo-categorias" className="font-display text-2xl font-bold sm:text-3xl">
-            Rubros artesanales
-          </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Explora el catálogo por el oficio que más te interesa.
-          </p>
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <h2 id="titulo-categorias" className="font-display text-2xl font-bold sm:text-3xl">
+                Rubros artesanales
+              </h2>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Explora el catálogo por el oficio tradicional que más te interesa.
+              </p>
+            </div>
+          </div>
           <ul className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
             {categorias.isPending
               ? Array.from({ length: 6 }).map((_, i) => (
@@ -167,22 +119,23 @@ export default function Index() {
         </section>
       )}
 
-      {/* Productos recientes */}
+      {/* Nuevas piezas / productos recientes */}
       <section className="mx-auto max-w-7xl px-4 py-8" aria-labelledby="titulo-recientes">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h2 id="titulo-recientes" className="font-display text-2xl font-bold sm:text-3xl">
-              Productos recientes
+              Nuevas piezas
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Las últimas piezas publicadas por los talleres.
+              Productos recién publicados por los talleres de Masaya.
             </p>
           </div>
           <Link
             to="/catalogo"
-            className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
+            className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary hover:underline"
           >
-            Ver todo el catálogo
+            Ver todo en el marketplace
+            <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
         </div>
 
@@ -199,50 +152,23 @@ export default function Index() {
         )}
       </section>
 
-      {/* Cómo funciona */}
+      {/* Talleres para descubrir */}
       <section
-        id="como-funciona"
-        className="scroll-mt-20 bg-surface"
-        aria-labelledby="titulo-modelo"
+        id="talleres"
+        className="mx-auto scroll-mt-20 max-w-7xl px-4 py-12"
+        aria-labelledby="titulo-talleres"
       >
-        <div className="mx-auto max-w-7xl px-4 py-12">
-          <h2 id="titulo-modelo" className="font-display text-2xl font-bold sm:text-3xl">
-            Cómo funciona una compra
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            El pedido y el pago avanzan por separado, y el taller no empieza a elaborar tu pedido
-            hasta confirmar que recibió el pago.
-          </p>
-          <ol className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {PASOS.map((p, i) => (
-              <li key={p.titulo} className="rounded-xl border bg-card p-5">
-                <div className="flex items-center gap-3">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-primary/10 text-sm font-bold text-primary">
-                    {i + 1}
-                  </span>
-                  <p.icon className="size-5 text-secondary" aria-hidden="true" />
-                </div>
-                <h3 className="mt-3 font-semibold">{p.titulo}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{p.texto}</p>
-              </li>
-            ))}
-          </ol>
-          <div className="mt-8">
-            <Button asChild size="lg" className="touch-target">
-              <Link to="/catalogo">Solicitar una pieza</Link>
-            </Button>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="titulo-talleres" className="font-display text-2xl font-bold sm:text-3xl">
+              Talleres para descubrir
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Conoce algunos de nuestros talleres artesanales, su historia, su horario y sus
+              productos.
+            </p>
           </div>
         </div>
-      </section>
-
-      {/* Talleres */}
-      <section className="mx-auto max-w-7xl px-4 py-12" aria-labelledby="titulo-talleres">
-        <h2 id="titulo-talleres" className="font-display text-2xl font-bold sm:text-3xl">
-          Talleres de Masaya
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Cada taller publica su historia, su horario y sus productos.
-        </p>
         {artesanos.isError ? (
           <div className="mt-6">
             <ErrorState onRetry={() => void artesanos.refetch()} />
@@ -257,6 +183,27 @@ export default function Index() {
           </div>
         )}
       </section>
-    </SiteLayout>
+
+      {/* Pequeño CTA al marketplace */}
+      <section className="mx-auto max-w-7xl px-4 pt-4" aria-labelledby="titulo-cta-catalogo">
+        <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border bg-surface p-6 sm:flex-row sm:items-center sm:p-8">
+          <div className="max-w-xl">
+            <h2 id="titulo-cta-catalogo" className="font-display text-2xl font-bold">
+              ¿Buscas una pieza o taller en particular?
+            </h2>
+            <p className="mt-1.5 text-sm text-muted-foreground sm:text-base">
+              Utiliza el buscador y los filtros por categoría, rango de precio y taller en el
+              marketplace completo.
+            </p>
+          </div>
+          <Button asChild size="lg" className="w-full touch-target shrink-0 sm:w-auto">
+            <Link to="/catalogo">
+              Explorar marketplace
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+          </Button>
+        </div>
+      </section>
+    </PublicLayout>
   );
 }

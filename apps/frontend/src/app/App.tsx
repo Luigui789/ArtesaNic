@@ -10,6 +10,8 @@ import { AppErrorBoundary } from "./error-boundary";
 import { ScrollToTop } from "./scroll-to-top";
 import { NotFound } from "./not-found";
 
+import Home from "@/routes/home";
+import Ayuda from "@/routes/ayuda";
 import Index from "@/features/catalogo/pages/inicio";
 import Auth from "@/features/auth/pages/acceso";
 import Catalogo from "@/features/catalogo/pages/catalogo";
@@ -52,7 +54,9 @@ export function App() {
               <AppErrorBoundary>
                 <ScrollToTop />
                 <Routes>
-                  <Route path="/" element={<Index />} />
+                  <Route path="/" element={<Home />} />
+                  <Route path="/descubrir" element={<Index />} />
+                  <Route path="/ayuda" element={<Ayuda />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/catalogo" element={<Catalogo />} />
                   <Route path="/producto/:id" element={<Producto />} />

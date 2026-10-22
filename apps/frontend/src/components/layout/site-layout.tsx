@@ -1,25 +1,15 @@
-import { getPersistenceStatus, resetDemo } from "@/mocks";
-import { useQuery } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Link, NavLink, useLocation, useNavigate } from "react-router";
+import { Link, NavLink, useLocation } from "react-router";
 import { useEffect, useState, type ReactNode } from "react";
-import { LogIn, LogOut, Menu, RotateCcw, X } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Menu, X } from "lucide-react";
+import { MenuSesion } from "@/components/layout/menu-sesion";
 import { CurrencySwitcher } from "@/components/common/currency-switcher";
+import {
+  AvisoPersistencia,
+  RestablecerDemo,
+  SelectorVista,
+} from "@/components/layout/demo-controls";
 import { useSession } from "@/features/auth/use-session";
 import { useNotifications } from "@/features/notificaciones/use-notifications";
-import { ROLE_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types";
 
@@ -37,10 +27,11 @@ function NavBadge({ cantidad }: { cantidad: number }) {
 
 type Enlace = { to: string; label: string; end?: boolean };
 
-/** Navegación de cada vista de la demo. Solo enlaza pantallas existentes. */
-const NAV: Record<Role, Enlace[]> = {
+/** Navegación de cada vista. Solo enlaza pantallas existentes. */
+const NAV: Record<Role, { to: string; label: string; end?: boolean }[]> = {
   comprador: [
     { to: "/", label: "Inicio", end: true },
+    { to: "/descubrir", label: "Descubrir" },
     { to: "/catalogo", label: "Catálogo" },
     { to: "/solicitudes", label: "Solicitudes" },
     { to: "/pedidos", label: "Pedidos (demo)" },
@@ -78,128 +69,10 @@ const NAV_REAL: Record<Role | "anonima", Enlace[]> = {
   ],
 };
 
-const INICIO_DE_VISTA: Record<Role, string> = { comprador: "/", artesano: "/panel" };
-
 function useEnlaces(): Enlace[] {
   const { modo, usuario } = useSession();
   if (modo === "real") return NAV_REAL[usuario?.rol ?? "anonima"];
   return NAV[usuario?.rol ?? "comprador"];
-}
-
-/**
- * Exclusivo del prototipo: alterna entre las dos sesiones simuladas (D-6). Solo existe
- * con `VITE_AUTH_API=mock`: en modo real el rol lo asigna el servidor (RF-004) y el
- * control no se renderiza. No sustituye a la pantalla de acceso.
- */
-function SelectorVista({
-  onCambio,
-  className,
-  idDescripcion,
-}: {
-  onCambio?: () => void;
-  className?: string;
-  idDescripcion: string;
-}) {
-  const { usuario, cambiarVistaDemo } = useSession();
-  const navigate = useNavigate();
-  const rol = usuario?.rol ?? "comprador";
-  if (!cambiarVistaDemo) return null;
-
-  return (
-    <div
-      role="group"
-      aria-label="Vista de demostración"
-      aria-describedby={idDescripcion}
-      title="Herramienta del prototipo: cambia la vista simulada. No es un inicio de sesión."
-      className={cn("inline-flex items-center gap-1 rounded-lg border bg-card p-1", className)}
-    >
-      <span id={idDescripcion} className="sr-only">
-        Herramienta del prototipo para alternar entre las vistas de comprador y artesano. No es un
-        inicio de sesión ni verifica identidad.
-      </span>
-      <span
-        aria-hidden="true"
-        className="hidden px-2 text-xs font-medium text-muted-foreground xl:inline"
-      >
-        Demo
-      </span>
-      {(["comprador", "artesano"] as const).map((r) => (
-        <button
-          key={r}
-          type="button"
-          aria-pressed={rol === r}
-          onClick={() => {
-            if (r !== rol) {
-              cambiarVistaDemo(r);
-              void navigate(INICIO_DE_VISTA[r]);
-            }
-            onCambio?.();
-          }}
-          className={cn(
-            "min-h-11 rounded-md px-3 text-sm font-medium transition-colors",
-            rol === r
-              ? "bg-secondary text-secondary-foreground"
-              : "text-muted-foreground hover:bg-surface hover:text-foreground",
-          )}
-        >
-          {ROLE_LABELS[r]}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-/** Sesión real: acceso para visitantes; nombre y cierre de sesión para cuentas. */
-function MenuSesion() {
-  const { modo, estado, usuario, cerrarSesion } = useSession();
-  const navigate = useNavigate();
-  const [cerrando, setCerrando] = useState(false);
-
-  if (modo === "real" && estado === "autenticada" && usuario)
-    return (
-      <div className="flex items-center gap-2">
-        <span className="hidden max-w-40 truncate text-sm text-muted-foreground sm:inline">
-          {usuario.nombre}
-        </span>
-        <Button
-          variant="outline"
-          className="touch-target"
-          disabled={cerrando}
-          onClick={async () => {
-            setCerrando(true);
-            try {
-              await cerrarSesion();
-              toast.success("Sesión cerrada");
-              void navigate("/", { replace: true });
-            } catch {
-              toast.error("No pudimos cerrar la sesión. Revisa tu conexión e inténtalo de nuevo.");
-            } finally {
-              setCerrando(false);
-            }
-          }}
-        >
-          <LogOut className="size-4" aria-hidden="true" />
-          Cerrar sesión
-        </Button>
-      </div>
-    );
-
-  if (modo === "real" && estado === "cargando") return null;
-
-  return (
-    <NavLink
-      to="/auth"
-      className={({ isActive }) =>
-        cn(
-          "flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-surface hover:text-foreground",
-          isActive && "bg-surface text-foreground",
-        )
-      }
-    >
-      <LogIn className="size-4" aria-hidden="true" />
-      Acceso
-    </NavLink>
-  );
 }
 
 function Header() {
@@ -252,7 +125,7 @@ function Header() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2 lg:ml-2">
-          {/* RF-004: el acceso (o el cierre de sesión) es siempre alcanzable desde la cabecera. */}
+          {/* RF-004: la pantalla de acceso es siempre alcanzable desde la cabecera. */}
           <MenuSesion />
           <SelectorVista className="hidden lg:inline-flex" idDescripcion="selector-vista-desc" />
           <CurrencySwitcher className="hidden xl:inline-flex" />
@@ -300,14 +173,9 @@ function Header() {
           <div className="mx-auto max-w-7xl space-y-3 border-t px-4 py-4">
             {modo === "mock" ? (
               <>
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                    Vista de demostración
-                  </p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Herramienta del prototipo; no es un inicio de sesión.
-                  </p>
-                </div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Vista de demostración
+                </p>
                 <SelectorVista
                   onCambio={() => setAbierto(false)}
                   idDescripcion="selector-vista-movil-desc"
@@ -321,51 +189,6 @@ function Header() {
         </div>
       ) : null}
     </header>
-  );
-}
-
-/**
- * Restaura el escenario inicial. Los datos simulados viven en la memoria de la
- * página: al recargar, el mock los reconstruye desde el seed determinista. Se
- * vuelve además a la vista de comprador, que es donde empieza la demostración.
- */
-function RestablecerDemo() {
-  const { cambiarVistaDemo } = useSession();
-  if (!cambiarVistaDemo) return null;
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="touch-target text-muted-foreground">
-          <RotateCcw aria-hidden="true" />
-          Restablecer datos de demostración
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>¿Restablecer los datos de demostración?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Se borran los productos, imágenes, pedidos, reservas, pagos y mensajes simulados
-            guardados, y se vuelve al escenario inicial en la vista de comprador.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Volver</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={async () => {
-              try {
-                await resetDemo();
-                cambiarVistaDemo("comprador");
-                window.location.assign("/");
-              } catch {
-                toast.error("No se pudieron borrar los datos guardados. Intenta de nuevo.");
-              }
-            }}
-          >
-            Restablecer
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   );
 }
 
@@ -384,13 +207,28 @@ function Footer() {
           <h3 className="text-sm font-semibold uppercase tracking-wide">Navegación</h3>
           <ul className="mt-3 space-y-1 text-sm">
             <li>
+              <Link to="/" className="text-muted-foreground hover:text-foreground">
+                Inicio
+              </Link>
+            </li>
+            <li>
+              <Link to="/descubrir" className="text-muted-foreground hover:text-foreground">
+                Descubrir
+              </Link>
+            </li>
+            <li>
               <Link to="/catalogo" className="text-muted-foreground hover:text-foreground">
-                Catálogo
+                Marketplace
               </Link>
             </li>
             <li>
               <Link to="/#como-funciona" className="text-muted-foreground hover:text-foreground">
                 Cómo funciona
+              </Link>
+            </li>
+            <li>
+              <Link to="/ayuda" className="text-muted-foreground hover:text-foreground">
+                Ayuda y normas
               </Link>
             </li>
             <li>
@@ -403,8 +241,8 @@ function Footer() {
         <div>
           <h3 className="text-sm font-semibold uppercase tracking-wide">Cómo funciona</h3>
           <p className="mt-3 text-sm text-muted-foreground">
-            Envías una solicitud al taller y el artesano la acepta o la rechaza. Si la acepta,
-            registras el pago, el taller lo confirma y coordinan la entrega desde el pedido.
+            Envías una solicitud al taller, el artesano evalúa cada renglón y emite una propuesta.
+            Al confirmarla, registras el pago, el taller lo verifica y coordinan la entrega.
           </p>
         </div>
       </div>
@@ -417,33 +255,6 @@ function Footer() {
         <RestablecerDemo />
       </div>
     </footer>
-  );
-}
-
-/**
- * Avisa cuando la demo no puede guardar sin sobrescribir datos que no logró leer.
- * Nada se borra hasta que la persona elige «Restablecer datos de demostración».
- */
-function AvisoPersistencia() {
-  const { modo } = useSession();
-  const { data } = useQuery({
-    queryKey: ["persistencia-demo"],
-    queryFn: getPersistenceStatus,
-    staleTime: Infinity,
-    enabled: modo === "mock",
-  });
-  if (!data || data.modo === "guardando") return null;
-  return (
-    <div role="alert" className="border-b border-destructive/30 bg-destructive/10">
-      <p className="mx-auto max-w-7xl px-4 py-3 text-sm text-destructive">
-        {data.motivo === "otra_version"
-          ? "Los datos guardados pertenecen a una versión anterior de la demostración y no se cargaron. "
-          : "No pudimos leer los datos guardados de la demostración. "}
-        Se muestra el escenario inicial y los cambios de esta sesión no se guardarán, para no
-        sobrescribir lo guardado. Usa «Restablecer datos de demostración», al pie de la página, para
-        descartarlos y volver a guardar.
-      </p>
-    </div>
   );
 }
 
