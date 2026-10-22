@@ -107,33 +107,33 @@
   --card-foreground: oklch(0.95 0.008 85);
   --popover: oklch(0.24 0.014 60);
   --popover-foreground: oklch(0.95 0.008 85);
-  --primary: oklch(0.63 0.13 38);
+  --primary: oklch(0.7 0.13 38);
   --primary-foreground: oklch(0.15 0.01 60);
-  --secondary: oklch(0.55 0.06 133);
-  --secondary-foreground: oklch(0.97 0.008 85);
+  --secondary: oklch(0.7 0.06 133);
+  --secondary-foreground: oklch(0.15 0.01 60);
   --surface: oklch(0.28 0.016 65);
   --surface-foreground: oklch(0.95 0.008 85);
   --muted: oklch(0.28 0.016 65);
   --muted-foreground: oklch(0.72 0.015 70);
   --accent: oklch(0.72 0.11 78);
   --accent-foreground: oklch(0.2 0.02 70);
-  --destructive: oklch(0.62 0.17 26);
-  --destructive-foreground: oklch(0.98 0.008 85);
-  --success: oklch(0.6 0.1 148);
+  --destructive: oklch(0.7 0.17 26);
+  --destructive-foreground: oklch(0.15 0.01 60);
+  --success: oklch(0.69 0.1 148);
   --success-foreground: oklch(0.15 0.01 60);
   --warning: oklch(0.75 0.12 70);
   --warning-foreground: oklch(0.2 0.02 70);
   --border: oklch(1 0 0 / 14%);
   --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.63 0.13 38);
+  --ring: oklch(0.7 0.13 38);
   --sidebar: oklch(0.24 0.014 60);
   --sidebar-foreground: oklch(0.95 0.008 85);
-  --sidebar-primary: oklch(0.63 0.13 38);
+  --sidebar-primary: oklch(0.7 0.13 38);
   --sidebar-primary-foreground: oklch(0.15 0.01 60);
   --sidebar-accent: oklch(0.28 0.016 65);
   --sidebar-accent-foreground: oklch(0.95 0.008 85);
   --sidebar-border: oklch(1 0 0 / 14%);
-  --sidebar-ring: oklch(0.63 0.13 38);
+  --sidebar-ring: oklch(0.7 0.13 38);
 }
 
 @layer base {
@@ -163,4 +163,28 @@
 @utility touch-target {
   min-height: 44px;
   min-width: 44px;
+}
+
+@layer base {
+  html {
+    scroll-padding-top: 6rem;
+  }
+  body {
+    min-width: 320px;
+    overflow-wrap: break-word;
+  }
+  input,
+  textarea,
+  select {
+    scroll-margin-top: 7rem;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
 }

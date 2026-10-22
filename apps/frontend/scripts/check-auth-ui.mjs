@@ -147,8 +147,11 @@ await verificar("33. modo real: sin «Vista de demostración» ni cambio de rol"
     usuario: ARTURO,
     ruta: "/panel",
   });
-  const navegacion = texto(artesano.match(/<nav aria-label="Principal".*?<\/nav>/s)[0]);
-  assert.equal(navegacion.trim(), "Panel Solicitudes Mis productos Perfil del taller");
+  const navegacion = texto(artesano.match(/<nav aria-label="Navegación del taller".*?<\/nav>/s)[0]);
+  assert.equal(
+    navegacion.trim(),
+    "Mi taller Mi taller Solicitudes Pedidos Productos Inventario Perfil del taller",
+  );
 });
 
 await verificar(
