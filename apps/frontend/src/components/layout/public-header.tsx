@@ -7,9 +7,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const PUBLIC_NAV = [
-  { to: "/", label: "Inicio", isHash: false },
   { to: "/descubrir", label: "Descubrir", isHash: false },
-  { to: "/catalogo", label: "Marketplace", isHash: false },
   { to: "/#como-funciona", label: "Cómo funciona", isHash: true },
   { to: "/#para-artesanos", label: "Para artesanos", isHash: true },
   { to: "/ayuda", label: "Ayuda", isHash: false },
@@ -36,7 +34,7 @@ export function PublicHeader() {
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-4 py-3">
+      <div className="mx-auto flex min-h-20 max-w-7xl items-center justify-between gap-4 px-4 py-3">
         <Link to="/" className="flex min-w-0 items-center gap-2.5">
           <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-primary/10 font-display text-lg font-bold text-primary">
             A
@@ -49,10 +47,7 @@ export function PublicHeader() {
           </span>
         </Link>
 
-        <nav
-          aria-label="Navegación pública"
-          className="order-last hidden w-full items-center justify-center gap-1 lg:flex"
-        >
+        <nav aria-label="Navegación pública" className="hidden min-w-0 items-center gap-1 xl:flex">
           {PUBLIC_NAV.map((item) => {
             if (item.isHash) {
               const targetHash = item.to.slice(1);
@@ -74,11 +69,10 @@ export function PublicHeader() {
               <NavLink
                 key={item.to}
                 to={item.to}
-                end={item.to === "/"}
                 className={({ isActive }) =>
                   cn(
                     "flex min-h-11 items-center rounded-lg px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface hover:text-foreground",
-                    isActive && !(item.to === "/" && hash) && "bg-surface text-foreground",
+                    isActive && "bg-surface text-foreground",
                   )
                 }
               >
@@ -93,20 +87,20 @@ export function PublicHeader() {
           {modo === "real" && usuario ? (
             <Link
               to={destinoCuenta}
-              className="touch-target hidden items-center rounded-lg px-3 text-sm font-medium hover:bg-surface lg:inline-flex"
+              className="touch-target hidden items-center rounded-lg px-3 text-sm font-medium hover:bg-surface xl:inline-flex"
             >
               {usuario.rol === "artesano" ? "Mi taller" : "Mis solicitudes"}
             </Link>
           ) : null}
-          <Button asChild className="hidden touch-target lg:inline-flex">
+          <Button asChild className="hidden touch-target px-4 xl:inline-flex">
             <Link to="/catalogo">
               <Compass className="size-4" aria-hidden="true" />
-              Explorar catálogo
+              Ver catálogo
             </Link>
           </Button>
           <button
             type="button"
-            className="touch-target grid place-items-center rounded-lg border bg-card lg:hidden"
+            className="touch-target grid place-items-center rounded-lg border bg-card xl:hidden"
             aria-expanded={abierto}
             aria-controls="menu-publico-movil"
             aria-label={abierto ? "Cerrar menú" : "Abrir menú"}
@@ -122,13 +116,13 @@ export function PublicHeader() {
       </div>
 
       {abierto ? (
-        <div id="menu-publico-movil" className="border-t bg-background lg:hidden">
+        <div id="menu-publico-movil" className="border-t bg-background xl:hidden">
           <nav aria-label="Navegación pública móvil" className="mx-auto max-w-7xl px-4 py-3">
             <ul className="space-y-1">
               {PUBLIC_NAV.map((item) => {
                 const isCurrent = item.isHash
                   ? pathname === "/" && hash === item.to.slice(1)
-                  : pathname === item.to && !(item.to === "/" && hash);
+                  : pathname === item.to;
                 return (
                   <li key={item.to}>
                     <Link
@@ -161,7 +155,7 @@ export function PublicHeader() {
               <Button asChild size="lg" className="w-full touch-target text-base">
                 <Link to="/catalogo" onClick={() => setAbierto(false)}>
                   <Compass className="size-4" aria-hidden="true" />
-                  Explorar catálogo
+                  Ver catálogo
                 </Link>
               </Button>
             </div>

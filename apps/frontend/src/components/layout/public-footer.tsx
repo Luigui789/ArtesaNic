@@ -1,155 +1,64 @@
-import { useSession } from "@/features/auth/use-session";
 import { Link } from "react-router";
+import { useSession } from "@/features/auth/use-session";
 import { CurrencySwitcher } from "@/components/common/currency-switcher";
 import { RestablecerDemo, SelectorVista } from "@/components/layout/demo-controls";
+
+const GRUPOS = [
+  {
+    titulo: "Explorar",
+    enlaces: [
+      { to: "/catalogo", label: "Catálogo" },
+      { to: "/descubrir", label: "Artesanías y talleres" },
+      { to: "/#para-artesanos", label: "Para artesanos" },
+    ],
+  },
+  {
+    titulo: "Te acompañamos",
+    enlaces: [
+      { to: "/ayuda", label: "Ayuda y normas" },
+      { to: "/ayuda#pagos", label: "Pagos y entregas" },
+      { to: "/ayuda#privacidad", label: "Privacidad" },
+    ],
+  },
+];
 
 export function PublicFooter() {
   const { modo } = useSession();
   return (
-    <footer className="mt-16 border-t bg-surface text-surface-foreground">
-      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-12 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="border-t bg-surface text-surface-foreground">
+      <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-[2fr_1fr_1fr] sm:gap-12">
         <div>
-          <Link to="/" className="inline-block font-display text-xl font-bold">
+          <Link
+            to="/"
+            className="inline-flex min-h-11 items-center font-display text-xl font-semibold"
+          >
             ArtesaNic
           </Link>
-          <p className="mt-3 max-w-sm text-sm leading-relaxed text-muted-foreground">
-            Plataforma digital que conecta a compradores con talleres artesanales del municipio de
-            Masaya, Nicaragua, para descubrir piezas con identidad y organizar solicitudes y pedidos
-            directamente con quienes las elaboran.
+          <p className="mt-2 max-w-xs text-sm leading-relaxed text-muted-foreground">
+            El oficio de Masaya, más cerca de ti. Un espacio para descubrir y conectar con talleres
+            locales.
           </p>
         </div>
-
-        <div>
-          <h2 className="font-sans text-xs font-semibold uppercase tracking-wider text-foreground">
-            Explorar
-          </h2>
-          <ul className="mt-3 space-y-1 text-sm">
-            <li>
-              <Link
-                to="/descubrir"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Descubrir
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/catalogo"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Marketplace
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/descubrir#talleres"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Talleres
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/#como-funciona"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Cómo funciona
-              </Link>
-            </li>
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="font-sans text-xs font-semibold uppercase tracking-wider text-foreground">
-            Para artesanos
-          </h2>
-          <ul className="mt-3 space-y-1 text-sm">
-            <li>
-              <Link
-                to="/#para-artesanos"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Cómo funciona
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/auth"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Acceso
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/ayuda#como-vender"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Ayuda
-              </Link>
-            </li>
-          </ul>
-        </div>
-
-        <div>
-          <h2 className="font-sans text-xs font-semibold uppercase tracking-wider text-foreground">
-            Información
-          </h2>
-          <ul className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-1">
-            <li>
-              <Link
-                to="/ayuda#pagos"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Pagos
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/ayuda#entregas"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Entregas
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/ayuda#cancelaciones"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Cancelaciones
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/ayuda#reembolsos"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Reembolsos
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/ayuda#normas"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Normas
-              </Link>
-            </li>
-            <li>
-              <Link
-                to="/ayuda#privacidad"
-                className="inline-flex min-h-11 items-center text-muted-foreground transition-colors hover:text-foreground"
-              >
-                Privacidad
-              </Link>
-            </li>
-          </ul>
-        </div>
+        {GRUPOS.map((grupo) => (
+          <nav key={grupo.titulo} aria-label={grupo.titulo}>
+            <h2 className="text-sm font-semibold">{grupo.titulo}</h2>
+            <ul className="mt-3 space-y-1">
+              {grupo.enlaces.map((enlace) => (
+                <li key={enlace.to}>
+                  <Link
+                    to={enlace.to}
+                    className="inline-flex min-h-11 items-center text-sm text-muted-foreground hover:text-foreground hover:underline"
+                  >
+                    {enlace.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))}
       </div>
-
-      <div className="border-t bg-background/50">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-4 text-center lg:flex-row lg:text-left">
+      <div className="border-t">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-4 sm:flex-row">
           <p className="text-xs text-muted-foreground">
             {modo === "mock"
               ? "Prototipo académico con datos simulados · Masaya, Nicaragua"
