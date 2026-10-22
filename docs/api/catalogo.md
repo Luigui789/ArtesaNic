@@ -105,6 +105,7 @@ Se combinan libremente; al menos una es obligatoria. La API valida la lista (`40
 
 - El catálogo público muestra solo productos con `publicado = true` **y** taller con `estado = aprobado`. La condición se aplica en el servidor: un producto marcado como publicado de un taller pendiente o rechazado no aparece ni se resuelve por su identificador (`404`).
 - Despublicar **no borra la fila**: el producto deja de aparecer en el catálogo y en el detalle público, pero sigue existiendo y el artesano lo ve en `GET /productos/mios/`.
+- Despublicar tiene **efecto inmediato solo para nuevas solicitudes**: el producto ya no puede agregarse a una solicitud nueva. Las solicitudes creadas antes continúan su revisión, propuesta y etapas posteriores con la referencia al producto; la despublicación no las cancela ni modifica, y no se bloquea aunque existan solicitudes activas ([D-AUD06-06](../decisiones/v1.md#concreciones-de-aud-06)). La advertencia previa al artesano cuando el producto aparece en solicitudes activas queda pendiente de la interfaz de productos.
 - Editar no cambia la publicación.
 
 ## 6. Catálogo público (RF-003)

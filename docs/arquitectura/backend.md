@@ -12,8 +12,8 @@ Back-Artesanic/
 │   │   ├── local.py            Desarrollo: DEBUG, orígenes de Vite y cookies sin Secure
 │   │   └── test.py             Pruebas: hash de contraseñas rápido
 │   ├── urls.py                 /admin/, /api/v1/salud/, /api/v1/auth/, /api/v1/talleres/,
-│   │                           /api/v1/categorias/, /api/v1/productos/, /api/v1/solicitudes/,
-│   │                           /api/v1/operaciones/
+│   │                           /api/v1/categorias/, /api/v1/productos/, /api/v1/solicitudes/
+│   │                           (solicitudes y propuestas), /api/v1/operaciones/
 │   ├── health.py               Sonda de disponibilidad (RNF-006)
 │   ├── wsgi.py, asgi.py
 │   └── tests/                  Salud, orígenes (CORS y CSRF) y esquema OpenAPI
@@ -21,12 +21,18 @@ Back-Artesanic/
 │   ├── operaciones/            Idempotencia de mutaciones comerciales (AUD-08), sin reglas de negocio
 │   │   ├── services.py         ejecutar_idempotente: huella, registro y árbitro UNIQUE en la transacción
 │   │   └── api/               Contrato Idempotency-Key reutilizable y consulta de resultado propia
-│   ├── solicitudes/            Solicitud y RenglonSolicitud (AUD-05), sin propuesta/pedido confirmado
-│   │   ├── models.py           Modalidad por renglón; resolución estructural y restricciones
-│   │   ├── services.py         Creación transaccional de un solo taller; identidad del token
+│   ├── solicitudes/            Solicitud, RenglonSolicitud (AUD-05) y su revisión (AUD-06)
+│   │   ├── models.py           Modalidad por renglón, estados, preferencia de entrega e historial
+│   │   ├── services.py         Creación y resolución transaccionales; lock de la solicitud; DR-03
 │   │   ├── selectors.py        Ownership en SQL y carga relacionada sin N+1
-│   │   ├── api/               Creación comprador y lecturas de las partes; sin acciones de revisión
-│   │   └── tests/             Modalidades, atomicidad, constraints, permisos, schema y consultas
+│   │   ├── api/               Creación, lecturas, resolución de renglón y conflictos 409
+│   │   └── tests/             Modalidades, revisión, DR-03, constraints, permisos, schema y consultas
+│   ├── propuestas/             Propuesta final del artesano (AUD-06); no es pedido confirmado
+│   │   ├── models.py           Propuesta, LineaPropuesta y CargoPropuesta inmutables; CHECK de importes
+│   │   ├── services.py         Emisión única: precio del servidor, desglose y total en una transacción
+│   │   ├── selectors.py        Lectura por parte en tres consultas
+│   │   ├── api/               Emisión y lectura bajo /api/v1/solicitudes/{mias,recibidas}/{id}/propuesta/
+│   │   └── tests/             Cotización, permisos, idempotencia, concurrencia real y smoke HTTP
 │   ├── catalogo/               Categorías y productos con modalidades V1 (RF-001, RF-003, RF-017, RF-019; AUD-04)
 │   │   ├── models.py           Categoria, Producto, Modalidad y sus restricciones (al menos una modalidad)
 │   │   ├── services.py         Alta, edición, publicar y despublicar; exige taller aprobado
@@ -107,7 +113,8 @@ Las reglas tienen un único lugar: la normalización del teléfono está en `pho
 |---|---|
 | `apps/talleres/` (AUD-02, implementada) | Perfil del taller (RF-008) vinculado a la cuenta de artesano; aprobación (RF-013) en Django Admin. El alta ocurre en el registro del artesano; estados y rubro según D-AUD02-01 a 03 ([talleres](../api/talleres.md#4-decisiones-aplicadas-en-aud-02)). |
 | `apps/catalogo/` (AUD-04, implementada salvo imagen) | Categorías, productos con modalidades combinables, publicación y catálogo público paginado ([catálogo](../api/catalogo.md)). Pendiente: fotografía principal (DR-01) y moderación administrativa con actor y motivo (AUD-14). Las unidades estándar e inventario (RF-022) serán un dominio aparte. |
-| `apps/solicitudes/` (AUD-05) | [Solicitudes y renglones](../api/solicitudes.md), creación atómica y lectura de las partes. Estado inicial `pendiente_revision`, terminal `rechazada` preparado según [DR-03](../decisiones/v1.md#dr-03--solicitud-sin-renglones-aceptados). Propuesta y revisión real en AUD-06; pedido confirmado, congelación y reservas en AUD-07. Creación protegida por AUD-08. |
+| `apps/solicitudes/` (AUD-05/06) | [Solicitudes y renglones](../api/solicitudes.md), creación atómica y lectura de las partes. Revisión individual con historial y [DR-03](../decisiones/v1.md#dr-03--solicitud-sin-renglones-aceptados) aplicada (AUD-06). Pedido confirmado, congelación y reservas en AUD-07. Mutaciones protegidas por AUD-08. |
+| `apps/propuestas/` (AUD-06) | [Propuesta final](../api/propuestas.md): cotización con precio del servidor, cargos, plan y costo de entrega y total. Depende de `solicitudes`; nunca crea pedido ni reserva. |
 | `apps/operaciones/` (AUD-08) | [Idempotencia](../api/idempotencia.md): las mutaciones comerciales futuras envuelven su servicio con `ejecutar_idempotente` y añaden su `TipoOperacion`. |
 | `apps/accounts/api/serializers.py` | Añadir `artesano_id` y `artesano_estado` al perfil cuando exista el taller. |
 | `apps/talleres/api/permissions.py` | `EsArtesanoAprobado` (implementado): toda función operativa del artesano lo exige; los modelos con dueño implementan `pertenece_a(usuario)`. |

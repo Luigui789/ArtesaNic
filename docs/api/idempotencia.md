@@ -1,6 +1,6 @@
 # Contrato de idempotencia V1 (AUD-08)
 
-**Fecha:** 20 de octubre de 2026 (America/Managua).
+**Fecha:** 20 de octubre de 2026; tipos de AUD-06 añadidos el 21 de octubre (America/Managua).
 **Fuentes:** RF-009.7, RNF-011, RNF-014.3–5, RNF-015.7; regla de no duplicar solicitudes por reintentos.
 **Esquema:** [OpenAPI generado](openapi.yaml), etiquetas `Solicitudes` y `Operaciones`.
 **Decisiones:** [D-AUD08-01 a D-AUD08-08](../decisiones/v1.md#concreciones-de-aud-08).
@@ -44,7 +44,15 @@ renglones de AUD-06), un replay muestra ese estado actual.
 
 | Tipo | Endpoint | Huella |
 |---|---|---|
-| `crear_solicitud` | `POST /api/v1/solicitudes/` | `renglones` validados y normalizados, en su orden: producto, modalidad, cantidad, fecha solicitada, características y origen cuando aplican |
+| `crear_solicitud` | `POST /api/v1/solicitudes/` | `renglones` validados y normalizados, en su orden: producto, modalidad, cantidad, fecha solicitada, características y origen cuando aplican; más `modalidad_entrega_preferida` y `descripcion_entrega_preferida` solo si se indican (AUD-06), de modo que las huellas anteriores siguen siendo válidas |
+| `resolver_renglon` | `POST /api/v1/solicitudes/recibidas/{id}/renglones/{renglon_id}/resolver/` | `solicitud_id`, `renglon_id`, `resolucion` y `motivo_rechazo` recortado. Código registrado `200` |
+| `finalizar_propuesta` | `POST /api/v1/solicitudes/recibidas/{id}/propuesta/` | `solicitud_id` y todas las condiciones validadas: modalidad y descripción de entrega, costo, líneas y otros cargos, en su orden. Código registrado `201` |
+
+Las huellas de AUD-06 incluyen el destino: la misma clave contra otro renglón u otra
+solicitud es otra petición (`409 clave_idempotencia_reutilizada`), nunca una repetición.
+Claves distintas contra un renglón ya resuelto o una propuesta ya emitida no son un
+problema de idempotencia sino de negocio: `409 renglon_ya_resuelto` o
+`409 propuesta_ya_emitida` ([revisión y propuesta](propuestas.md)).
 
 La huella es SHA-256 de un JSON canónico (claves ordenadas, sin espacios, fechas ISO).
 No incluye comprador, taller, estado, cabeceras, token ni timestamps; el orden de las
@@ -128,8 +136,8 @@ Cada operación se añade a `TipoOperacion` (con migración del CHECK) y su serv
 dominio se envuelve con `apps.operaciones.services.ejecutar_idempotente(actor=..., tipo=...,
 clave=..., datos=<contrato normalizado>, operacion=<mutación>)`. La vista usa
 `apps.operaciones.api.contrato` para la cabecera, el `409` y `Idempotency-Replayed`.
-Pendientes: resolución de renglón y finalización de propuesta (AUD-06); aceptación de
-propuesta y confirmación/reserva (AUD-07); registro de pago (AUD-10); entregas, ajustes
+Implementadas: creación de solicitud (AUD-08), resolución de renglón y emisión de
+propuesta (AUD-06). Pendientes: aceptación de propuesta y confirmación/reserva (AUD-07); registro de pago (AUD-10); entregas, ajustes
 de inventario y reembolsos (AUD-11 en adelante).
 
 ## Tema operativo pendiente

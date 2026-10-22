@@ -1,4 +1,4 @@
-"""Solicitud y sus renglones (AUD-05): todavía no son propuesta ni pedido confirmado."""
+"""Solicitud, renglones y su revisión (AUD-05/06): todavía no son pedido confirmado."""
 
 from datetime import date
 
@@ -14,11 +14,55 @@ from apps.catalogo.models import Modalidad
 from apps.talleres.models import PATRON_NO_EN_BLANCO
 
 MAX_CARACTERISTICAS = 2000
+MAX_MOTIVO_RECHAZO = 1000
+MAX_DESCRIPCION_ENTREGA = 500
 
 
 class EstadoSolicitud(models.TextChoices):
+    # Hay renglones sin resolver.
     PENDIENTE_REVISION = "pendiente_revision", "Pendiente de revisión"
+    # Todos resueltos y al menos uno aceptado: el artesano puede emitir la propuesta.
+    LISTA_PROPUESTA = "lista_propuesta", "Lista para propuesta"
+    # Propuesta final emitida (AUD-06); la decisión del comprador pertenece a AUD-07.
+    PROPUESTA_EMITIDA = "propuesta_emitida", "Propuesta emitida"
+    # DR-03: todos resueltos y ninguno aceptado. Terminal.
     RECHAZADA = "rechazada", "Rechazada"
+
+
+class ModalidadEntrega(models.TextChoices):
+    """Modalidades mínimas de RF-016; «otra» exige una descripción."""
+
+    RETIRO_TALLER = "retiro_taller", "Retiro en taller"
+    PUNTO_ENCUENTRO = "punto_encuentro", "Punto de encuentro"
+    ENTREGA_ARTESANO = "entrega_artesano", "Entrega por el artesano"
+    OTRA = "otra", "Otra"
+
+
+def condicion_entrega(modalidad: str, descripcion: str, *, opcional: bool) -> Q:
+    """CHECK compartido: «otra» exige descripción; sin modalidad no hay descripción."""
+    otras = [m for m in ModalidadEntrega.values if m != ModalidadEntrega.OTRA]
+    condicion = Q(
+        **{modalidad: ModalidadEntrega.OTRA, f"{descripcion}__regex": PATRON_NO_EN_BLANCO}
+    )
+    condicion |= Q(**{f"{modalidad}__in": otras})
+    if opcional:
+        condicion |= Q(**{modalidad: "", descripcion: ""})
+    return condicion
+
+
+def errores_entrega(modalidad: str, descripcion: str, *, opcional: bool) -> dict[str, str]:
+    """Misma regla que ``condicion_entrega``, con mensajes por campo para la API."""
+    if not modalidad:
+        if not opcional:
+            return {"modalidad": "Selecciona la modalidad de entrega."}
+        if descripcion:
+            return {"descripcion": "Indica primero la modalidad de entrega."}
+        return {}
+    if modalidad not in ModalidadEntrega.values:
+        return {"modalidad": "Modalidad de entrega no válida."}
+    if modalidad == ModalidadEntrega.OTRA and not descripcion.strip():
+        return {"descripcion": "Describe la modalidad de entrega «Otra»."}
+    return {}
 
 
 class ResolucionRenglon(models.TextChoices):
@@ -50,6 +94,16 @@ class Solicitud(models.Model):
     estado = models.CharField(
         max_length=20, choices=EstadoSolicitud.choices, default=EstadoSolicitud.PENDIENTE_REVISION
     )
+    # RF-016: preferencia opcional del comprador; vacía si no indicó ninguna.
+    modalidad_entrega_preferida = models.CharField(
+        max_length=20, choices=ModalidadEntrega.choices, blank=True, default=""
+    )
+    descripcion_entrega_preferida = models.TextField(
+        blank=True,
+        default="",
+        max_length=MAX_DESCRIPCION_ENTREGA,
+        validators=[MaxLengthValidator(MAX_DESCRIPCION_ENTREGA)],
+    )
     creado_en = models.DateTimeField(default=timezone.now, editable=False)
     actualizado_en = models.DateTimeField(auto_now=True)
 
@@ -60,7 +114,13 @@ class Solicitud(models.Model):
         constraints = [
             models.CheckConstraint(
                 condition=Q(estado__in=EstadoSolicitud.values), name="solicitud_estado_valido"
-            )
+            ),
+            models.CheckConstraint(
+                condition=condicion_entrega(
+                    "modalidad_entrega_preferida", "descripcion_entrega_preferida", opcional=True
+                ),
+                name="solicitud_entrega_preferida_valida",
+            ),
         ]
         indexes = [
             models.Index(fields=["comprador", "-creado_en", "-id"], name="solicitud_comprador_idx"),
@@ -103,6 +163,7 @@ class RenglonSolicitud(models.Model):
     resolucion = models.CharField(
         max_length=10, choices=ResolucionRenglon.choices, default=ResolucionRenglon.PENDIENTE
     )
+    # Proyección operativa de la revisión; el registro auditable es RevisionRenglonSolicitud.
     motivo_rechazo = models.TextField(blank=True)
 
     class Meta:
@@ -182,3 +243,56 @@ class RenglonSolicitud(models.Model):
             errores["motivo_rechazo"] = "Solo un renglón rechazado tiene motivo de rechazo."
         if errores:
             raise ValidationError(errores)
+
+
+class RevisionRenglonSolicitud(models.Model):
+    """Resolución final y auditable de un renglón (RF-005.4, RN-008).
+
+    Append-only: una sola por renglón, porque V1 no define reabrir ni reconsiderar.
+    Se crea en la misma transacción que actualiza la proyección del renglón.
+    """
+
+    renglon = models.OneToOneField(
+        RenglonSolicitud, on_delete=models.PROTECT, related_name="revision"
+    )
+    resolucion = models.CharField(max_length=10, choices=ResolucionRenglon.choices)
+    motivo_rechazo = models.TextField(
+        blank=True,
+        max_length=MAX_MOTIVO_RECHAZO,
+        validators=[MaxLengthValidator(MAX_MOTIVO_RECHAZO)],
+    )
+    resuelto_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="revisiones_renglon"
+    )
+    resuelto_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "revisión de renglón"
+        verbose_name_plural = "revisiones de renglones"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(
+                    resolucion__in=[ResolucionRenglon.ACEPTADO, ResolucionRenglon.RECHAZADO]
+                ),
+                name="revision_resolucion_final",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(resolucion=ResolucionRenglon.RECHAZADO)
+                    & Q(motivo_rechazo__regex=PATRON_NO_EN_BLANCO)
+                )
+                | Q(resolucion=ResolucionRenglon.ACEPTADO, motivo_rechazo=""),
+                name="revision_rechazo_con_motivo",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Revisión del renglón {self.renglon_id}: {self.resolucion}"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("Una revisión registrada no se modifica.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Una revisión registrada no se elimina.")

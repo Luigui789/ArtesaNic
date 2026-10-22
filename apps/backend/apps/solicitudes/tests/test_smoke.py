@@ -12,6 +12,7 @@ from urllib.request import HTTPCookieProcessor, Request, build_opener
 from uuid import uuid4
 
 from django.apps import apps
+from django.core.cache import cache
 from django.test import LiveServerTestCase, override_settings
 from django.utils import timezone
 
@@ -26,6 +27,9 @@ from apps.talleres.tests.base import crear_administrador, crear_artesano_con_tal
     CSRF_COOKIE_SECURE=False, REFRESH_COOKIE_SECURE=False, ALLOWED_HOSTS=["localhost", "testserver"]
 )
 class SmokeSolicitudesTests(LiveServerTestCase):
+    def setUp(self):
+        cache.clear()  # contadores de la limitación de intentos de otros tests
+
     def test_solicitud_mixta_y_aislamiento_por_http_real(self):
         admin = crear_administrador()
         taller_a = crear_artesano_con_taller("82222222")
@@ -155,6 +159,7 @@ class SmokeSolicitudesTests(LiveServerTestCase):
             {
                 "Solicitud",
                 "RenglonSolicitud",
+                "RevisionRenglonSolicitud",
             },
         )
         for clave in ("pedido", "propuesta", "reserva", "movimientos", "pagos", "chat", "total"):

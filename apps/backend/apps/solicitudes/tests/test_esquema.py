@@ -1,4 +1,4 @@
-"""RNF-005: contrato cerrado de solicitudes, sin anticipar acciones AUD-06/AUD-07."""
+"""RNF-005: contrato cerrado de solicitudes, revisión y propuesta, sin anticipar AUD-07."""
 
 from django.test import SimpleTestCase
 from drf_spectacular.generators import SchemaGenerator
@@ -7,14 +7,29 @@ from .base import URL_CREAR, URL_MIAS, URL_RECIBIDAS
 
 RUTA_MIA = URL_MIAS + "{solicitud_id}/"
 RUTA_RECIBIDA = URL_RECIBIDAS + "{solicitud_id}/"
+RUTA_RESOLVER = RUTA_RECIBIDA + "renglones/{renglon_id}/resolver/"
+RUTA_PROPUESTA_MIA = RUTA_MIA + "propuesta/"
+RUTA_PROPUESTA_RECIBIDA = RUTA_RECIBIDA + "propuesta/"
 RUTAS = {
     URL_CREAR: {"post"},
     URL_MIAS: {"get"},
     RUTA_MIA: {"get"},
     URL_RECIBIDAS: {"get"},
     RUTA_RECIBIDA: {"get"},
+    RUTA_RESOLVER: {"post"},
+    RUTA_PROPUESTA_MIA: {"get"},
+    RUTA_PROPUESTA_RECIBIDA: {"get", "post"},
 }
-CLAVES_COMPRADOR = {"id", "taller", "estado", "creado_en", "actualizado_en", "renglones"}
+CLAVES_COMPRADOR = {
+    "id",
+    "taller",
+    "estado",
+    "modalidad_entrega_preferida",
+    "descripcion_entrega_preferida",
+    "creado_en",
+    "actualizado_en",
+    "renglones",
+}
 CLAVES_PAGINA = {"count", "next", "previous", "results"}
 
 
@@ -43,7 +58,7 @@ class EsquemaSolicitudesTests(SimpleTestCase):
                 valores |= self.valores_enum(parte)
         return valores
 
-    def test_documenta_exactamente_cinco_rutas_sin_acciones_futuras(self):
+    def test_documenta_rutas_de_revision_y_propuesta_sin_acciones_de_aud07(self):
         rutas = {
             ruta: set(operaciones)
             for ruta, operaciones in self.esquema["paths"].items()
@@ -71,7 +86,10 @@ class EsquemaSolicitudesTests(SimpleTestCase):
 
     def test_request_no_declara_comprador_taller_estado_o_datos_contractuales(self):
         solicitud = self.componentes["SolicitudEntradaRequest"]
-        self.assertEqual(set(solicitud["properties"]), {"renglones"})
+        self.assertEqual(
+            set(solicitud["properties"]),
+            {"renglones", "modalidad_entrega_preferida", "descripcion_entrega_preferida"},
+        )
         self.assertEqual(solicitud["required"], ["renglones"])
         renglones = solicitud["properties"]["renglones"]
         self.assertEqual(renglones["type"], "array")
@@ -118,6 +136,10 @@ class EsquemaSolicitudesTests(SimpleTestCase):
         solicitud = self.componentes["SolicitudArtesano"]
         self.assertEqual(set(solicitud["properties"]), CLAVES_COMPRADOR | {"comprador"})
         self.assertEqual(
+            set(self.componentes["RenglonSolicitudArtesano"]["properties"]),
+            set(self.componentes["RenglonSolicitud"]["properties"]) | {"resuelto_por"},
+        )
+        self.assertEqual(
             set(self.componentes["CompradorSolicitud"]["properties"]), {"id", "nombre"}
         )
 
@@ -136,11 +158,13 @@ class EsquemaSolicitudesTests(SimpleTestCase):
                 "origen_personalizacion",
                 "resolucion",
                 "motivo_rechazo",
+                "resuelto_en",
             },
         )
         self.assertEqual(
             set(self.componentes["ProductoSolicitud"]["properties"]), {"id", "nombre", "categoria"}
         )
+        self.assertTrue(renglon["properties"]["resuelto_en"]["nullable"])
         self.assertTrue(renglon["properties"]["fecha_solicitada"]["nullable"])
         self.assertEqual(
             self.valores_enum(renglon["properties"]["resolucion"]),
@@ -153,7 +177,10 @@ class EsquemaSolicitudesTests(SimpleTestCase):
 
     def test_dr03_es_rechazada_y_no_un_estado_del_pedido_confirmado(self):
         estado = self.componentes["SolicitudComprador"]["properties"]["estado"]
-        self.assertEqual(self.valores_enum(estado), {"pendiente_revision", "rechazada"})
+        self.assertEqual(
+            self.valores_enum(estado),
+            {"pendiente_revision", "lista_propuesta", "propuesta_emitida", "rechazada"},
+        )
 
     def test_detalles_documentan_dto_por_rol_y_404_sin_revelar_ownership(self):
         for ruta, dto in ((RUTA_MIA, "SolicitudComprador"), (RUTA_RECIBIDA, "SolicitudArtesano")):
@@ -162,7 +189,10 @@ class EsquemaSolicitudesTests(SimpleTestCase):
                 self.assertIn("404", self.esquema["paths"][ruta]["get"]["responses"])
 
     def test_listados_tienen_paginacion_drf_y_renglones_anidados(self):
-        for ruta, dto in ((URL_MIAS, "SolicitudComprador"), (URL_RECIBIDAS, "SolicitudArtesano")):
+        for ruta, dto, renglon in (
+            (URL_MIAS, "SolicitudComprador", "RenglonSolicitud"),
+            (URL_RECIBIDAS, "SolicitudArtesano", "RenglonSolicitudArtesano"),
+        ):
             with self.subTest(ruta=ruta):
                 pagina = f"Paginated{dto}List"
                 self.assertEqual(self.esquema_respuesta(ruta), {"$ref": referencia(pagina)})
@@ -176,7 +206,7 @@ class EsquemaSolicitudesTests(SimpleTestCase):
                 self.assertTrue(esquema["properties"]["previous"]["nullable"])
                 self.assertEqual(
                     self.componentes[dto]["properties"]["renglones"]["items"],
-                    {"$ref": referencia("RenglonSolicitud")},
+                    {"$ref": referencia(renglon)},
                 )
 
     def test_listados_documentan_parametros_de_pagina(self):
@@ -191,8 +221,7 @@ class EsquemaSolicitudesTests(SimpleTestCase):
                 self.assertEqual(parametros["page"]["schema"]["type"], "integer")
                 self.assertEqual(parametros["page_size"]["schema"]["type"], "integer")
 
-    def test_contrato_no_declara_componentes_de_propuesta_pedido_pago_o_reserva(self):
+    def test_contrato_no_declara_componentes_de_pedido_pago_o_reserva(self):
         self.assertFalse(
-            {"Propuesta", "PedidoConfirmado", "FrozenQuote", "Reserva", "Pago"}
-            & set(self.componentes)
+            {"PedidoConfirmado", "Pedido", "FrozenQuote", "Reserva", "Pago"} & set(self.componentes)
         )

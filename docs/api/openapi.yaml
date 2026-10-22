@@ -388,6 +388,8 @@ paths:
           type: string
           enum:
           - crear_solicitud
+          - finalizar_propuesta
+          - resolver_renglon
         required: true
       tags:
       - Operaciones
@@ -840,12 +842,14 @@ paths:
       operationId: crear_solicitud
       description: 'Comprador derivado del token; taller derivado de los productos
         publicados de un taller aprobado. Stock requiere cantidad; producción también
-        fecha solicitada; personalización también características y origen. No confirma
-        pedido, congela precio ni reserva inventario. Protegida contra reintentos
-        (AUD-08): exige Idempotency-Key; repetir la misma clave y el mismo cuerpo
-        devuelve la solicitud ya creada con 201 e Idempotency-Replayed; la misma clave
-        con otro cuerpo responde 409. `Idempotency-Key` ausente o con formato inválido
-        responde `{"Idempotency-Key": ["..."]}`, antes de validar el cuerpo.'
+        fecha solicitada; personalización también características y origen. Preferencia
+        de entrega opcional (RF-016); «otra» exige descripción. No confirma pedido,
+        congela precio ni reserva inventario. Protegida contra reintentos (AUD-08):
+        exige Idempotency-Key; repetir la misma clave y el mismo cuerpo devuelve la
+        solicitud ya creada con 201 e Idempotency-Replayed; la misma clave con otro
+        cuerpo (incluida otra preferencia de entrega) responde 409. `Idempotency-Key`
+        ausente o con formato inválido responde `{"Idempotency-Key": ["..."]}`, antes
+        de validar el cuerpo.'
       summary: Enviar una solicitud de un taller
       parameters:
       - in: header
@@ -998,6 +1002,51 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe o no pertenece a esta parte.
+  /api/v1/solicitudes/mias/{solicitud_id}/propuesta/:
+    get:
+      operationId: consultar_propuesta_de_mi_solicitud
+      description: 'Propuesta final emitida: solo renglones aceptados, precio unitario
+        cotizado por el servidor, subtotales, cargos de personalización, otros cargos,
+        plan y costo de entrega, y total en C$. Los rechazados se consultan en la
+        solicitud. No es un pedido confirmado: la aceptación del comprador, la congelación
+        contractual y las reservas pertenecen a AUD-07. 404 si aún no se emitió o
+        la solicitud es ajena.'
+      summary: Consultar la propuesta final de una solicitud propia
+      parameters:
+      - in: path
+        name: solicitud_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Solicitudes
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Propuesta'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
   /api/v1/solicitudes/recibidas/:
     get:
       operationId: listar_solicitudes_recibidas
@@ -1083,6 +1132,242 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe o no pertenece a esta parte.
+  /api/v1/solicitudes/recibidas/{solicitud_id}/propuesta/:
+    get:
+      operationId: consultar_propuesta_recibida
+      description: 'Propuesta final emitida: solo renglones aceptados, precio unitario
+        cotizado por el servidor, subtotales, cargos de personalización, otros cargos,
+        plan y costo de entrega, y total en C$. Los rechazados se consultan en la
+        solicitud. No es un pedido confirmado: la aceptación del comprador, la congelación
+        contractual y las reservas pertenecen a AUD-07. 404 si aún no se emitió o
+        la solicitud es ajena.'
+      summary: Consultar la propuesta final de una solicitud del taller propio
+      parameters:
+      - in: path
+        name: solicitud_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Solicitudes
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Propuesta'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+    post:
+      operationId: emitir_propuesta
+      description: 'Requiere todos los renglones resueltos y al menos uno aceptado
+        (estado lista_propuesta). En una sola transacción toma el precio vigente de
+        cada producto, calcula subtotales y total, crea la propuesta y pasa la solicitud
+        a propuesta_emitida. `lineas` debe contener exactamente los renglones aceptados;
+        producción exige fecha_comprometida; cargo_personalizacion solo en personalización.
+        El cliente no envía precios, subtotales, total, comprador, taller ni estado
+        (400). Una sola propuesta por solicitud; no se edita ni se regenera. No crea
+        pedido ni reserva inventario. Protegida contra reintentos (AUD-08): la huella
+        incluye la solicitud y todas las condiciones; repetir la misma clave devuelve
+        la misma propuesta con 201 e Idempotency-Replayed. `Idempotency-Key` ausente
+        o con formato inválido responde `{"Idempotency-Key": ["..."]}`, antes de validar
+        el cuerpo.'
+      summary: Emitir la propuesta final de una solicitud revisada
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: solicitud_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Solicitudes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropuestaEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Propuesta'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoSolicitud'
+          description: 'Conflicto sin efectos; `codigo` estable: `solicitud_con_renglones_pendientes`,
+            `solicitud_rechazada`, `solicitud_sin_renglones_aceptados`, `propuesta_ya_emitida`,
+            `clave_idempotencia_reutilizada`. Nunca sobrescribe una resolución ni
+            una propuesta ya registrada.'
+  /api/v1/solicitudes/recibidas/{solicitud_id}/renglones/{renglon_id}/resolver/:
+    post:
+      operationId: resolver_renglon
+      description: 'Resolución final e individual (RF-005, RN-008): pendiente → aceptado
+        | rechazado. Rechazar exige motivo no vacío; aceptar no lo admite. No modifica
+        cantidad, producto, modalidad ni fechas: no hay contraofertas. Registra historial
+        con revisor y fecha. Al resolver el último renglón, la solicitud pasa a lista_propuesta
+        si hay alguno aceptado, o a rechazada (DR-03) si todos se rechazaron. Una
+        resolución no se invierte ni se repite con otra clave (409 renglon_ya_resuelto).
+        Protegida contra reintentos (AUD-08): la huella incluye solicitud, renglón,
+        resolución y motivo. Responde la solicitud actualizada. `Idempotency-Key`
+        ausente o con formato inválido responde `{"Idempotency-Key": ["..."]}`, antes
+        de validar el cuerpo.'
+      summary: Aceptar o rechazar un renglón de una solicitud recibida
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: renglon_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: solicitud_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Solicitudes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolucionEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SolicitudArtesano'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoSolicitud'
+          description: 'Conflicto sin efectos; `codigo` estable: `renglon_ya_resuelto`,
+            `clave_idempotencia_reutilizada`. Nunca sobrescribe una resolución ni
+            una propuesta ya registrada.'
   /api/v1/talleres/:
     get:
       operationId: listar_talleres
@@ -1221,6 +1506,55 @@ components:
     BlankEnum:
       enum:
       - ''
+    CargoEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        descripcion:
+          type: string
+          minLength: 1
+          maxLength: 200
+        monto:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: C$ con dos decimales, ≥ 0.
+        renglon:
+          type: integer
+          minimum: 1
+          description: 'Opcional: renglón aceptado al que se atribuye; sin él, cargo
+            global.'
+      required:
+      - descripcion
+      - monto
+    CargoPropuesta:
+      type: object
+      properties:
+        posicion:
+          type: integer
+          readOnly: true
+        descripcion:
+          type: string
+          readOnly: true
+        monto:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        renglon:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Renglón al que se atribuye; null si es un cargo global.
+      required:
+      - descripcion
+      - monto
+      - posicion
+      - renglon
     Categoria:
       type: object
       properties:
@@ -1246,6 +1580,22 @@ components:
       type: string
       description: '* `clave_idempotencia_reutilizada` - Clave reutilizada con otra
         petición'
+    CodigoConflictoSolicitudEnum:
+      enum:
+      - renglon_ya_resuelto
+      - solicitud_con_renglones_pendientes
+      - solicitud_rechazada
+      - solicitud_sin_renglones_aceptados
+      - propuesta_ya_emitida
+      - clave_idempotencia_reutilizada
+      type: string
+      description: |-
+        * `renglon_ya_resuelto` - Este renglón ya tiene una resolución final y no se modifica.
+        * `solicitud_con_renglones_pendientes` - Resuelve todos los renglones antes de emitir la propuesta.
+        * `solicitud_rechazada` - La solicitud fue rechazada: todos sus renglones se rechazaron.
+        * `solicitud_sin_renglones_aceptados` - La propuesta requiere al menos un renglón aceptado.
+        * `propuesta_ya_emitida` - La propuesta final de esta solicitud ya fue emitida.
+        * `clave_idempotencia_reutilizada` - Clave reutilizada con otra petición
     CompradorSolicitud:
       type: object
       properties:
@@ -1268,6 +1618,16 @@ components:
       required:
       - codigo
       - detail
+    ConflictoSolicitud:
+      type: object
+      properties:
+        detail:
+          type: string
+        codigo:
+          $ref: '#/components/schemas/CodigoConflictoSolicitudEnum'
+      required:
+      - codigo
+      - detail
     Error:
       type: object
       description: Forma de los errores que no son de validación de campos.
@@ -1284,10 +1644,14 @@ components:
     EstadoSolicitudEnum:
       enum:
       - pendiente_revision
+      - lista_propuesta
+      - propuesta_emitida
       - rechazada
       type: string
       description: |-
         * `pendiente_revision` - Pendiente de revisión
+        * `lista_propuesta` - Lista para propuesta
+        * `propuesta_emitida` - Propuesta emitida
         * `rechazada` - Rechazada
     EstadoTallerEnum:
       enum:
@@ -1299,6 +1663,87 @@ components:
         * `pendiente` - Pendiente de aprobación
         * `aprobado` - Aprobado
         * `rechazado` - Rechazado
+    LineaPropuesta:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        renglon:
+          type: integer
+          readOnly: true
+        posicion:
+          type: integer
+          readOnly: true
+        producto:
+          allOf:
+          - $ref: '#/components/schemas/ProductoSolicitud'
+          readOnly: true
+        modalidad:
+          allOf:
+          - $ref: '#/components/schemas/ModalidadEnum'
+          readOnly: true
+        cantidad:
+          type: integer
+          readOnly: true
+        precio_unitario:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        subtotal:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        cargo_personalizacion:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        fecha_solicitada:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        fecha_comprometida:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+      required:
+      - cantidad
+      - cargo_personalizacion
+      - fecha_comprometida
+      - fecha_solicitada
+      - id
+      - modalidad
+      - posicion
+      - precio_unitario
+      - producto
+      - renglon
+      - subtotal
+    LineaPropuestaEntradaRequest:
+      type: object
+      description: |-
+        Datos que el artesano añade a un renglón aceptado. No admite precio, cantidad,
+        modalidad ni subtotal: los toma o calcula el servidor.
+      properties:
+        renglon:
+          type: integer
+          minimum: 1
+          description: ID de un renglón aceptado.
+        fecha_comprometida:
+          type: string
+          format: date
+          description: Obligatoria solo en producción; hoy o posterior.
+        cargo_personalizacion:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Solo en personalización; C$ con dos decimales, ≥ 0.
+      required:
+      - renglon
     LoginRequest:
       type: object
       description: Credenciales de acceso. El rol no se envía; cualquier otro campo
@@ -1317,6 +1762,18 @@ components:
       required:
       - password
       - telefono
+    ModalidadEntregaEnum:
+      enum:
+      - retiro_taller
+      - punto_encuentro
+      - entrega_artesano
+      - otra
+      type: string
+      description: |-
+        * `retiro_taller` - Retiro en taller
+        * `punto_encuentro` - Punto de encuentro
+        * `entrega_artesano` - Entrega por el artesano
+        * `otra` - Otra
     ModalidadEnum:
       enum:
       - stock
@@ -1793,6 +2250,117 @@ components:
       - categoria
       - id
       - nombre
+    Propuesta:
+      type: object
+      description: Oferta del artesano antes de la decisión del comprador. No es pedido
+        confirmado.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        solicitud:
+          type: integer
+          readOnly: true
+        emitida_en:
+          type: string
+          format: date-time
+          readOnly: true
+        moneda:
+          type: string
+          readOnly: true
+          description: Importes en córdobas (RN-010).
+        modalidad_entrega:
+          allOf:
+          - $ref: '#/components/schemas/ModalidadEntregaEnum'
+          readOnly: true
+        descripcion_entrega:
+          type: string
+          readOnly: true
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaPropuesta'
+          readOnly: true
+        otros_cargos:
+          type: array
+          items:
+            $ref: '#/components/schemas/CargoPropuesta'
+          readOnly: true
+        costo_entrega:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          readOnly: true
+        subtotal_productos:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        total_personalizacion:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        total_otros_cargos:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+      required:
+      - costo_entrega
+      - descripcion_entrega
+      - emitida_en
+      - id
+      - lineas
+      - modalidad_entrega
+      - moneda
+      - otros_cargos
+      - solicitud
+      - subtotal_productos
+      - total
+      - total_otros_cargos
+      - total_personalizacion
+    PropuestaEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        modalidad_entrega:
+          $ref: '#/components/schemas/ModalidadEntregaEnum'
+        descripcion_entrega:
+          type: string
+          description: Obligatoria con «otra»; opcional con las demás.
+          maxLength: 500
+        costo_entrega:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
+          description: Costo de entrega definido manualmente por el artesano (RF-016.3).
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaPropuestaEntradaRequest'
+          description: Exactamente los renglones aceptados, una vez cada uno.
+          minItems: 1
+          maxItems: 50
+        otros_cargos:
+          type: array
+          items:
+            $ref: '#/components/schemas/CargoEntradaRequest'
+          description: Otros servicios.
+          maxItems: 20
+      required:
+      - costo_entrega
+      - lineas
+      - modalidad_entrega
     RecursoOperacion:
       type: object
       properties:
@@ -1903,6 +2471,12 @@ components:
         motivo_rechazo:
           type: string
           readOnly: true
+        resuelto_en:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Momento de la resolución final; null mientras está pendiente.
       required:
       - cantidad
       - caracteristicas
@@ -1914,6 +2488,73 @@ components:
       - posicion
       - producto
       - resolucion
+      - resuelto_en
+    RenglonSolicitudArtesano:
+      type: object
+      description: El taller ve además qué cuenta registró la resolución (historial
+        auditable).
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        posicion:
+          type: integer
+          readOnly: true
+        producto:
+          allOf:
+          - $ref: '#/components/schemas/ProductoSolicitud'
+          readOnly: true
+        modalidad:
+          allOf:
+          - $ref: '#/components/schemas/ModalidadEnum'
+          readOnly: true
+        cantidad:
+          type: integer
+          readOnly: true
+        fecha_solicitada:
+          type: string
+          format: date
+          readOnly: true
+          nullable: true
+        caracteristicas:
+          type: string
+          readOnly: true
+        origen_personalizacion:
+          readOnly: true
+          oneOf:
+          - $ref: '#/components/schemas/OrigenPersonalizacionEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        resolucion:
+          allOf:
+          - $ref: '#/components/schemas/ResolucionRenglonEnum'
+          readOnly: true
+        motivo_rechazo:
+          type: string
+          readOnly: true
+        resuelto_en:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Momento de la resolución final; null mientras está pendiente.
+        resuelto_por:
+          allOf:
+          - $ref: '#/components/schemas/Revisor'
+          readOnly: true
+          nullable: true
+      required:
+      - cantidad
+      - caracteristicas
+      - fecha_solicitada
+      - id
+      - modalidad
+      - motivo_rechazo
+      - origen_personalizacion
+      - posicion
+      - producto
+      - resolucion
+      - resuelto_en
+      - resuelto_por
     RenglonSolicitudEntradaRequest:
       type: object
       description: |-
@@ -1954,6 +2595,29 @@ components:
       - cantidad
       - modalidad
       - producto
+    ResolucionEntradaRequest:
+      type: object
+      description: |-
+        Resolución final de un renglón. Sin cantidad, producto, modalidad ni precio:
+        en V1 no existen contraofertas (RN-008).
+      properties:
+        resolucion:
+          $ref: '#/components/schemas/ResolucionFinalEnum'
+        motivo_rechazo:
+          type: string
+          minLength: 1
+          description: Obligatorio y no vacío al rechazar; no se admite al aceptar.
+          maxLength: 1000
+      required:
+      - resolucion
+    ResolucionFinalEnum:
+      enum:
+      - aceptado
+      - rechazado
+      type: string
+      description: |-
+        * `aceptado` - Aceptado
+        * `rechazado` - Rechazado
     ResolucionRenglonEnum:
       enum:
       - pendiente
@@ -1964,6 +2628,18 @@ components:
         * `pendiente` - Pendiente
         * `aceptado` - Aceptado
         * `rechazado` - Rechazado
+    Revisor:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        nombre:
+          type: string
+          readOnly: true
+      required:
+      - id
+      - nombre
     RolEnum:
       enum:
       - comprador
@@ -2005,6 +2681,21 @@ components:
           allOf:
           - $ref: '#/components/schemas/EstadoSolicitudEnum'
           readOnly: true
+        modalidad_entrega_preferida:
+          readOnly: true
+          description: |-
+            Vacía si el comprador no indicó preferencia (RF-016).
+
+            * `retiro_taller` - Retiro en taller
+            * `punto_encuentro` - Punto de encuentro
+            * `entrega_artesano` - Entrega por el artesano
+            * `otra` - Otra
+          oneOf:
+          - $ref: '#/components/schemas/ModalidadEntregaEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        descripcion_entrega_preferida:
+          type: string
+          readOnly: true
         creado_en:
           type: string
           format: date-time
@@ -2016,7 +2707,7 @@ components:
         renglones:
           type: array
           items:
-            $ref: '#/components/schemas/RenglonSolicitud'
+            $ref: '#/components/schemas/RenglonSolicitudArtesano'
           readOnly: true
         comprador:
           allOf:
@@ -2026,8 +2717,10 @@ components:
       - actualizado_en
       - comprador
       - creado_en
+      - descripcion_entrega_preferida
       - estado
       - id
+      - modalidad_entrega_preferida
       - renglones
       - taller
     SolicitudComprador:
@@ -2044,6 +2737,21 @@ components:
           allOf:
           - $ref: '#/components/schemas/EstadoSolicitudEnum'
           readOnly: true
+        modalidad_entrega_preferida:
+          readOnly: true
+          description: |-
+            Vacía si el comprador no indicó preferencia (RF-016).
+
+            * `retiro_taller` - Retiro en taller
+            * `punto_encuentro` - Punto de encuentro
+            * `entrega_artesano` - Entrega por el artesano
+            * `otra` - Otra
+          oneOf:
+          - $ref: '#/components/schemas/ModalidadEntregaEnum'
+          - $ref: '#/components/schemas/BlankEnum'
+        descripcion_entrega_preferida:
+          type: string
+          readOnly: true
         creado_en:
           type: string
           format: date-time
@@ -2060,8 +2768,10 @@ components:
       required:
       - actualizado_en
       - creado_en
+      - descripcion_entrega_preferida
       - estado
       - id
+      - modalidad_entrega_preferida
       - renglones
       - taller
     SolicitudEntradaRequest:
@@ -2080,6 +2790,22 @@ components:
             y repeticiones.
           minItems: 1
           maxItems: 50
+        modalidad_entrega_preferida:
+          allOf:
+          - $ref: '#/components/schemas/ModalidadEntregaEnum'
+          description: |-
+            Opcional (RF-016). Sin este campo, el comprador no indicó preferencia.
+
+            * `retiro_taller` - Retiro en taller
+            * `punto_encuentro` - Punto de encuentro
+            * `entrega_artesano` - Entrega por el artesano
+            * `otra` - Otra
+        descripcion_entrega_preferida:
+          type: string
+          minLength: 1
+          description: Obligatoria con «otra», opcional con las demás y no admitida
+            sin modalidad.
+          maxLength: 500
       required:
       - renglones
     TallerPropio:
@@ -2244,8 +2970,13 @@ components:
     TipoOperacionEnum:
       enum:
       - crear_solicitud
+      - resolver_renglon
+      - finalizar_propuesta
       type: string
-      description: '* `crear_solicitud` - Crear solicitud'
+      description: |-
+        * `crear_solicitud` - Crear solicitud
+        * `resolver_renglon` - Resolver renglón de solicitud
+        * `finalizar_propuesta` - Emitir propuesta final
     TokenAcceso:
       type: object
       properties:

@@ -20,13 +20,23 @@ import {
   reintentarSalvoErrorDelCliente,
   solicitudesReales,
 } from "../api";
-import type { RenglonBorrador, SolicitudEntrada } from "../types";
+import { MODALIDADES_ENTREGA } from "../types";
+import type { EntregaPreferidaBorrador, RenglonBorrador, SolicitudEntrada } from "../types";
 import {
+  MAX_DESCRIPCION_ENTREGA,
   fechaLocalISO,
   nuevoRenglon,
   puedeAgregarProducto,
   validarSolicitudBorrador,
 } from "../validacion";
+
+const ENTREGA_LABELS: Record<EntregaPreferidaBorrador["modalidad"], string> = {
+  "": "Sin preferencia",
+  retiro_taller: "Retiro en taller",
+  punto_encuentro: "Punto de encuentro",
+  entrega_artesano: "Entrega por el artesano",
+  otra: "Otra",
+};
 
 export default function PrepararSolicitud() {
   const { productId: parametro } = useParams();
@@ -41,6 +51,11 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
   const consultas = useQueryClient();
   const [borrador, setBorrador] = useState<RenglonBorrador[] | null>(null);
   const [paso, setPaso] = useState<"edicion" | "resumen">("edicion");
+  // RF-016: preferencia opcional; el artesano define el plan y costo en su propuesta.
+  const [entrega, setEntrega] = useState<EntregaPreferidaBorrador>({
+    modalidad: "",
+    descripcion: "",
+  });
   const [errores, setErrores] = useState<string[]>([]);
   const [avisoTaller, setAvisoTaller] = useState("");
   const [paginacion, setPaginacion] = useState<{ tallerId: number | undefined; page: number }>({
@@ -90,7 +105,7 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
   const enviar = (e: React.FormEvent) => {
     e.preventDefault();
     if (envio.isPending) return;
-    const validada = validarSolicitudBorrador(renglones);
+    const validada = validarSolicitudBorrador(renglones, entrega);
     if (!validada.success) {
       setErrores(
         validada.error.issues.map((i) => {
@@ -258,6 +273,43 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
                   ) : null}
                 </fieldset>
               ))}
+              <fieldset className="space-y-4 rounded-xl border p-4" disabled={envio.isPending}>
+                <legend className="px-2 font-semibold">Entrega preferida (opcional)</legend>
+                <p className="text-sm text-muted-foreground">
+                  El taller definirá el plan y el costo de entrega en su propuesta.
+                </p>
+                <label className="block space-y-1 text-sm">
+                  Modalidad preferida
+                  <select
+                    aria-label="Modalidad de entrega preferida"
+                    className="block min-h-11 w-full rounded-md border bg-background px-3"
+                    value={entrega.modalidad}
+                    onChange={(e) =>
+                      setEntrega({
+                        modalidad: e.target.value as EntregaPreferidaBorrador["modalidad"],
+                        descripcion: e.target.value ? entrega.descripcion : "",
+                      })
+                    }
+                  >
+                    {(["", ...MODALIDADES_ENTREGA] as const).map((m) => (
+                      <option key={m} value={m}>
+                        {ENTREGA_LABELS[m]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {entrega.modalidad ? (
+                  <label className="block space-y-1 text-sm">
+                    {entrega.modalidad === "otra" ? "Describe la entrega" : "Detalle (opcional)"}
+                    <Textarea
+                      aria-label="Descripción de la entrega preferida"
+                      maxLength={MAX_DESCRIPCION_ENTREGA}
+                      value={entrega.descripcion}
+                      onChange={(e) => setEntrega({ ...entrega, descripcion: e.target.value })}
+                    />
+                  </label>
+                ) : null}
+              </fieldset>
               {errores.length ? (
                 <ul role="alert" className="space-y-1 text-destructive">
                   {errores.map((e, i) => (
@@ -386,6 +438,10 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
                   </div>
                 </article>
               ))}
+              <p>
+                Entrega preferida: {ENTREGA_LABELS[entrega.modalidad]}
+                {entrega.descripcion.trim() ? ` — ${entrega.descripcion.trim()}` : ""}
+              </p>
               <p className="rounded-lg border p-4 text-sm">
                 Este envío inicia una solicitud de revisión. Todavía no confirma un pedido ni
                 reserva unidades.

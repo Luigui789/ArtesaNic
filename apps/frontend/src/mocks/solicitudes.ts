@@ -1,12 +1,16 @@
-/** Demo AUD-05 separada de orders: no cotiza, reserva, paga ni habilita conversación. */
+/**
+ * Demo AUD-05 separada de orders: no cotiza, reserva, paga ni habilita conversación.
+ * La revisión y la propuesta de AUD-06 solo existen con la API real; su flujo de
+ * interfaz pertenece a AUD-09.
+ */
 import type { SesionUsuario } from "@/features/auth/use-session";
 import type { Paginated } from "@/features/catalogo/types";
 import { ApiError } from "@/features/catalogo/http";
 import type {
+  Propuesta,
   Solicitud,
   SolicitudArtesano,
   SolicitudEntrada,
-  RenglonSolicitud,
 } from "@/features/solicitudes/types";
 import { esquemaSolicitudEntrada } from "@/features/solicitudes/validacion";
 import { api, nextId, nowIso, store } from "./core";
@@ -24,23 +28,25 @@ function lectura(solicitud: SolicitudDemo, recibidas: boolean): Solicitud | Soli
     id: solicitud.id,
     taller: solicitud.taller,
     estado: solicitud.estado,
+    modalidadEntregaPreferida: solicitud.modalidadEntregaPreferida ?? "",
+    descripcionEntregaPreferida: solicitud.descripcionEntregaPreferida ?? "",
     creadoEn: solicitud.creadoEn,
     actualizadoEn: solicitud.actualizadoEn,
     renglones: solicitud.renglones.map((r) => {
       const producto = store.products.find((p) => p.id === r.producto.id);
-      return producto
-        ? {
-            ...r,
-            producto: {
-              id: producto.id,
-              nombre: producto.nombre,
-              categoria: producto.categoria,
-            },
-          }
-        : r;
+      const actual = producto
+        ? { id: producto.id, nombre: producto.nombre, categoria: producto.categoria }
+        : r.producto;
+      return { ...r, producto: actual, resueltoEn: null };
     }),
   };
-  return recibidas ? { ...resultado, comprador: solicitud.comprador } : resultado;
+  return recibidas
+    ? {
+        ...resultado,
+        comprador: solicitud.comprador,
+        renglones: resultado.renglones.map((r) => ({ ...r, resueltoPor: null })),
+      }
+    : resultado;
 }
 
 function pertenece(s: SolicitudDemo, usuario: SesionUsuario, recibidas: boolean): boolean {
@@ -62,7 +68,12 @@ export function crearSolicitud(
     () => {
       const comprador = exigirSesion(usuario);
       const llave = clave === undefined ? undefined : `${comprador.id}:${clave}`;
-      const cuerpo = JSON.stringify(entrada.renglones);
+      // Misma huella que el servidor: la preferencia de entrega forma parte del intento.
+      const cuerpo = JSON.stringify([
+        entrada.renglones,
+        entrada.modalidadEntregaPreferida ?? "",
+        entrada.descripcionEntregaPreferida ?? "",
+      ]);
       const previa = llave === undefined ? undefined : operaciones.get(llave);
       if (previa) {
         if (previa.cuerpo !== cuerpo)
@@ -83,7 +94,7 @@ export function crearSolicitud(
         throw new ApiError(400, "Revisa los productos de la solicitud.", campos);
       }
       let tallerId: number | undefined;
-      const renglones: RenglonSolicitud[] = validada.data.renglones.map((r, i) => {
+      const renglones: SolicitudDemo["renglones"] = validada.data.renglones.map((r, i) => {
         const producto = store.products.find((p) => p.id === r.producto && p.publicado);
         if (!producto)
           throw new ApiError(400, "El producto no está disponible para nuevas solicitudes.");
@@ -113,6 +124,8 @@ export function crearSolicitud(
         comprador: { id: comprador.id, nombre: comprador.nombre },
         taller: { id: taller.id, nombre: taller.nombreTaller },
         estado: "pendiente_revision",
+        modalidadEntregaPreferida: validada.data.modalidadEntregaPreferida ?? "",
+        descripcionEntregaPreferida: validada.data.descripcionEntregaPreferida ?? "",
         creadoEn: nowIso(),
         actualizadoEn: nowIso(),
         renglones,
@@ -155,5 +168,33 @@ export function consultarSolicitud(id: number, usuario: SesionUsuario | null, re
     const solicitud = store.solicitudes.find((s) => s.id === id && pertenece(s, actor, recibidas));
     if (!solicitud) throw new ApiError(404, "No encontramos esta solicitud.");
     return lectura(solicitud, recibidas);
+  });
+}
+
+/** AUD-06 sin simulación local: evita aparentar una revisión que la demo no persiste. */
+export function revisionNoDisponible(): Promise<never> {
+  return Promise.reject(
+    new ApiError(
+      501,
+      "La revisión de renglones y la propuesta solo están disponibles con la API real.",
+    ),
+  );
+}
+
+/** La demo nunca emite propuestas: la consulta responde como el servidor sin propuesta. */
+export function consultarPropuesta(
+  id: number,
+  usuario: SesionUsuario | null,
+  recibidas: boolean,
+): Promise<Propuesta> {
+  return api(() => {
+    const actor = exigirSesion(usuario, recibidas);
+    const existe = store.solicitudes.some((s) => s.id === id && pertenece(s, actor, recibidas));
+    throw new ApiError(
+      404,
+      existe
+        ? "Esta solicitud todavía no tiene una propuesta final."
+        : "No encontramos esta solicitud.",
+    );
   });
 }
