@@ -39,5 +39,8 @@ export const getPerfilTaller: (id: number) => Promise<PerfilTaller> = catalogoRe
   ? http.getPerfilTaller
   : getPerfilTallerDemo;
 
+/** Taller propio con su estado de aprobación. Solo existe en la API real (AUD-18). */
+export const getMiTaller = http.getMiTaller;
+
 export { featuredArtisans, getArtisan, listArtisans, updateArtisan } from "@/mocks/talleres";
-export type { PerfilTaller } from "./types";
+export type { EstadoTaller, PerfilTaller, TallerPropio } from "./types";

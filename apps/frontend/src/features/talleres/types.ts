@@ -26,3 +26,13 @@ export interface PerfilTaller {
     portadaUrl: string;
   };
 }
+
+/** Estados de aprobación del taller (D-AUD02-01). Los decide la administración. */
+export type EstadoTaller = "pendiente" | "aprobado" | "rechazado";
+
+/** Taller del artesano autenticado (`GET /api/v1/talleres/mi-taller/`). */
+export interface TallerPropio extends PerfilTaller {
+  estado: EstadoTaller;
+  motivoRechazo: string;
+  revisadoEn: string | null;
+}

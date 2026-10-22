@@ -2,8 +2,10 @@
  * Perfil público del taller contra Django (AUD-02). Contrato: docs/api/talleres.md.
  * Única capa que conoce los nombres de la API del taller (`snake_case`).
  */
+import { z } from "zod";
 import { solicitar } from "@/features/catalogo/http";
-import type { PerfilTaller } from "./types";
+import { solicitar as solicitarComun } from "@/lib/http";
+import type { PerfilTaller, TallerPropio } from "./types";
 
 interface TallerPublicoDTO {
   id: number;
@@ -42,4 +44,45 @@ export async function getPerfilTaller(id: number): Promise<PerfilTaller> {
       mensajes: { 404: "No encontramos este taller." },
     }),
   );
+}
+
+/** TallerPropioSerializer: perfil más el resultado de la revisión administrativa. */
+const esquemaTallerPropio = z.object({
+  id: z.number().int().positive(),
+  nombre: z.string(),
+  historia: z.string(),
+  rubro: z.string(),
+  direccion_completa: z.string(),
+  horario: z.string(),
+  telefono_publico: z.string(),
+  whatsapp_publico: z.string(),
+  facebook_url: z.string(),
+  instagram_url: z.string(),
+  sitio_web: z.string(),
+  estado: z.enum(["pendiente", "aprobado", "rechazado"]),
+  motivo_rechazo: z.string(),
+  revisado_en: z.string().nullable(),
+});
+
+/**
+ * `GET /api/v1/talleres/mi-taller/`: el taller del artesano autenticado, en cualquier
+ * estado. El taller sale del token. El estado viene del servidor; la interfaz no lo
+ * deduce ni lo cambia.
+ */
+export async function getMiTaller(signal?: AbortSignal): Promise<TallerPropio> {
+  const t = await solicitarComun("/talleres/mi-taller/", {
+    autenticada: true,
+    signal,
+    esquema: esquemaTallerPropio,
+    mensajes: {
+      401: "Inicia sesión con tu cuenta de artesano.",
+      404: "Tu cuenta no tiene un taller registrado.",
+    },
+  });
+  return {
+    ...aPerfilTaller(t),
+    estado: t.estado,
+    motivoRechazo: t.motivo_rechazo,
+    revisadoEn: t.revisado_en,
+  };
 }
