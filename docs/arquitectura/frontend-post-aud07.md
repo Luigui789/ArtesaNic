@@ -100,7 +100,7 @@ Se conservarán las entradas profundas y la separación explícita real/demo.
 | Área | Evidencia |
 |---|---|
 | Base AUD-07 | 562 tests backend OK en PostgreSQL aislado, 91.143 s, incluido smoke de snapshot/reserva/idempotencia. Cero cambios de fuente backend |
-| Contratos frontend | 15 grupos nuevos en check-post-aud07.mjs: payloads, claves, errores, snapshots, cantidades servidor, validación e invalidaciones por identidad |
+| Contratos frontend | 15 grupos nuevos (16 tras los ajustes posteriores) en check-post-aud07.mjs: payloads, claves, errores, snapshots, cantidades servidor, validación e invalidaciones por identidad |
 | Comprador real | Registro móvil, solicitud stock, propuesta, aceptar con doble click (un solo POST), pedido confirmado; edición posterior del catálogo conserva nombre/precio del snapshot |
 | Conflictos | Propuesta sin stock: 409 y mensaje comprensible, sin navegación/éxito. Ajuste bajo reservado: 409 sin cambiar cifras; ajuste permitido actualiza desde respuesta |
 | Artesano real | Login, producto con foto, existencia inicial, entrada, ajuste, historial, revisión y propuesta; perfil PATCH conserva aprobación; logout y registro de taller pendiente |
@@ -132,8 +132,8 @@ Se aplicaron las migraciones ya integradas de AUD-07 y se reinició el backend h
 para cargar sus endpoints; esto no modificó código, reglas ni datos comerciales existentes.
 No se borraron volúmenes. Los datos de prueba se crearon únicamente en el stack aislado.
 
-La validación local se informa con sus resultados efectivos al entregar. La CI remota requiere
-publicar la rama y no se declara ejecutada en esta entrega local.
+La validación local se informa con sus resultados efectivos al entregar. La CI remota y la
+integración se registran en «Integración en develop».
 
 
 ## Resultado de validación local
@@ -150,7 +150,29 @@ publicar la rama y no se declara ejecutada en esta entrega local.
 - Chromium: flujo AUD-07 y formularios reales OK, 126 comprobaciones responsive reales,
   20 de demo, teclado y auditorías axe representativas claras/oscuras OK.
 - Backend: fuente sin cambios; 562 tests de la base protegida OK. No se añade migración,
-  endpoint ni regla de negocio. La CI remota no se ejecutó; no se abrió PR ni se hizo push.
+  endpoint ni regla de negocio.
 
 La conversión informativa de divisas conserva el comportamiento previo de referencia;
 no constituye un importe contractual ni una tasa bancaria en tiempo real.
+
+## Integración en develop
+
+La rama se publicó como PR #17 y se integró en `develop` el 2026-10-22 con el merge
+`d8451a7b1e718329b39de1a6ef4c1fbedffe415f` (head `cf3b579`: 4 commits, 70 archivos).
+La CI del head terminó en verde: los jobs `frontend` (instalación, lint, typecheck, tests
+y build) e `integration` pasaron.
+
+## Ajustes posteriores al merge
+
+Rama `fix/frontend-post-aud07-polish`, sin cambios de backend, contratos AUD-07 ni idempotencia:
+
+- `fechaComprometida` de la propuesta y del pedido confirmado se muestra con
+  `formatCalendarDate`. Es una fecha de calendario sin hora; `formatDate` la interpretaría
+  como medianoche UTC y en UTC-6 mostraría el día anterior.
+- El enlace a `/panel` de la navegación del artesano se llama «Resumen», para no repetir
+  el encabezado «Mi taller» de la barra lateral.
+- `App.tsx` agrupa los imports estáticos antes de las pantallas diferidas.
+- En modo demo, `/panel/inventario` y `/panel/inventario/:productoId` explican que el
+  inventario requiere la cuenta real, en lugar de mostrar la lista de productos.
+- Queda como deuda explícita, sin cambios: un intento con resultado incierto sigue
+  bloqueando otro cuerpo hasta confirmarse o recargar la página.

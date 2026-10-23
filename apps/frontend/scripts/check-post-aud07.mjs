@@ -17,6 +17,7 @@ const m = await cargarModulos(
     intento: "@/lib/intento-seguro",
     conflictos: "@/lib/errores-dominio",
     importes: "@/lib/importes",
+    formato: "@/lib/format",
     queries: "@/features/solicitudes/queries",
     keys: "@/lib/query-keys",
     nav: "@/components/layout/navigation",
@@ -238,6 +239,18 @@ verificar("navegación real por rol y demo aislada", () => {
 verificar("presentación exacta de decimales", () => {
   assert.equal(m.importes.mostrarImporte("100.10"), "C$ 100.10");
   assert.ok(m.importes.mostrarImporte("99999999999999.99").endsWith(".99"));
+});
+verificar("fecha de calendario sin desfase por zona horaria", () => {
+  const zona = process.env.TZ;
+  process.env.TZ = "America/Managua";
+  try {
+    const texto = m.formato.formatCalendarDate("2026-10-30");
+    assert.match(texto, /30/);
+    assert.doesNotMatch(texto, /29/);
+    assert.equal(m.formato.formatCalendarDate("sin-fecha"), "sin-fecha");
+  } finally {
+    process.env.TZ = zona;
+  }
 });
 const h = m.React.createElement;
 verificar("pedido confirmado muestra snapshot y no controles demo de pago", () => {

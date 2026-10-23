@@ -14,6 +14,7 @@ import { ENTREGA_LABELS } from "@/features/solicitudes/labels";
 import { claves } from "@/lib/query-keys";
 import { mensajeDominio } from "@/lib/errores-dominio";
 import { mostrarImporte } from "@/lib/importes";
+import { formatCalendarDate } from "@/lib/format";
 import { crearIntentoSeguro } from "@/lib/intento-seguro";
 import { consultarPropuesta } from "../api";
 import { decidirPropuesta } from "../decision";
@@ -113,7 +114,7 @@ export function PropuestaFinal({ solicitud, recibida }: { solicitud: number; rec
                 </p>
                 {l.fechaComprometida ? (
                   <p className="text-sm text-muted-foreground">
-                    Fecha comprometida: {l.fechaComprometida}
+                    Fecha comprometida: {formatCalendarDate(l.fechaComprometida)}
                   </p>
                 ) : null}
                 {l.modalidad === "personalizacion" ? (
