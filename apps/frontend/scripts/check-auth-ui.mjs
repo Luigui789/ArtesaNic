@@ -150,7 +150,7 @@ await verificar("33. modo real: sin «Vista de demostración» ni cambio de rol"
   const navegacion = texto(artesano.match(/<nav aria-label="Navegación del taller".*?<\/nav>/s)[0]);
   assert.equal(
     navegacion.trim(),
-    "Mi taller Mi taller Solicitudes Pedidos Productos Inventario Perfil del taller",
+    "Mi taller Resumen Solicitudes Pedidos Productos Inventario Perfil del taller",
   );
 });
 

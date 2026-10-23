@@ -12,7 +12,7 @@ export const PUBLIC_NAV: NavigationItem[] = [
 export function navigationFor(rol: Role, real: boolean): NavigationItem[] {
   if (rol === "artesano")
     return [
-      { to: "/panel", label: "Mi taller", end: true },
+      { to: "/panel", label: "Resumen", end: true },
       { to: "/panel/solicitudes", label: "Solicitudes" },
       { to: "/panel/pedidos", label: real ? "Pedidos" : "Pedidos de demo" },
       { to: "/panel/productos", label: "Productos" },

@@ -12,7 +12,7 @@ import { useSession } from "@/features/auth/use-session";
 import { claves } from "@/lib/query-keys";
 import { mensajeDominio } from "@/lib/errores-dominio";
 import { mostrarImporte } from "@/lib/importes";
-import { formatDate } from "@/lib/format";
+import { formatCalendarDate, formatDate } from "@/lib/format";
 import { parseRouteId } from "@/lib/route-id";
 import { reintentarSalvoErrorDelCliente } from "@/lib/http";
 import { MODALIDAD_LABELS } from "@/lib/labels";
@@ -171,7 +171,9 @@ export function ContenidoPedidoConfirmado({
                     </p>
                   ) : null}
                   {l.fechaComprometida ? (
-                    <p className="text-sm">Fecha comprometida: {l.fechaComprometida}</p>
+                    <p className="text-sm">
+                      Fecha comprometida: {formatCalendarDate(l.fechaComprometida)}
+                    </p>
                   ) : null}
                 </li>
               ))}

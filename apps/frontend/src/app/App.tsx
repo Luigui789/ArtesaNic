@@ -1,10 +1,4 @@
 import { Suspense, lazy } from "react";
-import { LoadingState } from "@/components/common/states";
-import {
-  ListadoPedidosConfirmados,
-  DetallePedidoConfirmado,
-} from "@/features/pedidos/pages/confirmados";
-import { ListadoInventario, DetalleInventario } from "@/features/inventario/pages/inventario";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router";
 import { SessionProvider } from "@/features/auth/use-session";
@@ -13,6 +7,7 @@ import { RequiereSesion, SoloDemo } from "@/features/auth/components/requiere-se
 import { CurrencyProvider } from "@/hooks/use-currency";
 import { NotificationsProvider } from "@/features/notificaciones/use-notifications";
 import { Toaster } from "@/components/ui/sonner";
+import { LoadingState } from "@/components/common/states";
 import { AppErrorBoundary } from "./error-boundary";
 import { ScrollToTop } from "./scroll-to-top";
 import { NotFound } from "./not-found";
@@ -26,15 +21,23 @@ import Producto from "@/features/catalogo/pages/producto";
 import Artesano from "@/features/talleres/pages/artesano";
 import Solicitar from "@/features/solicitudes/pages/preparar";
 import { ListadoSolicitudes, DetalleSolicitud } from "@/features/solicitudes/pages/consultas";
-const PedidosIndex = lazy(() => import("@/features/pedidos/pages/pedidos"));
-const PedidosDetalle = lazy(() => import("@/features/pedidos/pages/pedido-detalle"));
-const Notificaciones = lazy(() => import("@/features/notificaciones/pages/notificaciones"));
-const Mensajes = lazy(() => import("@/features/mensajes/pages/mensajes"));
+import {
+  ListadoPedidosConfirmados,
+  DetallePedidoConfirmado,
+} from "@/features/pedidos/pages/confirmados";
+import { ListadoInventario, DetalleInventario } from "@/features/inventario/pages/inventario";
+import { InventarioSoloReal } from "@/features/inventario/pages/solo-real";
 import PanelIndex from "@/features/talleres/pages/panel-inicio";
 import PanelResumen from "@/features/talleres/pages/panel-resumen";
 import PanelTaller from "@/features/talleres/pages/panel-taller";
 import PanelPerfil from "@/features/talleres/pages/panel-perfil";
 import PanelProductos from "@/features/catalogo/pages/panel-productos";
+
+/** Pantallas de la demo antigua: se cargan de forma diferida. */
+const PedidosIndex = lazy(() => import("@/features/pedidos/pages/pedidos"));
+const PedidosDetalle = lazy(() => import("@/features/pedidos/pages/pedido-detalle"));
+const Notificaciones = lazy(() => import("@/features/notificaciones/pages/notificaciones"));
+const Mensajes = lazy(() => import("@/features/mensajes/pages/mensajes"));
 const PanelPedidosIndex = lazy(() => import("@/features/pedidos/pages/panel-pedidos"));
 const PanelPedidosDetalle = lazy(() => import("@/features/pedidos/pages/panel-pedido-detalle"));
 
@@ -115,15 +118,11 @@ export function App() {
                     />
                     <Route
                       path="/panel/inventario"
-                      element={artesano(
-                        authReal ? <ListadoInventario /> : demo(<PanelProductos />),
-                      )}
+                      element={artesano(authReal ? <ListadoInventario /> : <InventarioSoloReal />)}
                     />
                     <Route
                       path="/panel/inventario/:productoId"
-                      element={artesano(
-                        authReal ? <DetalleInventario /> : demo(<PanelProductos />),
-                      )}
+                      element={artesano(authReal ? <DetalleInventario /> : <InventarioSoloReal />)}
                     />
                     <Route path="/panel/productos" element={artesano(<PanelProductos />)} />
                     <Route
