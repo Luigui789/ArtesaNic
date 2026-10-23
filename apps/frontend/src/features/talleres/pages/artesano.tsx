@@ -85,6 +85,8 @@ export default function PerfilArtesano() {
   }
 
   const a = artesano.data;
+  const portadaUrl = a.imagenPortada ?? a.demo?.portadaUrl;
+  const perfilUrl = a.imagenPerfil ?? a.demo?.fotoUrl;
   const contactos = [
     { valor: a.telefono, etiqueta: "Teléfono", Icono: Phone },
     { valor: a.whatsapp, etiqueta: "WhatsApp", Icono: MessageCircle },
@@ -96,9 +98,9 @@ export default function PerfilArtesano() {
   return (
     <SiteLayout>
       <div className="relative aspect-[2/1] overflow-hidden bg-surface sm:aspect-[4/1]">
-        {a.demo ? (
+        {portadaUrl ? (
           <img
-            src={a.demo.portadaUrl}
+            src={portadaUrl}
             alt={`Portada del taller ${a.nombre}`}
             width={1024}
             height={768}
@@ -109,10 +111,10 @@ export default function PerfilArtesano() {
 
       <div className="mx-auto max-w-7xl px-4">
         <header className="relative z-10 -mt-8 grid grid-cols-[auto_minmax(0,1fr)] items-end gap-4 rounded-xl border bg-card p-5 sm:flex sm:items-center">
-          {a.demo ? (
+          {perfilUrl ? (
             <img
-              src={a.demo.fotoUrl}
-              alt=""
+              src={perfilUrl}
+              alt={`Imagen de perfil del taller ${a.nombre}`}
               className="size-20 shrink-0 rounded-xl border-4 border-card object-cover"
             />
           ) : (

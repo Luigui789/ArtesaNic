@@ -336,6 +336,15 @@ await verificar("2. el formulario carga los datos actuales y no edita el estado"
   for (const id of ["estado", "motivo", "revisado", "propietario"])
     assert.doesNotMatch(html, new RegExp(`id="perfil-${id}`));
   assert.match(texto(html), /no cambia el estado de aprobación/);
+  assert.match(html, /id="perfil-imagen-perfil"/);
+  assert.match(html, /id="perfil-imagen-portada"/);
+  assert.match(texto(html), /Cambiar imagen de perfil/);
+  assert.match(texto(html), /Cambiar imagen de portada/);
+  const archivo = new File([new Uint8Array([1, 2, 3])], "logo.png", { type: "image/png" });
+  const form = m.http.cuerpoPerfilTaller({ imagenPerfil: archivo });
+  assert.ok(form instanceof FormData);
+  assert.equal(form.get("imagen_perfil"), archivo);
+  assert.equal(form.get("imagen_portada"), null);
 });
 
 await verificar(

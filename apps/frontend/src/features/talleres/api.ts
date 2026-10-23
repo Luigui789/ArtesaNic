@@ -45,4 +45,10 @@ export const getMiTaller = http.getMiTaller;
 export const actualizarMiTaller = http.actualizarMiTaller;
 
 export { featuredArtisans, getArtisan, listArtisans, updateArtisan } from "@/mocks/talleres";
-export type { EstadoTaller, PerfilTaller, PerfilTallerEntrada, TallerPropio } from "./types";
+export type {
+  ActualizarPerfilTallerInput,
+  EstadoTaller,
+  PerfilTaller,
+  PerfilTallerEntrada,
+  TallerPropio,
+} from "./types";

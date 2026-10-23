@@ -40,9 +40,11 @@ export function cambiosDelPerfil(
   return cambios;
 }
 
-const CAMPO_DE_API = Object.fromEntries(
-  Object.entries(CAMPOS_PERFIL_API).map(([campo, api]) => [api, campo]),
-) as Record<string, keyof PerfilTallerEntrada>;
+const CAMPO_DE_API: Record<string, string> = {
+  ...Object.fromEntries(Object.entries(CAMPOS_PERFIL_API).map(([campo, api]) => [api, campo])),
+  imagen_perfil: "imagenPerfil",
+  imagen_portada: "imagenPortada",
+};
 
 /** Errores `400` del `PATCH` (`{"direccion_completa": [...]}`) por campo del formulario. */
 export function erroresDelPerfil(campos: Record<string, string[]>): {
