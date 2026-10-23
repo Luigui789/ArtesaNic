@@ -5,13 +5,39 @@ vista, serializer ni formulario de administración cambia ``estado`` por su cuen
 Ciclo V1: pendiente → aprobado y pendiente → rechazado; ambos resultados son finales.
 """
 
+import logging
+
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import Rol
 
-from .models import CAMPOS_PERFIL, EstadoTaller, Taller
+from .models import CAMPOS_ACTUALIZABLES_PERFIL, CAMPOS_IMAGENES, EstadoTaller, Taller
+
+logger = logging.getLogger(__name__)
+
+
+def _eliminar_archivo(storage, nombre):
+    try:
+        storage.delete(nombre)
+    except OSError:
+        logger.exception("No se pudo limpiar imagen obsoleta del taller: %s", nombre)
+
+
+def _guardar_taller(taller: Taller, **kwargs):
+    nuevas = [
+        getattr(taller, campo)
+        for campo in CAMPOS_IMAGENES
+        if getattr(taller, campo) and not getattr(taller, campo)._committed
+    ]
+    try:
+        taller.save(**kwargs)
+    except Exception:
+        for archivo in nuevas:
+            if archivo._committed:
+                _eliminar_archivo(archivo.storage, archivo.name)
+        raise
 
 
 class PropietarioNoValido(Exception):
@@ -78,17 +104,25 @@ def crear_taller_pendiente(
 
 def actualizar_perfil(taller: Taller, **datos) -> Taller:
     """Modifica los datos públicos del perfil (RF-008.4) sin tocar estado ni revisión."""
-    desconocidos = set(datos) - set(CAMPOS_PERFIL)
+    desconocidos = set(datos) - set(CAMPOS_ACTUALIZABLES_PERFIL)
     if desconocidos:
         raise ValueError(f"Campos que no pertenecen al perfil: {sorted(desconocidos)}")
     with transaction.atomic():
         # El bloqueo evita validar contra un estado que una revisión simultánea cambió.
         actual = Taller.objects.select_for_update().get(pk=taller.pk)
+        anteriores = {
+            campo: (getattr(actual, campo).name, getattr(actual, campo).storage)
+            for campo in CAMPOS_IMAGENES
+            if campo in datos
+        }
         for campo, valor in datos.items():
             setattr(actual, campo, valor)
         actual.full_clean()
         # Solo los campos enviados: nunca se reescriben estado ni revisión.
-        actual.save(update_fields=[*datos, "actualizado_en"])
+        _guardar_taller(actual, update_fields=[*datos, "actualizado_en"])
+        for campo, (anterior, storage) in anteriores.items():
+            if anterior and anterior != getattr(actual, campo).name:
+                transaction.on_commit(lambda s=storage, n=anterior: _eliminar_archivo(s, n))
     return actual
 
 

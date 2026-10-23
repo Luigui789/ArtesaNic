@@ -1,6 +1,13 @@
 """API de talleres: perfil público solo si está aprobado y taller propio del artesano
 (RF-008, RN-002, RN-006, RNF-004, RNF-013)."""
 
+from io import BytesIO
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import override_settings
+from PIL import Image
 from rest_framework.test import APITestCase
 
 from apps.accounts.api.tokens import emitir_tokens
@@ -17,7 +24,13 @@ from .base import (
     url_taller,
 )
 
-CAMPOS_PUBLICOS = {"id", *CAMPOS_PERFIL}
+CAMPOS_PUBLICOS = {"id", *CAMPOS_PERFIL, "imagen_perfil_url", "imagen_portada_url"}
+
+
+def imagen_prueba_taller(formato="PNG", nombre="original.png"):
+    contenido = BytesIO()
+    Image.new("RGB", (8, 6), "blue").save(contenido, format=formato)
+    return SimpleUploadedFile(nombre, contenido.getvalue(), content_type="image/png")
 
 
 class TalleresAPITestCase(APITestCase):
@@ -191,3 +204,114 @@ class MiTallerActualizacionTests(TalleresAPITestCase):
                 self.assertEqual(
                     getattr(self.client, metodo)(URL_MI_TALLER, {}, format="json").status_code, 405
                 )
+
+
+class ImagenesTallerTests(TalleresAPITestCase):
+    def setUp(self):
+        super().setUp()
+        self.temporal = TemporaryDirectory(prefix="taller-img-")
+        self.addCleanup(self.temporal.cleanup)
+        configuracion = override_settings(MEDIA_ROOT=self.temporal.name)
+        configuracion.enable()
+        self.addCleanup(configuracion.disable)
+        self.autenticar(self.aprobado.propietario)
+
+    def test_subir_solo_perfil_y_luego_solo_portada_conserva_la_otra(self):
+        r1 = self.client.patch(
+            URL_MI_TALLER,
+            {"imagen_perfil": imagen_prueba_taller("PNG", "logo.png")},
+            format="multipart",
+        )
+        self.assertEqual(r1.status_code, 200, r1.content)
+        datos1 = r1.json()
+        self.assertIsNotNone(datos1["imagen_perfil_url"])
+        self.assertIsNone(datos1["imagen_portada_url"])
+        self.aprobado.refresh_from_db()
+        ruta_perfil_inicial = self.aprobado.imagen_perfil.path
+        self.assertTrue(Path(ruta_perfil_inicial).is_file())
+        self.assertRegex(
+            self.aprobado.imagen_perfil.name,
+            r"^talleres/[a-f0-9]{32}/perfil/[a-f0-9]{32}\.png$",
+        )
+
+        # Ahora subir solo portada: debe conservar imagen_perfil intacta.
+        r2 = self.client.patch(
+            URL_MI_TALLER,
+            {"imagen_portada": imagen_prueba_taller("JPEG", "portada.jpg")},
+            format="multipart",
+        )
+        self.assertEqual(r2.status_code, 200, r2.content)
+        datos2 = r2.json()
+        self.assertEqual(datos2["imagen_perfil_url"], datos1["imagen_perfil_url"])
+        self.assertIsNotNone(datos2["imagen_portada_url"])
+        self.aprobado.refresh_from_db()
+        self.assertEqual(self.aprobado.imagen_perfil.path, ruta_perfil_inicial)
+        self.assertTrue(Path(self.aprobado.imagen_portada.path).is_file())
+        self.assertRegex(
+            self.aprobado.imagen_portada.name,
+            r"^talleres/[a-f0-9]{32}/portada/[a-f0-9]{32}\.jpg$",
+        )
+
+        # Vista pública muestra ambas URLs.
+        publico = self.client.get(url_taller(self.aprobado.pk)).json()
+        self.assertEqual(publico["imagen_perfil_url"], datos2["imagen_perfil_url"])
+        self.assertEqual(publico["imagen_portada_url"], datos2["imagen_portada_url"])
+
+    def test_subir_ambas_y_reemplazar_elimina_archivo_anterior_tras_commit(self):
+        r1 = self.client.patch(
+            URL_MI_TALLER,
+            {
+                "imagen_perfil": imagen_prueba_taller("PNG"),
+                "imagen_portada": imagen_prueba_taller("WEBP"),
+            },
+            format="multipart",
+        )
+        self.assertEqual(r1.status_code, 200, r1.content)
+        self.aprobado.refresh_from_db()
+        anterior_perfil = self.aprobado.imagen_perfil.path
+        anterior_portada = self.aprobado.imagen_portada.path
+
+        with self.captureOnCommitCallbacks(execute=True) as callbacks:
+            r2 = self.client.patch(
+                URL_MI_TALLER,
+                {"imagen_perfil": imagen_prueba_taller("JPEG")},
+                format="multipart",
+            )
+            self.assertEqual(r2.status_code, 200, r2.content)
+            self.assertTrue(Path(anterior_perfil).exists())
+        self.assertEqual(len(callbacks), 1)
+        self.aprobado.refresh_from_db()
+        self.assertFalse(Path(anterior_perfil).exists())
+        self.assertTrue(Path(self.aprobado.imagen_perfil.path).exists())
+        self.assertEqual(self.aprobado.imagen_portada.path, anterior_portada)
+        self.assertTrue(Path(anterior_portada).exists())
+
+    def test_rechaza_archivos_invalidos_pesados_corruptos_y_base64(self):
+        limite = 5 * 1024 * 1024
+        base_png = imagen_prueba_taller().read()
+        archivos_invalidos = [
+            imagen_prueba_taller("GIF", "anim.gif"),
+            SimpleUploadedFile("vector.svg", b"<svg></svg>", "image/svg+xml"),
+            SimpleUploadedFile("falso.jpg", b"no es imagen", "image/jpeg"),
+            SimpleUploadedFile("corrupto.png", b"\x89PNG\r\n\x1a\ncorrupto", "image/png"),
+            SimpleUploadedFile(
+                "grande.png", base_png + b"0" * (limite + 1 - len(base_png)), "image/png"
+            ),
+        ]
+        for campo in ("imagen_perfil", "imagen_portada"):
+            for archivo in archivos_invalidos:
+                with self.subTest(campo=campo, archivo=archivo.name):
+                    archivo.seek(0)
+                    r = self.client.patch(URL_MI_TALLER, {campo: archivo}, format="multipart")
+                    self.assertEqual(r.status_code, 400, r.content)
+                    self.assertIn(campo, r.json())
+            for texto in (
+                "data:image/png;base64,iVBORw0KGgo=",
+                "/etc/passwd",
+                "https://x.ni/a.jpg",
+            ):
+                with self.subTest(campo=campo, texto=texto):
+                    r = self.client.patch(URL_MI_TALLER, {campo: texto}, format="json")
+                    self.assertEqual(r.status_code, 400, r.content)
+                    self.assertIn(campo, r.json())
+        self.assertEqual(list(Path(self.temporal.name).rglob("*")), [])
