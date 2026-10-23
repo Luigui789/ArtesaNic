@@ -19,6 +19,7 @@ from apps.propuestas import services
 from apps.propuestas.api.serializers import PropuestaSerializer
 from apps.propuestas.models import CargoPropuesta, LineaPropuesta, Propuesta
 from apps.propuestas.selectors import propuestas_con_detalle
+from apps.solicitudes import services as solicitudes
 from apps.solicitudes.models import EstadoSolicitud, RenglonSolicitud
 from apps.solicitudes.tests.base import datos_renglon
 
@@ -191,6 +192,63 @@ class EmisionTests(PropuestaAPITestCase):
         self.assertEqual(
             (respuesta.data["costo_entrega"], respuesta.data["total"]), ("0.00", "776.50")
         )
+
+    def test_retiro_en_taller_rechaza_costo_de_entrega_mayor_que_cero(self):
+        respuesta = self.emitir(
+            self.condiciones(
+                modalidad_entrega="retiro_taller",
+                descripcion_entrega="",
+                costo_entrega="150.00",
+            )
+        )
+        self.assertEqual(respuesta.status_code, 400, respuesta.data)
+        self.assertEqual(
+            respuesta.data,
+            {"costo_entrega": ["El retiro en el taller no tiene costo de entrega."]},
+        )
+        self.assertFalse(Propuesta.objects.exists())
+
+    def test_artesano_no_puede_modificar_modalidad_ni_descripcion_de_entrega_del_comprador(self):
+        con_preferencia = solicitudes.crear_solicitud(
+            comprador=self.comprador,
+            renglones=[datos_renglon(self.p_stock, cantidad=2)],
+            modalidad_entrega_preferida="punto_encuentro",
+            descripcion_entrega_preferida="Parque central de Masaya",
+        )
+        self.revisar(con_preferencia, rechazados=set())
+        renglon_id = con_preferencia.renglones.get().pk
+        base = {
+            "costo_entrega": "80.00",
+            "lineas": [{"renglon": renglon_id}],
+            "otros_cargos": [],
+        }
+
+        # Intentar cambiar modalidad_entrega responde 400.
+        r1 = self.emitir(
+            base | {"modalidad_entrega": "entrega_artesano"},
+            solicitud=con_preferencia,
+        )
+        self.assertEqual(r1.status_code, 400, r1.data)
+        self.assertIn("modalidad_entrega", r1.data)
+
+        # Intentar cambiar descripcion_entrega responde 400.
+        r2 = self.emitir(
+            base
+            | {
+                "modalidad_entrega": "punto_encuentro",
+                "descripcion_entrega": "Otro lugar distinto",
+            },
+            solicitud=con_preferencia,
+        )
+        self.assertEqual(r2.status_code, 400, r2.data)
+        self.assertIn("descripcion_entrega", r2.data)
+
+        # Omitir modalidad/descripcion toma los valores elegidos por el comprador.
+        r3 = self.emitir(base, solicitud=con_preferencia)
+        self.assertEqual(r3.status_code, 201, r3.data)
+        self.assertEqual(r3.data["modalidad_entrega"], "punto_encuentro")
+        self.assertEqual(r3.data["descripcion_entrega"], "Parque central de Masaya")
+        self.assertEqual(r3.data["costo_entrega"], "80.00")
 
     def test_cargo_de_personalizacion_solo_en_renglones_de_personalizacion(self):
         lineas = self.condiciones()["lineas"]
@@ -466,6 +524,7 @@ class InvariantesBDTests(PropuestaAPITestCase):
             {"costo_entrega": Decimal("-1.00")},
             {"modalidad_entrega": "dron"},
             {"modalidad_entrega": "otra", "descripcion_entrega": ""},
+            {"modalidad_entrega": "retiro_taller"},
         ):
             with self.subTest(cambios=cambios):
                 self.violar(Propuesta, **cambios)

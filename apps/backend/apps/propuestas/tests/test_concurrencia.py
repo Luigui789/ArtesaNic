@@ -209,7 +209,7 @@ class CarrerasDePropuestaTests(CarreraTestCase):
             artesano=self.artesano,
             clave=str(uuid4()),
             solicitud_id=self.solicitud.pk,
-            modalidad_entrega="retiro_taller",
+            modalidad_entrega="entrega_artesano",
             costo_entrega=Decimal(costo),
             lineas=[{"renglon": self.renglon.pk}],
             otros_cargos=[{"descripcion": "Empaque", "monto": Decimal("5.00")}],
@@ -243,7 +243,7 @@ class CarrerasDePropuestaTests(CarreraTestCase):
                 propuestas.finalizar_propuesta(
                     artesano=self.artesano,
                     solicitud_id=self.solicitud.pk,
-                    modalidad_entrega="retiro_taller",
+                    modalidad_entrega="entrega_artesano",
                     costo_entrega=Decimal("1.00"),
                     lineas=[{"renglon": self.renglon.pk}],
                     otros_cargos=[{"descripcion": "x", "monto": Decimal("1.00")}],

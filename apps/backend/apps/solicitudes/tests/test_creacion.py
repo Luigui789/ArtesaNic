@@ -122,6 +122,20 @@ class CreacionTests(SolicitudesAPITestCase):
         self.assertEqual(respuesta.status_code, 201)
         self.assertEqual(RenglonSolicitud.objects.get().cantidad, 100000)
 
+    def test_stock_con_inventario_inicializado_rechaza_cantidad_mayor_a_disponible(self):
+        from apps.inventario import services as inventario
+
+        inventario.establecer_inventario_inicial(
+            artesano=self.artesano, producto_id=self.producto.pk, cantidad=4
+        )
+        respuesta = self.enviar(datos_renglon(self.producto, modalidad="stock", cantidad=5))
+        self.assertEqual(respuesta.status_code, 400, respuesta.data)
+        self.assertIn("cantidad", respuesta.data["renglones"][0])
+        self.assertFalse(Solicitud.objects.exists())
+
+        ok = self.enviar(datos_renglon(self.producto, modalidad="stock", cantidad=4))
+        self.assertEqual(ok.status_code, 201, ok.data)
+
     def test_stock_no_requiere_datos_de_otras_modalidades(self):
         respuesta = self.enviar(datos_renglon(self.producto))
         self.assertEqual(respuesta.status_code, 201)

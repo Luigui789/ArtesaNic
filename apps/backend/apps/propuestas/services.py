@@ -19,7 +19,12 @@ from apps.operaciones import services as operaciones
 from apps.operaciones.models import TipoOperacion
 from apps.pedidos import services as pedidos
 from apps.solicitudes import services as solicitudes
-from apps.solicitudes.models import EstadoSolicitud, ResolucionRenglon, errores_entrega
+from apps.solicitudes.models import (
+    EstadoSolicitud,
+    ModalidadEntrega,
+    ResolucionRenglon,
+    errores_entrega,
+)
 from apps.solicitudes.services import CodigoConflicto, ConflictoSolicitud, EntradaInvalida
 
 from .models import (
@@ -109,10 +114,10 @@ def finalizar_propuesta(
     *,
     artesano,
     solicitud_id: int,
-    modalidad_entrega: str,
     costo_entrega: Decimal,
     lineas: list[dict],
-    descripcion_entrega: str = "",
+    modalidad_entrega: str | None = None,
+    descripcion_entrega: str | None = None,
     otros_cargos: list[dict] | None = None,
 ) -> Propuesta:
     """Emite la propuesta final de una solicitud lista para propuesta.
@@ -137,9 +142,40 @@ def finalizar_propuesta(
     if not aceptados:
         raise ConflictoSolicitud(CodigoConflicto.SIN_RENGLONES_ACEPTADOS)
 
+    if solicitud.modalidad_entrega_preferida:
+        errores_inmutables = {}
+        if (
+            modalidad_entrega is not None
+            and modalidad_entrega != solicitud.modalidad_entrega_preferida
+        ):
+            errores_inmutables["modalidad_entrega"] = [
+                "El artesano no puede modificar la modalidad de entrega elegida por el comprador."
+            ]
+        if (
+            descripcion_entrega is not None
+            and descripcion_entrega.strip() != solicitud.descripcion_entrega_preferida.strip()
+        ):
+            errores_inmutables["descripcion_entrega"] = [
+                (
+                    "El artesano no puede modificar la descripción de entrega "
+                    "indicada por el comprador."
+                )
+            ]
+        if errores_inmutables:
+            raise EntradaInvalida(errores_inmutables)
+        modalidad_entrega = solicitud.modalidad_entrega_preferida
+        descripcion_entrega = solicitud.descripcion_entrega_preferida
+    else:
+        modalidad_entrega = modalidad_entrega or ""
+        descripcion_entrega = descripcion_entrega or ""
+
     errores = errores_entrega(modalidad_entrega, descripcion_entrega, opcional=False)
     if errores:
         raise EntradaInvalida({f"{c}_entrega": [m] for c, m in errores.items()})
+    if modalidad_entrega == ModalidadEntrega.RETIRO_TALLER and costo_entrega != CERO:
+        raise EntradaInvalida(
+            {"costo_entrega": ["El retiro en el taller no tiene costo de entrega."]}
+        )
     _validar_lineas(lineas, aceptados, timezone.localdate())
     _validar_cargos(otros_cargos, aceptados)
 

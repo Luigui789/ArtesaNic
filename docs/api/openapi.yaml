@@ -2137,7 +2137,10 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PatchedPerfilTallerEntradaRequest'
+              $ref: '#/components/schemas/PatchedActualizarPerfilTallerRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedActualizarPerfilTallerRequest'
       security:
       - jwtAuth: []
       responses:
@@ -3073,12 +3076,10 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SolicitudComprador'
-    PatchedPerfilTallerEntradaRequest:
+    PatchedActualizarPerfilTallerRequest:
       type: object
-      description: |-
-        Datos del perfil que escribe el artesano (RF-008).
-
-        Propietario, estado y revisión no son campos de entrada: enviarlos responde 400.
+      description: Edición del perfil del taller propio, incluyendo imagen de perfil
+        e imagen de portada.
       properties:
         nombre:
           type: string
@@ -3133,6 +3134,18 @@ components:
             maxLength: 200
           - type: string
             maxLength: 0
+        imagen_perfil:
+          type: string
+          format: binary
+          nullable: true
+          description: Imagen estática JPEG, PNG o WebP del logo/perfil del taller,
+            máximo 5 MiB.
+        imagen_portada:
+          type: string
+          format: binary
+          nullable: true
+          description: Imagen estática JPEG, PNG o WebP de portada del taller, máximo
+            5 MiB.
     PatchedProductoEntradaRequest:
       type: object
       description: |-
@@ -3559,10 +3572,18 @@ components:
           format: uri
           nullable: true
           readOnly: true
+        disponible_stock:
+          type: integer
+          minimum: 0
+          nullable: true
+          readOnly: true
+          description: Unidades disponibles actualmente para venta desde stock; null
+            si no admite stock.
       required:
       - categoria
       - creado_en
       - descripcion
+      - disponible_stock
       - fotografia_url
       - id
       - modalidades
@@ -3736,7 +3757,6 @@ components:
       required:
       - costo_entrega
       - lineas
-      - modalidad_entrega
     RecursoOperacion:
       type: object
       properties:
@@ -4240,6 +4260,16 @@ components:
           type: string
           format: uri
           readOnly: true
+        imagen_perfil_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        imagen_portada_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
         estado:
           allOf:
           - $ref: '#/components/schemas/EstadoTallerEnum'
@@ -4270,6 +4300,8 @@ components:
       - historia
       - horario
       - id
+      - imagen_perfil_url
+      - imagen_portada_url
       - instagram_url
       - motivo_rechazo
       - nombre
@@ -4326,12 +4358,24 @@ components:
           type: string
           format: uri
           readOnly: true
+        imagen_perfil_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
+        imagen_portada_url:
+          type: string
+          format: uri
+          nullable: true
+          readOnly: true
       required:
       - direccion_completa
       - facebook_url
       - historia
       - horario
       - id
+      - imagen_perfil_url
+      - imagen_portada_url
       - instagram_url
       - nombre
       - rubro

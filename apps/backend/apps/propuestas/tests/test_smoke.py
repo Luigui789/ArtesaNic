@@ -152,9 +152,26 @@ class SmokePropuestaTests(LiveServerTestCase):
         self.assertEqual((codigo, lista["estado"]), (200, "lista_propuesta"))
 
         # 10–12. Emisión con plan, costo, fecha comprometida y cargos; desglose y total.
+        # El artesano no puede cambiar la modalidad ni la descripción de entrega del comprador.
+        codigo_invalido, _, _ = self.peticion(
+            f"{RUTA}recibidas/{sid}/propuesta/",
+            datos={
+                "modalidad_entrega": "entrega_artesano",
+                "descripcion_entrega": "Otra dirección",
+                "costo_entrega": "50.00",
+                "lineas": [
+                    {"renglon": r1, "fecha_comprometida": comprometida},
+                    {"renglon": r3, "cargo_personalizacion": "80.00"},
+                ],
+            },
+            token=token_a,
+            clave=str(uuid4()),
+        )
+        self.assertEqual(codigo_invalido, 400)
+
         condiciones = {
             "modalidad_entrega": "punto_encuentro",
-            "descripcion_entrega": "Mercado de artesanías, sábado 10:00",
+            "descripcion_entrega": "Mercado de artesanías",
             "costo_entrega": "50.00",
             "lineas": [
                 {"renglon": r1, "fecha_comprometida": comprometida},

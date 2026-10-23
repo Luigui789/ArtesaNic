@@ -127,7 +127,7 @@ class CatalogoView(ListModelMixin, GenericAPIView):
         filtros = FiltrosCatalogoSerializer(data=self.request.query_params)
         filtros.is_valid(raise_exception=True)
         datos = filtros.validated_data
-        productos = Producto.objects.catalogo().select_related("taller", "categoria")
+        productos = Producto.objects.catalogo().select_related("taller", "categoria", "inventario")
         if q := datos.get("q", "").strip():
             productos = productos.filter(nombre__icontains=q)
         if categoria := datos.get("categoria"):
@@ -171,7 +171,8 @@ class ProductoPublicoView(_VistaPublica):
     )
     def get(self, request, producto_id: int):
         producto = get_object_or_404(
-            Producto.objects.catalogo().select_related("taller", "categoria"), pk=producto_id
+            Producto.objects.catalogo().select_related("taller", "categoria", "inventario"),
+            pk=producto_id,
         )
         return Response(ProductoPublicoSerializer(producto).data)
 

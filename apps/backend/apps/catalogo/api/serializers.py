@@ -1,3 +1,4 @@
+from django.core.exceptions import ObjectDoesNotExist
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
@@ -110,6 +111,22 @@ class _ProductoLecturaSerializer(serializers.ModelSerializer):
 class ProductoPublicoSerializer(_ProductoLecturaSerializer):
     """Producto del catálogo público. Solo productos publicados de talleres aprobados."""
 
+    disponible_stock = serializers.SerializerMethodField(
+        help_text=(
+            "Unidades disponibles actualmente para venta desde stock; null si no admite stock."
+        )
+    )
+
+    @extend_schema_field(serializers.IntegerField(allow_null=True, min_value=0))
+    def get_disponible_stock(self, obj) -> int | None:
+        if not obj.permite_stock:
+            return None
+        try:
+            inventario = obj.inventario
+        except ObjectDoesNotExist:
+            return 0
+        return inventario.disponible
+
     class Meta:
         model = Producto
         fields = [
@@ -122,6 +139,7 @@ class ProductoPublicoSerializer(_ProductoLecturaSerializer):
             "taller",
             "creado_en",
             "fotografia_url",
+            "disponible_stock",
         ]
         read_only_fields = fields
 

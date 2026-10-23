@@ -74,7 +74,10 @@ class CargoEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer)
 
 
 class PropuestaEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
-    modalidad_entrega = serializers.ChoiceField(choices=ModalidadEntrega.choices)
+    modalidad_entrega = serializers.ChoiceField(
+        choices=ModalidadEntrega.choices,
+        required=False,
+    )
     descripcion_entrega = serializers.CharField(
         required=False,
         allow_blank=True,

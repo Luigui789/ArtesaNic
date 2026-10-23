@@ -9,7 +9,7 @@ from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.db import transaction
 
 from apps.accounts.models import Rol
-from apps.catalogo.models import Producto
+from apps.catalogo.models import Modalidad, Producto
 from apps.operaciones import services as operaciones
 from apps.operaciones.models import TipoOperacion
 
@@ -137,7 +137,7 @@ def crear_solicitud(
     productos = {
         p.pk: p
         for p in Producto.objects.catalogo()
-        .select_related("taller")
+        .select_related("taller", "inventario")
         .filter(pk__in={d["producto"] for d in renglones})
     }
     errores, filas, taller_id = [], [], None
@@ -151,6 +151,17 @@ def crear_solicitud(
                 taller_id = producto.taller_id
             elif producto.taller_id != taller_id:
                 error["producto"] = ["Todos los renglones deben pertenecer al mismo taller."]
+            if datos.get("modalidad") == Modalidad.STOCK and getattr(
+                producto, "permite_stock", False
+            ):
+                try:
+                    inv = producto.inventario
+                except ObjectDoesNotExist:
+                    inv = None
+                if inv is not None and datos["cantidad"] > inv.disponible:
+                    error["cantidad"] = [
+                        f"Supera el stock disponible actualmente ({inv.disponible} unidades)."
+                    ]
             fila = RenglonSolicitud(
                 producto=producto,
                 posicion=posicion,

@@ -593,6 +593,7 @@ class ConstraintsPedidosBDTests(ConfirmacionBaseTestCase):
             {"costo_entrega": Decimal("-1.00")},
             {"moneda": "USD"},
             {"modalidad_entrega": "otra", "descripcion_entrega": "  "},
+            {"modalidad_entrega": "retiro_taller"},
         ):
             with (
                 self.subTest(pedido=cambios),
