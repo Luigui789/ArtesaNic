@@ -23,6 +23,7 @@ import {
   type PropuestaEntrada,
   type ResolucionEntrada,
 } from "../types";
+import { esFechaCalendarioDesdeHoy, fechaLocalISO } from "../validacion";
 import { ENTREGA_LABELS } from "@/features/solicitudes/labels";
 
 export function RevisionRenglon({ solicitud, renglon }: { solicitud: number; renglon: number }) {
@@ -127,11 +128,11 @@ const esquema = z
         message: "Describe la modalidad de entrega.",
       });
     data.lineas.forEach((l, i) => {
-      if (l.modalidad === "produccion" && !/^\d{4}-\d{2}-\d{2}$/.test(l.fechaComprometida))
+      if (l.modalidad === "produccion" && !esFechaCalendarioDesdeHoy(l.fechaComprometida))
         ctx.addIssue({
           code: "custom",
           path: ["lineas", i, "fechaComprometida"],
-          message: "Indica la fecha comprometida.",
+          message: "Indica una fecha comprometida válida desde hoy.",
         });
       if (l.modalidad === "personalizacion" && !decimal.safeParse(l.cargoPersonalizacion).success)
         ctx.addIssue({
@@ -148,11 +149,14 @@ export function FormularioPropuesta({ solicitud: s }: { solicitud: Solicitud }) 
   const intento = useRef(crearIntentoSeguro());
   const enCurso = useRef(false);
   const aceptados = s.renglones.filter((r) => r.resolucion === "aceptado");
+  const modalidadEntrega = s.modalidadEntregaPreferida || "retiro_taller";
+  const descripcionEntrega = s.descripcionEntregaPreferida;
+  const esRetiroTaller = modalidadEntrega === "retiro_taller";
   const form = useForm<Datos>({
     resolver: zodResolver(esquema),
     defaultValues: {
-      modalidadEntrega: s.modalidadEntregaPreferida || "retiro_taller",
-      descripcionEntrega: s.descripcionEntregaPreferida,
+      modalidadEntrega,
+      descripcionEntrega,
       costoEntrega: "0.00",
       lineas: aceptados.map((r) => ({
         renglon: r.id,
@@ -198,9 +202,9 @@ export function FormularioPropuesta({ solicitud: s }: { solicitud: Solicitud }) 
     if (enCurso.current) return;
     enCurso.current = true;
     const input: PropuestaEntrada = {
-      modalidadEntrega: data.modalidadEntrega,
-      descripcionEntrega: data.descripcionEntrega,
-      costoEntrega: data.costoEntrega,
+      modalidadEntrega,
+      descripcionEntrega,
+      costoEntrega: esRetiroTaller ? "0.00" : data.costoEntrega,
       lineas: data.lineas.map((l) => ({
         renglon: l.renglon,
         ...(l.modalidad === "produccion" ? { fechaComprometida: l.fechaComprometida } : {}),
@@ -246,6 +250,7 @@ export function FormularioPropuesta({ solicitud: s }: { solicitud: Solicitud }) 
                   <Input
                     id={`fecha-${r.id}`}
                     type="date"
+                    min={fechaLocalISO()}
                     {...form.register(`lineas.${i}.fechaComprometida`)}
                   />
                 </FormField>
@@ -265,37 +270,40 @@ export function FormularioPropuesta({ solicitud: s }: { solicitud: Solicitud }) 
               ) : null}
             </div>
           ))}
-          <FormField id="propuesta-entrega" label="Modalidad de entrega *">
-            <select
-              id="propuesta-entrega"
-              className="min-h-11 w-full rounded-md border border-input bg-background px-3"
-              {...form.register("modalidadEntrega")}
+          <div
+            className="space-y-2 rounded-lg border bg-surface/40 p-4 text-sm"
+            aria-label="Condiciones de entrega elegidas por el comprador"
+          >
+            <div>
+              <span className="font-medium text-muted-foreground">Modalidad de entrega: </span>
+              <span className="font-semibold">{ENTREGA_LABELS[modalidadEntrega]}</span>
+            </div>
+            <div>
+              <span className="font-medium text-muted-foreground">
+                Detalle indicado por el comprador:{" "}
+              </span>
+              <span className="whitespace-pre-wrap break-words">
+                {descripcionEntrega || "Sin descripción adicional"}
+              </span>
+            </div>
+          </div>
+          {esRetiroTaller ? (
+            <div className="rounded-lg border bg-surface/40 p-4 text-sm">
+              <span className="font-medium text-muted-foreground">Costo de entrega: </span>
+              <span className="font-semibold">C$ 0.00</span>
+              <p className="mt-1 text-xs text-muted-foreground">
+                El retiro en el taller no tiene costo de entrega.
+              </p>
+            </div>
+          ) : (
+            <FormField
+              id="propuesta-costo"
+              label="Costo de entrega (C$) *"
+              error={form.formState.errors.costoEntrega?.message}
             >
-              {MODALIDADES_ENTREGA.map((m) => (
-                <option key={m} value={m}>
-                  {ENTREGA_LABELS[m]}
-                </option>
-              ))}
-            </select>
-          </FormField>
-          <FormField
-            id="propuesta-descripcion"
-            label="Descripción de la entrega"
-            error={form.formState.errors.descripcionEntrega?.message}
-          >
-            <Textarea
-              id="propuesta-descripcion"
-              maxLength={500}
-              {...form.register("descripcionEntrega")}
-            />
-          </FormField>
-          <FormField
-            id="propuesta-costo"
-            label="Costo de entrega (C$) *"
-            error={form.formState.errors.costoEntrega?.message}
-          >
-            <Input id="propuesta-costo" inputMode="decimal" {...form.register("costoEntrega")} />
-          </FormField>
+              <Input id="propuesta-costo" inputMode="decimal" {...form.register("costoEntrega")} />
+            </FormField>
+          )}
           <fieldset className="space-y-3">
             <legend className="mb-2 text-sm font-medium">Otros cargos (opcional)</legend>
             {cargos.map((_, i) => (

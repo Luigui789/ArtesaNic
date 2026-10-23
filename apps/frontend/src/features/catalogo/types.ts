@@ -45,6 +45,11 @@ export interface CatalogProduct {
    * URL persistida de la fotografía principal; ausente en productos históricos.
    */
   imagen?: string | undefined;
+  /**
+   * Unidades disponibles actualmente para venta desde stock (`disponible_stock` de la API);
+   * `null` o ausente si el producto no admite venta desde stock.
+   */
+  disponibleStock?: number | null | undefined;
 }
 
 /** Producto del taller propio: añade su estado de publicación (RF-019). */

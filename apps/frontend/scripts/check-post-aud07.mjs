@@ -27,6 +27,10 @@ const m = await cargarModulos(
     router: "react-router",
     vistaPedido: "@/features/pedidos/pages/confirmados",
     vistaInventario: "@/features/inventario/pages/inventario",
+    revision: "@/features/solicitudes/components/revision",
+    rq: "@tanstack/react-query",
+    sesion: "@/features/auth/sesion",
+    sesionReact: "@/features/auth/use-session",
   },
   { VITE_AUTH_API: "real", VITE_CATALOGO_API: "real" },
 );
@@ -280,5 +284,61 @@ verificar("no se exponen errores técnicos", () => {
     /boundary|multipart/,
   );
 });
+verificar(
+  "propuesta del artesano: modalidad/descripción de solo lectura, retiro_taller fija C$ 0.00 y fecha con min",
+  () => {
+    const qc = new m.rq.QueryClient();
+    const baseSolicitud = {
+      id: 25,
+      taller: { id: 3, nombre: "Taller histórico" },
+      estado: "lista_propuesta",
+      modalidadEntregaPreferida: "retiro_taller",
+      descripcionEntregaPreferida: "Pasaré el sábado a las 10am",
+      creadaEn: "2026-10-22T10:00:00-06:00",
+      renglones: [
+        {
+          id: 70,
+          posicion: 1,
+          producto,
+          modalidad: "produccion",
+          cantidad: 2,
+          fechaSolicitada: "2026-11-15",
+          caracteristicas: "",
+          origenPersonalizacion: "",
+          resolucion: "aceptado",
+          motivoRechazo: "",
+          resueltoEn: "2026-10-22T10:00:00-06:00",
+        },
+      ],
+    };
+    const renderPropuesta = (solicitud) =>
+      m.server.renderToStaticMarkup(
+        h(
+          m.rq.QueryClientProvider,
+          { client: qc },
+          h(m.sesionReact.SessionProvider, null, h(m.revision.FormularioPropuesta, { solicitud })),
+        ),
+      );
+    const htmlRetiro = renderPropuesta(baseSolicitud);
+    assert.match(htmlRetiro, /Retiro en taller/);
+    assert.match(htmlRetiro, /Pasaré el sábado a las 10am/);
+    assert.match(htmlRetiro, /C\$ 0\.00/);
+    assert.match(htmlRetiro, /El retiro en el taller no tiene costo de entrega/);
+    assert.doesNotMatch(htmlRetiro, /id="propuesta-costo"/);
+    assert.doesNotMatch(htmlRetiro, /id="propuesta-modalidad"/);
+    assert.doesNotMatch(htmlRetiro, /id="propuesta-entrega"/);
+    assert.match(htmlRetiro, /type="date"/);
+    assert.match(htmlRetiro, /min="\d{4}-\d{2}-\d{2}"/);
+
+    const htmlDomicilio = renderPropuesta({
+      ...baseSolicitud,
+      modalidadEntregaPreferida: "entrega_artesano",
+      descripcionEntregaPreferida: "Managua, Altamira",
+    });
+    assert.match(htmlDomicilio, /Entrega por el artesano/);
+    assert.match(htmlDomicilio, /Managua, Altamira/);
+    assert.match(htmlDomicilio, /id="propuesta-costo"/);
+  },
+);
 console.log(`OK: ${grupos} grupos de regresión frontend AUD-07.`);
 process.exit(0);

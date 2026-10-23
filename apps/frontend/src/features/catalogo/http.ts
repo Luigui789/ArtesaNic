@@ -59,6 +59,7 @@ interface ProductoDTO {
   taller: TallerResumen;
   creado_en: string;
   fotografia_url?: string | null;
+  disponible_stock?: number | null;
 }
 
 interface ProductoPropioDTO extends ProductoDTO {
@@ -99,6 +100,7 @@ export function aProductoCatalogo(p: ProductoDTO): CatalogProduct {
     taller: { id: p.taller.id, nombre: p.taller.nombre },
     creadoEn: p.creado_en,
     ...(p.fotografia_url ? { imagen: resolverFotografia(p.fotografia_url) } : {}),
+    ...(typeof p.disponible_stock === "number" ? { disponibleStock: p.disponible_stock } : {}),
   };
 }
 

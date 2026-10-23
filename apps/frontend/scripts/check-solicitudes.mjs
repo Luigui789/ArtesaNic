@@ -197,6 +197,12 @@ await verificar("cantidades enteras positivas y máximo PostgreSQL", () => {
     assert.equal(validacion.validarSolicitudBorrador([{ ...stock, cantidad }]).success, false);
   for (const cantidad of [1, 2_147_483_647])
     assert.equal(validacion.validarSolicitudBorrador([{ ...stock, cantidad }]).success, true);
+  // Cuando disponibleStock viene informado por la API pública, valida no superar el disponible.
+  const conStock = { ...stock, producto: { ...producto, disponibleStock: 3 } };
+  assert.equal(validacion.validarSolicitudBorrador([{ ...conStock, cantidad: 3 }]).success, true);
+  assert.equal(validacion.validarSolicitudBorrador([{ ...conStock, cantidad: 4 }]).success, false);
+  const sinStock = { ...stock, producto: { ...producto, disponibleStock: 0 } };
+  assert.equal(validacion.validarSolicitudBorrador([{ ...sinStock, cantidad: 1 }]).success, false);
 });
 
 await verificar("fecha de producción válida y no pasada", () => {

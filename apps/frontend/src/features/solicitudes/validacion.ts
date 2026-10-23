@@ -11,7 +11,7 @@ export function fechaLocalISO(fecha = new Date()): string {
   return `${fecha.getFullYear()}-${mes}-${dia}`;
 }
 
-function esFechaSolicitadaValida(valor: string): boolean {
+export function esFechaCalendarioDesdeHoy(valor: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
   const fecha = new Date(`${valor}T00:00:00Z`);
   return (
@@ -20,6 +20,8 @@ function esFechaSolicitadaValida(valor: string): boolean {
     valor >= fechaLocalISO()
   );
 }
+
+const esFechaSolicitadaValida = esFechaCalendarioDesdeHoy;
 
 /** Espejo de los límites del backend (MAX_RENGLONES, MAX_CARACTERISTICAS). */
 export const MAX_RENGLONES = 50;
@@ -162,6 +164,20 @@ function esquemaDelBorrador(renglones: RenglonBorrador[]) {
           code: z.ZodIssueCode.custom,
           path: ["renglones", indice, "modalidad"],
           message: "El producto no admite esta modalidad.",
+        });
+      }
+      if (
+        renglon.modalidad === "stock" &&
+        typeof renglon.producto.disponibleStock === "number" &&
+        renglon.cantidad > renglon.producto.disponibleStock
+      ) {
+        contexto.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["renglones", indice, "cantidad"],
+          message:
+            renglon.producto.disponibleStock === 0
+              ? "Sin unidades disponibles actualmente para venta desde stock."
+              : `Supera el stock disponible actualmente (${renglon.producto.disponibleStock} unidades).`,
         });
       }
     });
