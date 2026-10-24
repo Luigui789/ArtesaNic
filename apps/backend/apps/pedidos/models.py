@@ -308,14 +308,19 @@ class LineaPedido(_Inmutable):
 
 
 class EstadoPedido(models.TextChoices):
-    """Estado operativo del pedido (AUD-11). AUD-12/13 añadirán estados por migración."""
+    """Estado operativo global del pedido (AUD-11/12). Solo resume el avance general: la
+    modalidad y el cumplimiento se conservan por renglón (D-AUD12-01/03). AUD-13 añadirá
+    los suyos por migración."""
 
     CONFIRMADO = "confirmado", "Pedido confirmado"
+    EN_CUMPLIMIENTO = "en_cumplimiento", "En cumplimiento"
+    ENTREGADO = "entregado", "Entregado"
     VENCIDO_FALTA_PAGO = "vencido_falta_pago", "Vencido por falta de pago"
 
 
 class TipoEventoPedido(models.TextChoices):
     AUTOMATICO = "automatico", "Automático del sistema"
+    ARTESANO = "artesano", "Acción del artesano"
 
 
 class EstadoOperativoPedido(models.Model):
@@ -406,11 +411,27 @@ class EventoEstadoPedido(models.Model):
                 condition=~Q(tipo=TipoEventoPedido.AUTOMATICO) | Q(actor__isnull=True),
                 name="evento_pedido_automatico_sin_actor",
             ),
+            # Una transición manual siempre identifica al artesano real (D-AUD12-03).
+            models.CheckConstraint(
+                condition=~Q(tipo=TipoEventoPedido.ARTESANO) | Q(actor__isnull=False),
+                name="evento_pedido_artesano_con_actor",
+            ),
             # El vencimiento es terminal: como mucho un evento por pedido (D-AUD11-15).
             models.UniqueConstraint(
                 fields=["pedido"],
                 condition=Q(estado_nuevo=EstadoPedido.VENCIDO_FALTA_PAGO),
                 name="evento_pedido_vencimiento_unico",
+            ),
+            # Inicio del cumplimiento y entrega completa ocurren una sola vez (D-AUD12-03/10).
+            models.UniqueConstraint(
+                fields=["pedido"],
+                condition=Q(estado_nuevo=EstadoPedido.EN_CUMPLIMIENTO),
+                name="evento_pedido_inicio_unico",
+            ),
+            models.UniqueConstraint(
+                fields=["pedido"],
+                condition=Q(estado_nuevo=EstadoPedido.ENTREGADO),
+                name="evento_pedido_entregado_unico",
             ),
         ]
         indexes = [
@@ -478,3 +499,194 @@ class CargoPedido(_Inmutable):
 
     def __str__(self):
         return f"Cargo {self.posicion} del pedido #{self.pedido_id}"
+
+
+# --- Cumplimiento por renglón y ledger de entregas (AUD-12; RF-010, RN-015/018/022/023) ---
+
+# Límite técnico del motivo de discrepancia (D-AUD12-11), igual que los motivos de pagos.
+MAX_MOTIVO_DISCREPANCIA = 1000
+
+
+class _AppendOnly(models.Model):
+    """Historial de cumplimiento: se inserta una vez; no se edita ni se elimina."""
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("El historial de entregas del pedido no se modifica.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("El historial de entregas del pedido no se elimina.")
+
+
+class EstadoLineaCumplimiento(models.TextChoices):
+    """Estado visible de un renglón; se deriva, nunca se persiste (D-AUD12-04)."""
+
+    PENDIENTE = "pendiente", "Pendiente"
+    EN_CUMPLIMIENTO = "en_cumplimiento", "En cumplimiento"
+    ENTREGADO = "entregado", "Entregado"
+
+
+class CumplimientoLineaPedido(models.Model):
+    """Proyección operativa 1:1 de una ``LineaPedido`` (D-AUD12-04).
+
+    Solo registra el inicio del trabajo del renglón; las cantidades entregadas proceden del
+    ledger ``LineaEntrega``. Nace con el ``Pedido`` (AUD-07) y la migración ``pedidos.0006``
+    la crea pendiente para los pedidos existentes. El snapshot ``LineaPedido`` no cambia.
+    """
+
+    linea_pedido = models.OneToOneField(
+        LineaPedido,
+        on_delete=models.PROTECT,
+        related_name="cumplimiento",
+    )
+    iniciado_en = models.DateTimeField(null=True, blank=True)
+    iniciado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="cumplimientos_iniciados",
+        null=True,
+        blank=True,
+    )
+    actualizado_en = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = "cumplimiento de línea de pedido"
+        verbose_name_plural = "cumplimientos de líneas de pedido"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(iniciado_en__isnull=True, iniciado_por__isnull=True)
+                | Q(iniciado_en__isnull=False, iniciado_por__isnull=False),
+                name="cumplimiento_inicio_coherente",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Cumplimiento de la línea #{self.linea_pedido_id}"
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("El cumplimiento de una línea de pedido no se elimina.")
+
+
+class EntregaPedido(_AppendOnly):
+    """Entrega efectiva registrada por el artesano (D-AUD12-09). Histórica e inmutable."""
+
+    pedido = models.ForeignKey(
+        Pedido,
+        on_delete=models.PROTECT,
+        related_name="entregas",
+        db_index=False,  # cubierto por UNIQUE (pedido, numero)
+    )
+    numero = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    # Fecha declarada de la entrega; nunca futura (D-AUD12-16).
+    fecha = models.DateField()
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="entregas_registradas",
+    )
+    # Instante real del registro, siempre del reloj del servidor.
+    registrado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "entrega de pedido"
+        verbose_name_plural = "entregas de pedidos"
+        ordering = ["numero", "id"]
+        constraints = [
+            models.CheckConstraint(condition=Q(numero__gt=0), name="entrega_numero_positivo"),
+            models.UniqueConstraint(
+                fields=["pedido", "numero"], name="entrega_numero_unico_por_pedido"
+            ),
+        ]
+
+    def __str__(self):
+        return f"Entrega #{self.numero} del pedido #{self.pedido_id}"
+
+
+class LineaEntrega(_AppendOnly):
+    """Cantidad de un renglón incluida en una entrega. Producto, precio y modalidad
+    pertenecen al snapshot de ``LineaPedido`` y no se duplican aquí."""
+
+    entrega = models.ForeignKey(
+        EntregaPedido,
+        on_delete=models.PROTECT,
+        related_name="lineas",
+        db_index=False,  # cubierto por UNIQUE (entrega, linea_pedido)
+    )
+    linea_pedido = models.ForeignKey(
+        LineaPedido,
+        on_delete=models.PROTECT,
+        related_name="lineas_entrega",
+    )
+    cantidad = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+
+    class Meta:
+        verbose_name = "línea de entrega"
+        verbose_name_plural = "líneas de entrega"
+        ordering = ["id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(cantidad__gt=0), name="linea_entrega_cantidad_positiva"
+            ),
+            models.UniqueConstraint(
+                fields=["entrega", "linea_pedido"], name="linea_entrega_unica_por_entrega"
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.cantidad} de la línea #{self.linea_pedido_id} (entrega #{self.entrega_id})"
+
+
+class ResultadoRecepcion(models.TextChoices):
+    CONFIRMADA = "confirmada", "Recepción confirmada"
+    DISCREPANCIA = "discrepancia", "Discrepancia registrada"
+
+
+class RecepcionEntrega(_AppendOnly):
+    """Evidencia del comprador sobre una entrega (D-AUD12-11/12). Una por entrega.
+
+    No condiciona el consumo ni el estado del pedido y nunca revierte nada.
+    """
+
+    entrega = models.OneToOneField(
+        EntregaPedido,
+        on_delete=models.PROTECT,
+        related_name="recepcion",
+    )
+    resultado = models.CharField(max_length=20, choices=ResultadoRecepcion.choices)
+    motivo = models.TextField(
+        blank=True,
+        default="",
+        max_length=MAX_MOTIVO_DISCREPANCIA,
+        validators=[MaxLengthValidator(MAX_MOTIVO_DISCREPANCIA)],
+    )
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="recepciones_registradas",
+    )
+    registrado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "recepción de entrega"
+        verbose_name_plural = "recepciones de entregas"
+        constraints = [
+            models.CheckConstraint(
+                condition=(Q(resultado=ResultadoRecepcion.CONFIRMADA) & Q(motivo=""))
+                | (
+                    Q(resultado=ResultadoRecepcion.DISCREPANCIA)
+                    & Q(motivo__regex=PATRON_NO_EN_BLANCO)
+                ),
+                name="recepcion_motivo_coherente",
+            ),
+            models.CheckConstraint(
+                condition=Q(resultado__in=ResultadoRecepcion.values),
+                name="recepcion_resultado_valido",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Recepción de la entrega #{self.entrega_id}: {self.resultado}"

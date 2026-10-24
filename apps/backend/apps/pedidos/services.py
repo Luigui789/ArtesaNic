@@ -2,7 +2,14 @@
 
 from apps.propuestas.models import MONEDA, CargoPropuesta, LineaPropuesta, Propuesta
 
-from .models import CargoPedido, EstadoOperativoPedido, EstadoPedido, LineaPedido, Pedido
+from .models import (
+    CargoPedido,
+    CumplimientoLineaPedido,
+    EstadoOperativoPedido,
+    EstadoPedido,
+    LineaPedido,
+    Pedido,
+)
 
 
 def crear_pedido_desde_propuesta(
@@ -73,5 +80,10 @@ def crear_pedido_desde_propuesta(
     # Estado operativo inicial en la misma transacción de confirmación (D-AUD11-02).
     EstadoOperativoPedido.objects.create(
         pedido=pedido, estado=EstadoPedido.CONFIRMADO, actualizado_en=confirmado_en
+    )
+    # Cumplimiento pendiente por renglón, también en la misma transacción (D-AUD12-04).
+    CumplimientoLineaPedido.objects.bulk_create(
+        CumplimientoLineaPedido(linea_pedido=linea, actualizado_en=confirmado_en)
+        for linea in lineas_pedido
     )
     return pedido, lineas_pedido
