@@ -180,6 +180,14 @@ class ReservaInconsistente(Exception):
 MOTIVO_LIBERACION_VENCIMIENTO = "Vencimiento automático por falta de pago."
 
 
+def motivo_consumo_entrega(numero: int, pedido_id: int) -> str:
+    return f"Consumo por entrega #{numero} del pedido #{pedido_id}."
+
+
+def motivo_consumo_transformacion(pedido_id: int) -> str:
+    return f"Consumo al iniciar transformación del pedido #{pedido_id}."
+
+
 def liberar_reservas_de_pedido(*, pedido, motivo: str, actor=None) -> list[ReservaInventario]:
     """Libera todas las reservas activas del pedido (``activa → liberada``).
 
@@ -205,16 +213,19 @@ def liberar_reservas_de_pedido(*, pedido, motivo: str, actor=None) -> list[Reser
         .order_by("producto_id")
     }
     for reserva in reservas:
+        # Solo el remanente no consumido vuelve a disponibilidad (D-AUD12-08). Con Pago no
+        # confirmado nunca hubo consumo (RN-015), así que en AUD-11 equivale a ``cantidad``.
+        pendiente = reserva.cantidad_pendiente
         inv = inventarios[reserva.producto_id]
         reservada_antes = inv.reservada
-        inv.reservada = reservada_antes - reserva.cantidad
+        inv.reservada = reservada_antes - pendiente
         inv.save(update_fields=["reservada", "actualizado_en"])
         reserva.estado = EstadoReserva.LIBERADA
         reserva.save(update_fields=["estado", "actualizada_en"])
         MovimientoInventario.objects.create(
             producto_id=reserva.producto_id,
             tipo=TipoMovimientoInventario.LIBERACION,
-            cantidad=reserva.cantidad,
+            cantidad=pendiente,
             existencia_antes=inv.existencia_fisica,
             existencia_despues=inv.existencia_fisica,
             reservada_antes=reservada_antes,
@@ -226,6 +237,88 @@ def liberar_reservas_de_pedido(*, pedido, motivo: str, actor=None) -> list[Reser
             motivo=motivo,
         )
     return reservas
+
+
+class ConsumoInvalido(Exception):
+    """La reserva o el inventario no admiten el consumo pedido (D-AUD12-08).
+
+    Los servicios de cumplimiento validan antes las cantidades contra el pedido; llegar aquí
+    indica datos inconsistentes, y la transacción del llamador se revierte completa.
+    """
+
+    def __init__(self, reserva: ReservaInventario, detalle: str):
+        self.reserva_id = reserva.pk
+        self.estado = reserva.estado
+        super().__init__(f"Reserva #{reserva.pk}: {detalle}")
+
+
+def bloquear_reservas_e_inventarios(
+    reservas_ids,
+) -> tuple[dict[int, ReservaInventario], dict[int, InventarioProducto]]:
+    """Bloquea las reservas (por ``id``) y después sus inventarios (por ``producto_id``
+    ascendente), el mismo orden que AUD-07 y AUD-11. Devuelve ambos indexados por id."""
+    reservas = {
+        r.pk: r
+        for r in ReservaInventario.objects.select_for_update(of=("self",))
+        .filter(pk__in=list(reservas_ids))
+        .order_by("id")
+    }
+    if not reservas:
+        return {}, {}
+    inventarios = {
+        inv.producto_id: inv
+        for inv in InventarioProducto.objects.select_for_update(of=("self",))
+        .filter(producto_id__in={r.producto_id for r in reservas.values()})
+        .order_by("producto_id")
+    }
+    return reservas, inventarios
+
+
+def consumir_reserva(
+    *,
+    reserva: ReservaInventario,
+    inventario: InventarioProducto | None,
+    cantidad: int,
+    actor,
+    motivo: str,
+) -> MovimientoInventario:
+    """Consume físicamente ``cantidad`` unidades reservadas (RN-022, RN-023).
+
+    Uso interno de los servicios de cumplimiento (no hay endpoint manual): el llamador ya
+    tiene bloqueados ``Pedido``, la reserva y su inventario. Descuenta a la vez
+    ``existencia_fisica`` y ``reservada``, de modo que la disponibilidad de terceros no
+    cambia; acumula ``cantidad_consumida`` y marca la reserva ``consumida`` al agotarla.
+    """
+    if reserva.estado != EstadoReserva.ACTIVA:
+        raise ConsumoInvalido(reserva, f"estado «{reserva.estado}», se esperaba activa.")
+    if not _es_entero(cantidad) or cantidad < 1 or cantidad > reserva.cantidad_pendiente:
+        raise ConsumoInvalido(reserva, f"cantidad {cantidad!r} fuera del remanente reservado.")
+    if inventario is None or inventario.producto_id != reserva.producto_id:
+        raise ConsumoInvalido(reserva, "sin inventario del producto reservado.")
+    if inventario.reservada < cantidad or inventario.existencia_fisica < cantidad:
+        raise ConsumoInvalido(reserva, "saldos de inventario insuficientes.")
+    existencia_antes, reservada_antes = inventario.existencia_fisica, inventario.reservada
+    inventario.existencia_fisica = existencia_antes - cantidad
+    inventario.reservada = reservada_antes - cantidad
+    inventario.save(update_fields=["existencia_fisica", "reservada", "actualizado_en"])
+    reserva.cantidad_consumida += cantidad
+    if reserva.cantidad_consumida == reserva.cantidad:
+        reserva.estado = EstadoReserva.CONSUMIDA
+    reserva.save(update_fields=["cantidad_consumida", "estado", "actualizada_en"])
+    return MovimientoInventario.objects.create(
+        producto_id=reserva.producto_id,
+        tipo=TipoMovimientoInventario.CONSUMO,
+        cantidad=cantidad,
+        existencia_antes=existencia_antes,
+        existencia_despues=inventario.existencia_fisica,
+        reservada_antes=reservada_antes,
+        reservada_despues=inventario.reservada,
+        actor=actor,
+        pedido_id=reserva.pedido_id,
+        linea_pedido_id=reserva.linea_pedido_id,
+        reserva=reserva,
+        motivo=motivo,
+    )
 
 
 def _es_entero(valor: object) -> bool:
