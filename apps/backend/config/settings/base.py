@@ -242,6 +242,7 @@ SPECTACULAR_SETTINGS = {
         "EstadoReservaEnum": "apps.inventario.models.EstadoReserva",
         "CodigoConflictoInventarioEnum": "apps.inventario.api.conflictos.CODIGOS_CONFLICTO",
         "EstadoPagoEnum": "apps.pagos.models.EstadoPago",
+        "EstadoPedidoEnum": "apps.pedidos.models.EstadoPedido",
         "MetodoPagoEnum": "apps.pagos.models.MetodoPago",
         "OrigenIntentoPagoEnum": "apps.pagos.models.OrigenIntento",
         "ResultadoRevisionPagoEnum": "apps.pagos.models.ResultadoRevision",
@@ -249,5 +250,18 @@ SPECTACULAR_SETTINGS = {
         "TipoOperacionEnum": "apps.operaciones.models.TipoOperacion",
         "EstadoOperacionEnum": "apps.operaciones.api.serializers.ESTADOS_VISIBLES",
         "CodigoConflictoIdempotenciaEnum": "apps.operaciones.api.serializers.CODIGOS_CONFLICTO",
+    },
+}
+
+# --- Logs operativos ---
+# El proceso de vencimientos (AUD-11) registra cada vencimiento (INFO) y las inconsistencias
+# (CRITICAL) en la salida estándar del contenedor. Sin datos personales: solo identificadores.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"simple": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"}},
+    "handlers": {"consola": {"class": "logging.StreamHandler", "formatter": "simple"}},
+    "loggers": {
+        "apps.pedidos": {"handlers": ["consola"], "level": "INFO", "propagate": False},
     },
 }

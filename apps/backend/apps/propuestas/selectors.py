@@ -36,6 +36,7 @@ def decision_del_comprador(comprador, solicitud_id: int) -> DecisionPropuesta | 
         DecisionPropuesta.objects.select_related(
             "propuesta__solicitud",
             "propuesta__pedido__taller",
+            "propuesta__pedido__estado_operativo",
         )
         .prefetch_related(
             Prefetch(
