@@ -2,12 +2,15 @@
 contenido y almacenamiento privado.
 
 La extensión, el nombre y el ``Content-Type`` del navegador no autorizan el archivo: el
-servidor identifica el formato por su firma y lo decodifica (imágenes con Pillow, PDF por
-estructura mínima de cabecera y cola). Solo un archivo validado obtiene ruta, generada
-por el servidor sin nombre original ni PK.
+servidor identifica el formato por su firma y lo decodifica: imágenes con Pillow
+(``verify`` + ``load``) y PDF con pypdf en modo estricto (xref, trailer, offsets de cada
+objeto, todos los objetos y el árbol de páginas). El PDF no se renderiza ni se extrae su
+contenido. Solo un archivo validado obtiene ruta, generada por el servidor sin nombre
+original ni PK.
 """
 
 import hashlib
+import logging
 import re
 import unicodedata
 import warnings
@@ -20,6 +23,8 @@ from django.conf import settings
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
 from django.core.files.storage import FileSystemStorage
 from PIL import Image, UnidentifiedImageError
+from pypdf import PdfReader
+from pypdf.generic import IndirectObject
 
 # --- Whitelist central (frontend: src/features/pagos/comprobante.ts la refleja) ---
 
@@ -55,6 +60,7 @@ MENSAJES = {
     "comprobante_corrupto": "No pudimos leer el comprobante: el archivo está dañado.",
     "comprobante_animado": "Usa una imagen estática, sin animación.",
     "comprobante_excede_pixeles": "La imagen excede el límite técnico de píxeles.",
+    "comprobante_protegido": "El PDF está protegido con contraseña: adjunta uno sin protección.",
 }
 
 
@@ -134,6 +140,52 @@ def _validar_imagen(archivo) -> str:
         archivo.seek(0)
 
 
+def _xref_coherente(archivo, reader: PdfReader) -> bool:
+    """Cada entrada del xref clásico apunta exactamente a su «N G obj».
+
+    pypdf, incluso estricto, recupera offsets erróneos buscando el objeto; un archivo así
+    está dañado aunque sea legible, de modo que se comprueba explícitamente. Los objetos en
+    flujos de objetos (xref stream) se validan al resolverlos.
+    """
+    for generacion, objetos in reader.xref.items():
+        for numero, offset in objetos.items():
+            archivo.seek(offset)
+            cabecera = archivo.read(64).lstrip()
+            if not re.match(rb"%d\s+%d\s+obj\b" % (numero, generacion), cabecera):
+                return False
+    return True
+
+
+def _validar_pdf(archivo) -> None:
+    """Parser real: un PDF con marcadores falsos, xref roto u objetos ilegibles es 400."""
+    nivel = logging.getLogger("pypdf").level
+    logging.getLogger("pypdf").setLevel(logging.ERROR)
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            archivo.seek(0)
+            reader = PdfReader(archivo, strict=True)
+            if reader.is_encrypted and not reader.decrypt(""):
+                raise error("comprobante_protegido")
+            if not _xref_coherente(archivo, reader):
+                raise error("comprobante_corrupto")
+            for generacion, objetos in reader.xref.items():
+                for numero in objetos:
+                    reader.get_object(IndirectObject(numero, generacion, reader))
+            paginas = reader.pages
+            if len(paginas) < 1:
+                raise error("comprobante_corrupto")
+            for pagina in paginas:
+                pagina.mediabox  # noqa: B018 - fuerza la lectura de cada página
+    except ValidationError:
+        raise
+    except Exception as exc:  # pypdf lanza PdfReadError, ValueError, KeyError, etc.
+        raise error("comprobante_corrupto") from exc
+    finally:
+        logging.getLogger("pypdf").setLevel(nivel)
+        archivo.seek(0)
+
+
 def validar_comprobante(archivo) -> ComprobanteValidado:
     """Tamaño, extensión, firma, decodificación y coherencia con el MIME declarado.
 
@@ -152,8 +204,10 @@ def validar_comprobante(archivo) -> ComprobanteValidado:
 
     cabecera, cola, sha256 = _leer(archivo)
     if cabecera.startswith(b"%PDF-"):
+        # Filtro barato antes del parser: cabecera de versión y cola con xref.
         if not _CABECERA_PDF.match(cabecera) or b"%%EOF" not in cola or b"startxref" not in cola:
             raise error("comprobante_corrupto")
+        _validar_pdf(archivo)
         formato = PDF
     else:
         formato = _validar_imagen(archivo)

@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 from decimal import Decimal
+from functools import cache
 from io import BytesIO
 from pathlib import Path
 from unittest import mock
@@ -10,6 +11,7 @@ from uuid import uuid4
 from django.conf import settings
 from django.core.files.uploadedfile import SimpleUploadedFile
 from PIL import Image
+from pypdf import PdfWriter
 
 from apps.pedidos.models import Pedido
 from apps.propuestas import services as propuestas
@@ -56,13 +58,31 @@ def bytes_imagen(formato="PNG", tamano=(8, 6), color="red") -> bytes:
     return contenido.getvalue()
 
 
+@cache
 def bytes_pdf(relleno: int = 0) -> bytes:
-    """PDF mínimo con cabecera, objeto, ``startxref`` y ``%%EOF``."""
-    return (
-        b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n"
-        + b"%" + b"0" * relleno + b"\n"
-        + b"trailer\n<< /Root 1 0 R >>\nstartxref\n9\n%%EOF\n"
-    )  # fmt: skip
+    """PDF real de una página generado con pypdf (determinista).
+
+    ``relleno`` añade un metadato de esa longitud: cambia el contenido (y el SHA-256) y
+    el tamaño crece un byte por carácter (más los dígitos que gane ``startxref``).
+    """
+    escritor = PdfWriter()
+    escritor.add_blank_page(200, 200)
+    if relleno:
+        escritor.add_metadata({"/Relleno": "0" * relleno})
+    salida = BytesIO()
+    escritor.write(salida)
+    return salida.getvalue()
+
+
+def bytes_pdf_de_tamano(tamano: int) -> bytes:
+    """PDF válido de exactamente ``tamano`` bytes (para los límites de 10 MiB)."""
+    relleno = tamano - (len(bytes_pdf(1)) - 1)
+    for _ in range(5):
+        datos = bytes_pdf(relleno)
+        if len(datos) == tamano:
+            return datos
+        relleno += tamano - len(datos)
+    raise AssertionError(f"No se pudo generar un PDF de {tamano} bytes.")
 
 
 MIME = {"JPEG": "image/jpeg", "PNG": "image/png", "WEBP": "image/webp"}

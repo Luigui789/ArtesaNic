@@ -176,10 +176,19 @@ Máximo **10 MiB (10 485 760 bytes)**; vacío no. Todo lo demás se rechaza, inc
 (contenido activo), HTML, ejecutables, scripts, comprimidos, documentos de Office, GIF, TIFF
 y HEIC. Validación del servidor, en orden: tamaño, extensión del nombre, firma del contenido,
 decodificación completa de imágenes con Pillow (`verify` + `load`, sin animaciones, límite
-técnico de 50 MP) o estructura mínima de PDF (cabecera `%PDF-1.x/2.x`, `startxref` y
-`%%EOF` al final), y coherencia entre extensión, MIME declarado (`application/octet-stream`
-o vacío no contradicen) y contenido detectado. El PDF no se interpreta ni se renderiza en el
-servidor. Errores por campo (`400 {"comprobante": ["..."]}`):
+técnico de 50 MP) o parseo real del PDF, y coherencia entre extensión, MIME declarado
+(`application/octet-stream` o vacío no contradicen) y contenido detectado.
+
+**PDF.** Tras un filtro barato (cabecera `%PDF-1.x/2.x`, `startxref` y `%%EOF` en la cola),
+el servidor lo abre con [pypdf](https://pypi.org/project/pypdf/) en modo estricto: tabla o
+flujo xref y trailer legibles, cada entrada del xref clásico apuntando exactamente a su
+`N G obj` (pypdf recuperaría offsets erróneos buscando el objeto), todos los objetos
+resolubles y al menos una página legible. Un archivo con los marcadores pero sin estructura
+válida, truncado o con xref corrupto responde `400`. Se rechazan los PDF protegidos con
+contraseña de apertura (el artesano no podría abrirlos); un PDF cifrado sin contraseña de
+apertura se acepta. El PDF no se renderiza ni se extrae su contenido.
+
+Errores por campo (`400 {"comprobante": ["..."]}`):
 
 | Situación | Mensaje |
 |---|---|
@@ -189,7 +198,8 @@ servidor. Errores por campo (`400 {"comprobante": ["..."]}`):
 | > 10 MiB | El comprobante no puede superar 10 MB. |
 | Formato fuera de whitelist (por nombre o contenido) | Usa un comprobante JPG, JPEG, PNG, WebP o PDF. |
 | Extensión, MIME y contenido no coinciden | La extensión o el tipo del archivo no coinciden con su contenido. |
-| Corrupto o truncado | No pudimos leer el comprobante: el archivo está dañado. |
+| Corrupto, truncado o PDF no parseable | No pudimos leer el comprobante: el archivo está dañado. |
+| PDF con contraseña de apertura | El PDF está protegido con contraseña: adjunta uno sin protección. |
 | Animado / demasiados píxeles | Mensajes propios de protección de recursos |
 
 **Almacenamiento privado.** Los archivos van a `PRIVATE_MEDIA_ROOT` (`DJANGO_PRIVATE_MEDIA_ROOT`;

@@ -31,6 +31,7 @@ from .base import (
     archivos_privados,
     bytes_imagen,
     bytes_pdf,
+    bytes_pdf_de_tamano,
     confirmar_pedido,
     imagen,
     pdf,
@@ -121,7 +122,8 @@ class RegistroInicialTests(PagosAPITestCase):
 
     def test_comprobantes_invalidos_responden_400_sin_efectos(self):
         jpeg = bytes_imagen("JPEG", tamano=(120, 120))
-        base_pdf = len(bytes_pdf())
+        real = bytes_pdf()
+        tabla = real.index(b"xref")
         antes = archivos_privados()
         for nombre, comprobante in [
             (
@@ -132,8 +134,18 @@ class RegistroInicialTests(PagosAPITestCase):
             ("exe como jpg", archivo(b"MZ\x90\x00" * 16, "pago.jpg", "image/jpeg")),
             ("corrupto", archivo(jpeg[: len(jpeg) // 2], "pago.jpg", "image/jpeg")),
             ("vacío", archivo(b"", "pago.pdf", "application/pdf")),
-            ("> 10 MB", pdf(relleno=10 * 1024 * 1024 - base_pdf + 1)),
+            (
+                "> 10 MB",
+                archivo(bytes_pdf_de_tamano(10 * 1024 * 1024 + 1), "a.pdf", "application/pdf"),
+            ),
             ("inconsistente", archivo(bytes_imagen("PNG"), "pago.pdf", "application/pdf")),
+            ("PDF real como imagen", archivo(real, "pago.jpg", "image/jpeg")),
+            ("PDF falso", archivo(b"%PDF-1.4\nstartxref\n0\n%%EOF\n", "a.pdf", "application/pdf")),
+            ("PDF truncado", archivo(real[:80] + real[-120:], "a.pdf", "application/pdf")),
+            (
+                "PDF con xref corrupto",
+                archivo(real[: tabla + 5] + b"zz" + real[tabla + 7 :], "a.pdf", "application/pdf"),
+            ),
         ]:
             with self.subTest(nombre):
                 respuesta = self.registrar(comprobante=comprobante)

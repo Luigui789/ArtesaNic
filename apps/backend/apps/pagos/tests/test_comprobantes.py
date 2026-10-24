@@ -6,6 +6,7 @@ from unittest import mock
 from django.core.exceptions import SuspiciousFileOperation, ValidationError
 from django.test import SimpleTestCase
 from PIL import Image
+from pypdf import PdfWriter
 
 from apps.pagos import comprobantes
 from apps.pagos.comprobantes import (
@@ -18,7 +19,7 @@ from apps.pagos.comprobantes import (
     validar_comprobante,
 )
 
-from .base import archivo, bytes_imagen, bytes_pdf, imagen, pdf
+from .base import archivo, bytes_imagen, bytes_pdf, bytes_pdf_de_tamano, imagen, pdf
 
 
 class WhitelistTests(SimpleTestCase):
@@ -112,13 +113,54 @@ class WhitelistTests(SimpleTestCase):
             with self.subTest(subido.name):
                 self.assertRechaza(subido, "comprobante_corrupto")
 
+    def test_pdf_estructuralmente_invalido_aunque_tenga_los_marcadores(self):
+        """El parser real rechaza lo que el filtro de marcadores dejaría pasar."""
+        real = bytes_pdf()
+        self.assertTrue(real.startswith(b"%PDF-1."))
+        tabla = real.index(b"xref")
+        cola = real.rindex(b"startxref")
+        primer_objeto = real.index(b"0000000015 00000 n")
+        casos = {
+            "solo marcadores": b"%PDF-1.4\nstartxref\n0\n%%EOF\n",
+            "catálogo sin xref": (
+                b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n"
+                b"trailer\n<< /Root 1 0 R >>\nstartxref\n9\n%%EOF\n"
+            ),
+            "truncado en medio": real[:80] + real[-120:],
+            "xref ilegible": real[: tabla + 5] + b"zz basura" + real[tabla + 14 :],
+            "startxref erróneo": real[:cola] + b"startxref\n12\n%%EOF\n",
+            "offset de objeto erróneo": real[:primer_objeto]
+            + b"0000000016 00000 n"
+            + real[primer_objeto + 18 :],
+        }
+        for nombre, contenido in casos.items():
+            with self.subTest(nombre):
+                for marcador in (b"%PDF-", b"startxref", b"%%EOF"):
+                    self.assertIn(marcador, contenido)
+                self.assertRechaza(
+                    archivo(contenido, "pago.pdf", "application/pdf"), "comprobante_corrupto"
+                )
+
+    def test_pdf_protegido_con_contrasena(self):
+        def cifrado(contrasena):
+            escritor = PdfWriter()
+            escritor.add_blank_page(200, 200)
+            escritor.encrypt(user_password=contrasena, owner_password="dueno", algorithm="RC4-128")
+            salida = BytesIO()
+            escritor.write(salida)
+            return archivo(salida.getvalue(), "pago.pdf", "application/pdf")
+
+        self.assertRechaza(cifrado("secreta"), "comprobante_protegido")
+        # Cifrado sin contraseña de apertura: el artesano puede abrirlo.
+        self.assertEqual(validar_comprobante(cifrado("")).mime, "application/pdf")
+
     def test_vacio_y_tamano_maximo(self):
         self.assertRechaza(archivo(b"", "pago.pdf", "application/pdf"), "comprobante_vacio")
-        base = len(bytes_pdf())
-        limite = pdf(relleno=MAX_BYTES - base)
+        limite = archivo(bytes_pdf_de_tamano(MAX_BYTES), "pago.pdf", "application/pdf")
         self.assertEqual(limite.size, MAX_BYTES)
         self.assertEqual(validar_comprobante(limite).tamano, MAX_BYTES)
-        self.assertRechaza(pdf(relleno=MAX_BYTES - base + 1), "comprobante_demasiado_grande")
+        excedido = archivo(bytes_pdf_de_tamano(MAX_BYTES + 1), "pago.pdf", "application/pdf")
+        self.assertRechaza(excedido, "comprobante_demasiado_grande")
 
     def test_imagen_animada_rechazada(self):
         contenido = BytesIO()
