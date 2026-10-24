@@ -77,3 +77,30 @@ usa `--noreload`. Un frontend actualizado contra el proceso anterior responderá
 a multipart hasta recrear el backend. `docker compose up -d --build backend` aplica
 la migración mediante el comando de arranque y conserva los volúmenes; no requiere
 borrar ni recrear la base de datos.
+
+## Vencimientos automáticos (AUD-11)
+
+RN-013 se ejecuta en un proceso propio, no en el servidor HTTP ni en el navegador
+([D-AUD11-12/13/14](../decisiones/v1.md#concreciones-de-aud-11)). `docker compose up` arranca
+el servicio **vencimientos**: misma imagen, código y base de datos que `backend`, espera a que
+`backend` esté sano (migraciones aplicadas), no monta los comprobantes privados y se reinicia
+con `restart: unless-stopped`. Cada 60 s (`VENCIMIENTOS_INTERVALO`) recorre los candidatos por
+lotes de 100 y procesa cada pedido en su propia transacción. Es seguro tener varias
+instancias: solo una realiza cada transición.
+
+Una iteración manual (mantenimiento o tras restaurar una base):
+
+```bash
+docker compose run --rm vencimientos python manage.py procesar_vencimientos_pago --once
+```
+
+En host, desde `apps/backend`: `uv run python manage.py procesar_vencimientos_pago --once`
+(o `--interval 60` para el modo continuo; `--batch-size N` cambia el lote). La salida resume
+`vencidos`, `no_elegibles` y `errores`. Logs del contenedor (`docker compose logs vencimientos`):
+`INFO pedido_vencido_falta_pago pedido_id=… vencido_en=… reservas_liberadas=…` por vencimiento
+y `CRITICAL … pedido_id=… reserva_id=… estado=…` si una reserva no activa impide vencer (el
+pedido queda intacto y requiere revisión humana). Sin datos personales.
+
+El plazo comercial es exacto (`ahora >= límite`); la transición física ocurre a más tardar un
+intervalo después y `vencido_en` registra ese instante. Si el servicio estuvo detenido, la
+siguiente iteración vence todo lo pendiente con las reglas vigentes.

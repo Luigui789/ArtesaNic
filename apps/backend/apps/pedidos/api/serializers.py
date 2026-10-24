@@ -4,7 +4,7 @@ from apps.catalogo.api.serializers import TallerResumenSerializer
 from apps.solicitudes.api.serializers import CompradorSolicitudSerializer
 from apps.solicitudes.models import OrigenPersonalizacion
 
-from ..models import CargoPedido, LineaPedido, Pedido
+from ..models import CargoPedido, EstadoPedido, LineaPedido, Pedido
 
 
 class CategoriaSnapshotSerializer(serializers.Serializer):
@@ -83,6 +83,18 @@ class PedidoCompradorSerializer(serializers.ModelSerializer):
     taller = TallerResumenSerializer(read_only=True)
     lineas = LineaPedidoSerializer(many=True, read_only=True)
     otros_cargos = CargoPedidoSerializer(source="cargos", many=True, read_only=True)
+    estado = serializers.ChoiceField(
+        source="estado_operativo.estado",
+        choices=EstadoPedido.choices,
+        read_only=True,
+        help_text="Estado operativo del pedido (AUD-11); independiente del estado del pago.",
+    )
+    vencido_en = serializers.DateTimeField(
+        source="estado_operativo.vencido_en",
+        read_only=True,
+        allow_null=True,
+        help_text="Instante del vencimiento por falta de pago; null si no venció.",
+    )
 
     class Meta:
         model = Pedido
@@ -91,6 +103,8 @@ class PedidoCompradorSerializer(serializers.ModelSerializer):
             "solicitud",
             "propuesta",
             "taller",
+            "estado",
+            "vencido_en",
             "confirmado_en",
             "moneda",
             "modalidad_entrega",

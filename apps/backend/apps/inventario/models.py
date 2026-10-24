@@ -271,6 +271,26 @@ class MovimientoInventario(_Inmutable):
                 ),
                 name="movimiento_reserva_coherente",
             ),
+            # Liberar no toca la existencia física: solo devuelve unidades reservadas (D-AUD11-10).
+            models.CheckConstraint(
+                condition=(
+                    ~Q(tipo=TipoMovimientoInventario.LIBERACION)
+                    | (
+                        Q(pedido__isnull=False)
+                        & Q(linea_pedido__isnull=False)
+                        & Q(reserva__isnull=False)
+                        & Q(existencia_despues=F("existencia_antes"))
+                        & Q(reservada_despues=F("reservada_antes") - F("cantidad"))
+                    )
+                ),
+                name="movimiento_liberacion_coherente",
+            ),
+            # Una reserva se libera una sola vez (D-AUD11-15).
+            models.UniqueConstraint(
+                fields=["reserva"],
+                condition=Q(tipo=TipoMovimientoInventario.LIBERACION),
+                name="movimiento_liberacion_unica_por_reserva",
+            ),
         ]
         indexes = [
             models.Index(

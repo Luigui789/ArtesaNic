@@ -2,7 +2,7 @@
 
 from apps.propuestas.models import MONEDA, CargoPropuesta, LineaPropuesta, Propuesta
 
-from .models import CargoPedido, LineaPedido, Pedido
+from .models import CargoPedido, EstadoOperativoPedido, EstadoPedido, LineaPedido, Pedido
 
 
 def crear_pedido_desde_propuesta(
@@ -69,5 +69,9 @@ def crear_pedido_desde_propuesta(
             monto=cargo.monto,
         )
         for cargo in cargos_propuesta
+    )
+    # Estado operativo inicial en la misma transacción de confirmación (D-AUD11-02).
+    EstadoOperativoPedido.objects.create(
+        pedido=pedido, estado=EstadoPedido.CONFIRMADO, actualizado_en=confirmado_en
     )
     return pedido, lineas_pedido

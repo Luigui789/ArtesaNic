@@ -307,6 +307,128 @@ class LineaPedido(_Inmutable):
         return f"Línea {self.posicion} del pedido #{self.pedido_id}"
 
 
+class EstadoPedido(models.TextChoices):
+    """Estado operativo del pedido (AUD-11). AUD-12/13 añadirán estados por migración."""
+
+    CONFIRMADO = "confirmado", "Pedido confirmado"
+    VENCIDO_FALTA_PAGO = "vencido_falta_pago", "Vencido por falta de pago"
+
+
+class TipoEventoPedido(models.TextChoices):
+    AUTOMATICO = "automatico", "Automático del sistema"
+
+
+class EstadoOperativoPedido(models.Model):
+    """Proyección operativa mutable del pedido, separada del snapshot inmutable (D-AUD11-01).
+
+    Nace en la misma transacción que el ``Pedido`` (AUD-07). Solo los servicios de dominio
+    la modifican, bajo el lock del ``Pedido``; cada transición deja un ``EventoEstadoPedido``.
+    """
+
+    pedido = models.OneToOneField(
+        Pedido,
+        on_delete=models.PROTECT,
+        related_name="estado_operativo",
+    )
+    estado = models.CharField(
+        max_length=30, choices=EstadoPedido.choices, default=EstadoPedido.CONFIRMADO
+    )
+    vencido_en = models.DateTimeField(null=True, blank=True)
+    actualizado_en = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        verbose_name = "estado operativo de pedido"
+        verbose_name_plural = "estados operativos de pedidos"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(estado__in=EstadoPedido.values),
+                name="estado_pedido_valido",
+            ),
+            models.CheckConstraint(
+                condition=(Q(estado=EstadoPedido.VENCIDO_FALTA_PAGO) & Q(vencido_en__isnull=False))
+                | (~Q(estado=EstadoPedido.VENCIDO_FALTA_PAGO) & Q(vencido_en__isnull=True)),
+                name="estado_pedido_vencimiento_coherente",
+            ),
+        ]
+        # El proceso de vencimientos recorre solo pedidos «confirmado» por pedido_id ascendente.
+        indexes = [
+            models.Index(
+                fields=["pedido"],
+                condition=Q(estado=EstadoPedido.CONFIRMADO),
+                name="estado_pedido_confirmado_idx",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Pedido #{self.pedido_id}: {self.estado}"
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("El estado operativo de un pedido no se elimina.")
+
+
+class EventoEstadoPedido(models.Model):
+    """Historial append-only de transiciones del estado operativo (D-AUD11-01)."""
+
+    pedido = models.ForeignKey(
+        Pedido,
+        on_delete=models.PROTECT,
+        related_name="eventos_estado",
+    )
+    estado_anterior = models.CharField(max_length=30, choices=EstadoPedido.choices)
+    estado_nuevo = models.CharField(max_length=30, choices=EstadoPedido.choices)
+    tipo = models.CharField(max_length=20, choices=TipoEventoPedido.choices)
+    # NULL = el sistema (proceso automático); nunca un usuario ficticio.
+    actor = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="eventos_estado_pedido",
+        null=True,
+        blank=True,
+    )
+    creado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "evento de estado de pedido"
+        verbose_name_plural = "eventos de estado de pedidos"
+        ordering = ["creado_en", "id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(estado_anterior__in=EstadoPedido.values)
+                & Q(estado_nuevo__in=EstadoPedido.values)
+                & ~Q(estado_anterior=F("estado_nuevo")),
+                name="evento_pedido_transicion_valida",
+            ),
+            models.CheckConstraint(
+                condition=Q(tipo__in=TipoEventoPedido.values),
+                name="evento_pedido_tipo_valido",
+            ),
+            models.CheckConstraint(
+                condition=~Q(tipo=TipoEventoPedido.AUTOMATICO) | Q(actor__isnull=True),
+                name="evento_pedido_automatico_sin_actor",
+            ),
+            # El vencimiento es terminal: como mucho un evento por pedido (D-AUD11-15).
+            models.UniqueConstraint(
+                fields=["pedido"],
+                condition=Q(estado_nuevo=EstadoPedido.VENCIDO_FALTA_PAGO),
+                name="evento_pedido_vencimiento_unico",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["pedido", "creado_en", "id"], name="evento_pedido_fecha_idx"),
+        ]
+
+    def __str__(self):
+        return f"Pedido #{self.pedido_id}: {self.estado_anterior} → {self.estado_nuevo}"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("El historial de estados del pedido no se modifica.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("El historial de estados del pedido no se elimina.")
+
+
 class CargoPedido(_Inmutable):
     """Snapshot contractual de un cargo adicional de la propuesta aceptada."""
 

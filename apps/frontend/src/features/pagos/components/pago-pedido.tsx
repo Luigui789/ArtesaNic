@@ -52,7 +52,16 @@ import type {
 } from "../types";
 import { ComprobanteGuardado, VistaPreviaArchivo, useUrlTemporal } from "./comprobante-archivo";
 
-export function PagoPedido({ pedido, recibido = false }: { pedido: number; recibido?: boolean }) {
+export function PagoPedido({
+  pedido,
+  recibido = false,
+  pedidoVencido = false,
+}: {
+  pedido: number;
+  recibido?: boolean;
+  /** Estado operativo del pedido (AUD-11): bloquea toda acción, conserva el historial. */
+  pedidoVencido?: boolean;
+}) {
   const { usuario } = useSession();
   const query = useQuery({
     queryKey: claves.pago(usuario?.id, recibido, pedido),
@@ -69,13 +78,21 @@ export function PagoPedido({ pedido, recibido = false }: { pedido: number; recib
       ) : query.isError ? (
         <ErrorState mensaje={mensajeDominio(query.error)} onRetry={() => void query.refetch()} />
       ) : (
-        <VistaPago pago={query.data} recibido={recibido} />
+        <VistaPago pago={query.data} recibido={recibido} pedidoVencido={pedidoVencido} />
       )}
     </Section>
   );
 }
 
-export function VistaPago({ pago, recibido }: { pago: PagoPedido; recibido: boolean }) {
+export function VistaPago({
+  pago,
+  recibido,
+  pedidoVencido = false,
+}: {
+  pago: PagoPedido;
+  recibido: boolean;
+  pedidoVencido?: boolean;
+}) {
   const vigente = pago.intentos.at(-1);
   return (
     <div className="min-w-0 space-y-5">
@@ -92,7 +109,9 @@ export function VistaPago({ pago, recibido }: { pago: PagoPedido; recibido: bool
           </p>
         </div>
       </div>
-      {recibido ? (
+      {pedidoVencido ? (
+        <Nota>El pedido venció por falta de pago. El historial del pago se conserva.</Nota>
+      ) : recibido ? (
         <EstadoParaArtesano pago={pago} vigente={vigente} />
       ) : (
         <EstadoParaComprador pago={pago} vigente={vigente} />

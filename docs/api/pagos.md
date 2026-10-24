@@ -259,6 +259,7 @@ podrá consultar estado y timestamps, nunca el comprobante.
 | `plazo_pago_vencido` | Registro inicial con `ahora >= confirmado_en + 48 h` |
 | `correccion_fuera_plazo` | Corrección con `ahora >= plazo_hasta` |
 | `nuevo_intento_fuera_plazo` | Nuevo intento con `ahora >= plazo_hasta` |
+| `pedido_vencido` | Registrar, corregir o resolver en un pedido «Vencido por falta de pago» (AUD-11, D-AUD11-17) |
 | `clave_idempotencia_reutilizada` | Misma clave con otra huella |
 
 Un `409` de negocio no deja registro idempotente ni archivo.
@@ -296,9 +297,13 @@ estados vive en `apps/pagos/services.py` y sus pruebas.
 
 ## 10. Integraciones posteriores
 
-- **AUD-11:** vencimiento automático por falta de pago, liberación de reservas y su job.
-  Datos disponibles: ausencia de `Pago` + `Pedido.confirmado_en`, `Pago.estado`,
-  `Pago.plazo_hasta` y `situacion_pago()`; un pago `registrado` bloquea el vencimiento.
+- **AUD-11 (implementado):** el proceso `procesar_vencimientos_pago` vence el pedido con
+  `situacion_pago()` dentro del lock (`Pedido → Pago → …`): sin `Pago` a las 48 h de la
+  confirmación, u `observado`/`no_recibido` al llegar `plazo_hasta`; `registrado` y
+  `confirmado` nunca vencen. El `Pago` y su historial no cambian (no hay estado «vencido» de
+  pago); las mutaciones posteriores responden `409 pedido_vencido` y las lecturas siguen
+  disponibles. Ver [pedidos](pedidos.md#estado-operativo-y-vencimiento-aud-11) y
+  [D-AUD11](../decisiones/v1.md#concreciones-de-aud-11).
 - **RF-010 / fases de producción:** consultar `Pago.estado == "confirmado"` como precondición.
 - **RF-021:** devoluciones de pagos confirmados; AUD-10 no revierte un pago confirmado.
 - **RF-020 (AUD-20):** notificaciones de eventos de pago. No existe aún infraestructura

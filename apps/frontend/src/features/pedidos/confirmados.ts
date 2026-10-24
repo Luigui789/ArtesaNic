@@ -2,6 +2,12 @@
 import { solicitar } from "@/lib/http";
 import { paginaDe, type PaginaDTO } from "@/lib/paginacion";
 import type { Propuesta, RenglonSolicitud } from "@/features/solicitudes/types";
+/** Estado operativo del pedido (AUD-11); independiente del estado del pago. */
+export type EstadoPedidoOperativo = "confirmado" | "vencido_falta_pago";
+export const ESTADO_PEDIDO_LABELS: Record<EstadoPedidoOperativo, string> = {
+  confirmado: "Pedido confirmado",
+  vencido_falta_pago: "Vencido por falta de pago",
+};
 export interface LineaPedidoConfirmado {
   id: number;
   posicion: number;
@@ -24,6 +30,8 @@ export interface PedidoConfirmado {
   propuesta: number;
   taller: { id: number; nombre: string };
   comprador?: { id: number; nombre: string };
+  estado: EstadoPedidoOperativo;
+  vencidoEn: string | null;
   confirmadoEn: string;
   moneda: "NIO";
   modalidadEntrega: Propuesta["modalidadEntrega"];
@@ -42,6 +50,8 @@ export interface PedidoDTO {
   propuesta: number;
   taller: PedidoConfirmado["taller"];
   comprador?: { id: number; nombre: string };
+  estado: EstadoPedidoOperativo;
+  vencido_en: string | null;
   confirmado_en: string;
   moneda: "NIO";
   modalidad_entrega: PedidoConfirmado["modalidadEntrega"];
@@ -76,6 +86,8 @@ export function aPedido(dto: PedidoDTO): PedidoConfirmado {
     propuesta: dto.propuesta,
     taller: dto.taller,
     ...(dto.comprador ? { comprador: dto.comprador } : {}),
+    estado: dto.estado,
+    vencidoEn: dto.vencido_en,
     confirmadoEn: dto.confirmado_en,
     moneda: dto.moneda,
     modalidadEntrega: dto.modalidad_entrega,
