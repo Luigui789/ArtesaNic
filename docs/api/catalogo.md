@@ -62,9 +62,20 @@ Colección completa, ordenada por nombre y sin paginar. En los productos la cate
   "modalidades": ["stock", "personalizacion"],
   "taller": { "id": 3, "nombre": "Barro y Sombra" },
   "fotografia_url": "/media/productos/{uuid}/principal/{uuid}.jpg",
+  "disponible_stock": 5,
   "creado_en": "2026-10-15T10:30:00-06:00"
 }
 ```
+
+**`disponible_stock`** (solo en la lectura pública; decisión [D-POST09-04](../decisiones/v1.md#decisiones-post-aud-09)):
+unidades disponibles actualmente para venta desde stock (`existencia_fisica − reservada`).
+
+| Valor | Significado |
+|---|---|
+| Entero ≥ 0 | Disponibilidad pública actual. Un producto que admite stock pero no tiene inventario inicializado muestra `0` |
+| `null` | El producto no admite la modalidad `stock` |
+
+Es informativo: no reserva unidades. No se exponen `existencia_fisica`, `reservada`, movimientos, ajustes ni historial; esos datos son del taller ([inventario](inventario.md)).
 
 `taller.id` es el identificador de `GET /api/v1/talleres/{id}/`, el perfil público del taller (RF-003.6). El producto público no incluye estado de publicación, propietario, datos de revisión del taller ni el teléfono de la cuenta.
 

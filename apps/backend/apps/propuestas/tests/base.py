@@ -6,7 +6,11 @@ from django.utils import timezone
 
 from apps.catalogo.tests.base import crear_producto
 from apps.solicitudes import services as solicitudes
-from apps.solicitudes.tests.base import SolicitudesAPITestCase, datos_renglon
+from apps.solicitudes.tests.base import (
+    SolicitudesAPITestCase,
+    datos_renglon,
+    inicializar_stock,
+)
 
 
 def url_propuesta_recibida(solicitud_id):
@@ -20,6 +24,8 @@ def url_propuesta_mia(solicitud_id):
 class PropuestaAPITestCase(SolicitudesAPITestCase):
     """Solicitud mixta: stock (aceptado), producción (aceptado), personalización
     (aceptado) y stock (rechazado). Precios distintos para verificar el cálculo."""
+
+    existencia_p_stock = 1000
 
     def setUp(self):
         super().setUp()
@@ -43,6 +49,7 @@ class PropuestaAPITestCase(SolicitudesAPITestCase):
             precio=Decimal("300.00"),
             permite_personalizacion=True,
         )
+        inicializar_stock(self.artesano, self.p_stock, cantidad=self.existencia_p_stock)
         self.comprometida = timezone.localdate() + timedelta(days=20)
         self.solicitud = self.crear(
             datos_renglon(self.p_stock, cantidad=3),

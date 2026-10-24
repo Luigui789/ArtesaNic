@@ -24,9 +24,16 @@ from django.utils import timezone
 
 from apps.accounts.tests.base import PASSWORD, crear_usuario
 from apps.catalogo.tests.base import crear_categoria, crear_producto
+from apps.inventario.models import (
+    InventarioProducto,
+    MovimientoInventario,
+    ReservaInventario,
+    TipoMovimientoInventario,
+)
 from apps.propuestas.models import LineaPropuesta, Propuesta
 from apps.solicitudes import services as solicitudes
 from apps.solicitudes.models import RevisionRenglonSolicitud
+from apps.solicitudes.tests.base import inicializar_stock
 from apps.talleres import services as talleres
 from apps.talleres.tests.base import crear_administrador, crear_artesano_con_taller
 
@@ -63,6 +70,7 @@ class SmokePropuestaTests(LiveServerTestCase):
             precio=Decimal("200.00"),
             permite_personalizacion=True,
         )
+        inicializar_stock(self.taller.propietario, self.jarron, self.plato)
 
     def peticion(self, ruta, *, datos=None, token=None, csrf=None, clave=None, cliente=None):
         cabeceras = {"Accept": "application/json"}
@@ -219,9 +227,14 @@ class SmokePropuestaTests(LiveServerTestCase):
         self.assertEqual(Propuesta.objects.count(), 1)
 
         # 15–16. Emitir la propuesta no crea pedido ni reserva antes de la decisión del comprador.
-        for etiqueta in ("pedidos", "inventario"):
-            for modelo in apps.get_app_config(etiqueta).get_models():
-                self.assertEqual(modelo.objects.count(), 0)
+        for modelo in apps.get_app_config("pedidos").get_models():
+            self.assertEqual(modelo.objects.count(), 0)
+        # El inventario inicial del escenario existe, pero nada se reserva todavía.
+        self.assertEqual(ReservaInventario.objects.count(), 0)
+        self.assertFalse(
+            MovimientoInventario.objects.filter(tipo=TipoMovimientoInventario.RESERVA).exists()
+        )
+        self.assertFalse(InventarioProducto.objects.exclude(reservada=0).exists())
 
         # 17–20. Solicitud nueva totalmente rechazada: DR-03, sin propuesta, historial.
         _, otra, _ = self.peticion(

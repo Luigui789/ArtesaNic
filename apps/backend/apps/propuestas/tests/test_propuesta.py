@@ -21,7 +21,7 @@ from apps.propuestas.models import CargoPropuesta, LineaPropuesta, Propuesta
 from apps.propuestas.selectors import propuestas_con_detalle
 from apps.solicitudes import services as solicitudes
 from apps.solicitudes.models import EstadoSolicitud, RenglonSolicitud
-from apps.solicitudes.tests.base import datos_renglon
+from apps.solicitudes.tests.base import datos_renglon, inicializar_stock
 
 from .base import PropuestaAPITestCase, url_propuesta_mia, url_propuesta_recibida
 
@@ -249,6 +249,88 @@ class EmisionTests(PropuestaAPITestCase):
         self.assertEqual(r3.data["modalidad_entrega"], "punto_encuentro")
         self.assertEqual(r3.data["descripcion_entrega"], "Parque central de Masaya")
         self.assertEqual(r3.data["costo_entrega"], "80.00")
+
+    def _solicitud_con_entrega(self, modalidad="", descripcion=""):
+        solicitud = solicitudes.crear_solicitud(
+            comprador=self.comprador,
+            renglones=[datos_renglon(self.p_stock, cantidad=2)],
+            modalidad_entrega_preferida=modalidad,
+            descripcion_entrega_preferida=descripcion,
+        )
+        self.revisar(solicitud, rechazados=set())
+        return solicitud, {
+            "lineas": [{"renglon": solicitud.renglones.get().pk}],
+            "otros_cargos": [],
+        }
+
+    def test_con_preferencia_de_retiro_el_artesano_no_cambia_la_modalidad_y_el_costo_es_cero(self):
+        solicitud, base = self._solicitud_con_entrega("retiro_taller", "Sábado a las 10")
+        cambio = self.emitir(
+            base | {"modalidad_entrega": "entrega_artesano", "costo_entrega": "0.00"},
+            solicitud=solicitud,
+        )
+        self.assertEqual(cambio.status_code, 400, cambio.data)
+        self.assertIn("modalidad_entrega", cambio.data)
+        con_costo = self.emitir(base | {"costo_entrega": "100.00"}, solicitud=solicitud)
+        self.assertEqual(con_costo.status_code, 400, con_costo.data)
+        self.assertEqual(
+            con_costo.data, {"costo_entrega": ["El retiro en el taller no tiene costo de entrega."]}
+        )
+        ok = self.emitir(base | {"costo_entrega": "0.00"}, solicitud=solicitud)
+        self.assertEqual(ok.status_code, 201, ok.data)
+        self.assertEqual(ok.data["modalidad_entrega"], "retiro_taller")
+        self.assertEqual(ok.data["descripcion_entrega"], "Sábado a las 10")
+        self.assertEqual(ok.data["costo_entrega"], "0.00")
+
+    def test_sin_preferencia_el_artesano_define_la_entrega_y_no_se_asume_retiro(self):
+        solicitud, base = self._solicitud_con_entrega()
+        self.assertEqual(solicitud.modalidad_entrega_preferida, "")
+        # Sin modalidad no se asume retiro_taller: se exige elegirla.
+        sin_modalidad = self.emitir(base | {"costo_entrega": "0.00"}, solicitud=solicitud)
+        self.assertEqual(sin_modalidad.status_code, 400, sin_modalidad.data)
+        self.assertEqual(
+            sin_modalidad.data, {"modalidad_entrega": ["Selecciona la modalidad de entrega."]}
+        )
+        self.assertFalse(Propuesta.objects.exists())
+
+        ok = self.emitir(
+            base
+            | {
+                "modalidad_entrega": "entrega_artesano",
+                "descripcion_entrega": "Entrega en Masaya centro",
+                "costo_entrega": "75.00",
+            },
+            solicitud=solicitud,
+        )
+        self.assertEqual(ok.status_code, 201, ok.data)
+        self.assertEqual(ok.data["modalidad_entrega"], "entrega_artesano")
+        self.assertEqual(ok.data["descripcion_entrega"], "Entrega en Masaya centro")
+        self.assertEqual(ok.data["costo_entrega"], "75.00")
+
+    def test_sin_preferencia_otra_exige_descripcion(self):
+        solicitud, base = self._solicitud_con_entrega()
+        datos = base | {"modalidad_entrega": "otra", "costo_entrega": "10.00"}
+        sin_descripcion = self.emitir(datos, solicitud=solicitud)
+        self.assertEqual(sin_descripcion.status_code, 400, sin_descripcion.data)
+        self.assertIn("descripcion_entrega", sin_descripcion.data)
+        ok = self.emitir(datos | {"descripcion_entrega": "Encomienda"}, solicitud=solicitud)
+        self.assertEqual(ok.status_code, 201, ok.data)
+
+    def test_sin_preferencia_retiro_elegido_por_el_artesano_cuesta_cero(self):
+        solicitud, base = self._solicitud_con_entrega()
+        datos = base | {"modalidad_entrega": "retiro_taller"}
+        con_costo = self.emitir(datos | {"costo_entrega": "100.00"}, solicitud=solicitud)
+        self.assertEqual(con_costo.status_code, 400, con_costo.data)
+        self.assertIn("costo_entrega", con_costo.data)
+        ok = self.emitir(datos | {"costo_entrega": "0.00"}, solicitud=solicitud)
+        self.assertEqual(ok.status_code, 201, ok.data)
+        self.assertEqual(ok.data["costo_entrega"], "0.00")
+
+    def test_con_preferencia_punto_de_encuentro_el_costo_es_editable(self):
+        solicitud, base = self._solicitud_con_entrega("punto_encuentro", "Parque central")
+        ok = self.emitir(base | {"costo_entrega": "35.00"}, solicitud=solicitud)
+        self.assertEqual(ok.status_code, 201, ok.data)
+        self.assertEqual(ok.data["costo_entrega"], "35.00")
 
     def test_cargo_de_personalizacion_solo_en_renglones_de_personalizacion(self):
         lineas = self.condiciones()["lineas"]
@@ -618,6 +700,7 @@ class LimitesTests(PropuestaAPITestCase):
         enorme = crear_producto(
             self.taller, self.categoria, publicado=True, precio=Decimal("99999999.99")
         )
+        inicializar_stock(self.artesano, enorme, cantidad=2147483647)
         solicitud = self.crear(datos_renglon(enorme, cantidad=2147483647))
         self.revisar(solicitud, rechazados=set())
         respuesta = self.emitir(

@@ -27,6 +27,7 @@ from apps.solicitudes.models import (
     ResolucionRenglon,
     RevisionRenglonSolicitud,
 )
+from apps.solicitudes.tests.base import inicializar_stock
 from apps.talleres import services as talleres
 from apps.talleres.tests.base import crear_administrador, crear_artesano_con_taller
 
@@ -54,6 +55,7 @@ class CarreraTestCase(TransactionTestCase):
         talleres.aprobar_taller(taller, revisor=crear_administrador())
         self.artesano = taller.propietario
         self.producto = crear_producto(taller, crear_categoria(), publicado=True)
+        inicializar_stock(self.artesano, self.producto)
         self.comprador = crear_usuario("86666666")
         self.dentro = threading.Event()
         self.continuar = threading.Event()

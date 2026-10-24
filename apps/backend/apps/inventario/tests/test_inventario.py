@@ -49,6 +49,8 @@ def url_movimientos(producto_id: int):
 
 
 class InventarioBaseAPITestCase(SolicitudesAPITestCase):
+    stock_inicial = False  # estas pruebas inicializan el inventario ellas mismas
+
     def setUp(self):
         super().setUp()
         self.autenticar(self.artesano)
@@ -339,11 +341,10 @@ class HistorialYPermisosInventarioTests(InventarioBaseAPITestCase):
 
 
 class ConstraintsInventarioBDTests(PropuestaAPITestCase):
+    existencia_p_stock = 5  # inventario inicial de p_stock lo crea la base
+
     def setUp(self):
         super().setUp()
-        services.establecer_inventario_inicial(
-            artesano=self.artesano, producto_id=self.p_stock.pk, cantidad=5
-        )
         services.establecer_inventario_inicial(
             artesano=self.artesano, producto_id=self.p_pers.pk, cantidad=2
         )

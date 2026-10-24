@@ -154,13 +154,18 @@ def crear_solicitud(
             if datos.get("modalidad") == Modalidad.STOCK and getattr(
                 producto, "permite_stock", False
             ):
+                # Misma regla que ``disponible_stock`` del catálogo: sin inventario inicializado
+                # no hay unidades (nunca stock ilimitado). Es una comprobación temprana: no
+                # reserva y no sustituye la revalidación transaccional al confirmar (AUD-07).
                 try:
-                    inv = producto.inventario
+                    disponible = producto.inventario.disponible
                 except ObjectDoesNotExist:
-                    inv = None
-                if inv is not None and datos["cantidad"] > inv.disponible:
+                    disponible = 0
+                if datos["cantidad"] > disponible:
                     error["cantidad"] = [
-                        f"Supera el stock disponible actualmente ({inv.disponible} unidades)."
+                        "No hay unidades disponibles actualmente para venta desde stock."
+                        if disponible == 0
+                        else f"Supera el stock disponible actualmente ({disponible} unidades)."
                     ]
             fila = RenglonSolicitud(
                 producto=producto,

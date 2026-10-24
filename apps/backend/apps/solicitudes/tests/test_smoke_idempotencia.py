@@ -22,6 +22,7 @@ from apps.catalogo.tests.base import crear_categoria, crear_producto
 from apps.operaciones.models import OperacionIdempotente
 from apps.solicitudes import services
 from apps.solicitudes.models import RenglonSolicitud, Solicitud
+from apps.solicitudes.tests.base import inicializar_stock
 from apps.talleres import services as talleres
 from apps.talleres.tests.base import crear_administrador, crear_artesano_con_taller
 
@@ -44,6 +45,8 @@ class SmokeIdempotenciaTests(LiveServerTestCase):
         categoria = crear_categoria()
         self.producto_a = crear_producto(self.taller_a, categoria, publicado=True)
         self.producto_b = crear_producto(self.taller_b, categoria, publicado=True)
+        inicializar_stock(self.taller_a.propietario, self.producto_a)
+        inicializar_stock(self.taller_b.propietario, self.producto_b)
 
     def peticion(self, ruta, *, datos=None, token=None, csrf=None, clave=None, cliente=None):
         cabeceras = {"Accept": "application/json"}

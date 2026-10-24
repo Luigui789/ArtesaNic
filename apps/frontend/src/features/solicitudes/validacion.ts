@@ -27,6 +27,8 @@ const esFechaSolicitadaValida = esFechaCalendarioDesdeHoy;
 export const MAX_RENGLONES = 50;
 export const MAX_CARACTERISTICAS = 2000;
 export const MAX_DESCRIPCION_ENTREGA = 500;
+/** Espejo de `MAX_MOTIVO_RECHAZO` del backend (docs/api/propuestas.md). */
+export const MAX_MOTIVO_RECHAZO = 1000;
 
 const camposComunes = {
   producto: z.number().int().positive().max(Number.MAX_SAFE_INTEGER),

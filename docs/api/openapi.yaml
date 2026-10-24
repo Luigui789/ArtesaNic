@@ -3731,16 +3731,26 @@ components:
         ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
       properties:
         modalidad_entrega:
-          $ref: '#/components/schemas/ModalidadEntregaEnum'
+          allOf:
+          - $ref: '#/components/schemas/ModalidadEntregaEnum'
+          description: |-
+            Si el comprador eligió modalidad, la propuesta adopta la suya y enviar otra responde 400. Si dejó «Sin preferencia», es obligatoria: el artesano define el plan y la ausencia de preferencia no equivale a retiro_taller.
+
+            * `retiro_taller` - Retiro en taller
+            * `punto_encuentro` - Punto de encuentro
+            * `entrega_artesano` - Entrega por el artesano
+            * `otra` - Otra
         descripcion_entrega:
           type: string
-          description: Obligatoria con «otra»; opcional con las demás.
+          description: Obligatoria con «otra»; opcional con las demás. Si el comprador
+            eligió modalidad, la descripción es la suya y enviar otra responde 400.
           maxLength: 500
         costo_entrega:
           type: string
           format: decimal
           pattern: ^-?\d{0,8}(?:\.\d{0,2})?$
           description: Costo de entrega definido manualmente por el artesano (RF-016.3).
+            Con retiro_taller debe ser 0.00 (400 en otro caso).
         lineas:
           type: array
           items:
