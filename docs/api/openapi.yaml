@@ -786,11 +786,14 @@ paths:
           type: string
           enum:
           - ajustar_inventario
+          - corregir_intento_pago
           - crear_solicitud
           - decidir_propuesta
           - establecer_inventario_inicial
           - finalizar_propuesta
           - registrar_entrada_inventario
+          - registrar_intento_pago
+          - resolver_intento_pago
           - resolver_renglon
         required: true
       tags:
@@ -901,6 +904,306 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/mios/{pedido_id}/pago/:
+    get:
+      operationId: consultar_pago_de_mi_pedido
+      description: Estado actual del pago y su historial completo de intentos y revisiones,
+        en orden cronológico. Sin pago registrado, `estado` es `pendiente` y `registrable_hasta`
+        es `confirmado_en + 48 h`. Total y moneda proceden del pedido confirmado.
+        Los comprobantes se describen por nombre, tipo, tamaño y un endpoint autenticado;
+        nunca por ruta física ni URL pública. 404 si el pedido no existe o es ajeno.
+      summary: Consultar el pago de un pedido propio
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Pagos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pago'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/mios/{pedido_id}/pago/intentos/:
+    post:
+      operationId: registrar_intento_de_pago
+      description: 'Registro inicial mientras el pago está pendiente y dentro de `confirmado_en
+        + 48 h`, o nuevo intento completo tras `no_recibido` dentro de su plazo de
+        48 h (vinculado al intento anterior). El pago pasa a `registrado`. `multipart/form-data`
+        con `metodo` (`transferencia` | `otro`), `referencia` (1–120 caracteres tras
+        recortar) y exactamente un `comprobante` (JPG, JPEG, PNG, WebP o PDF, máximo
+        10 MiB, validado por contenido: extensión, MIME declarado y firma deben coincidir).
+        Cualquier otro campo —incluidos monto, moneda o estado— responde 400. Protegida
+        por `Idempotency-Key` (AUD-08): la huella incluye el pedido, método, referencia
+        recortada y SHA-256 del contenido del comprobante. `Idempotency-Key` ausente
+        o con formato inválido responde `{"Idempotency-Key": ["..."]}`, antes de validar
+        el cuerpo.'
+      summary: Registrar el pago externo o un nuevo intento tras «no recibido»
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Pagos
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IntentoPagoEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pago'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoPago'
+          description: 'Conflicto sin efectos; `codigo` estable: `pago_ya_confirmado`,
+            `pago_en_revision`, `correccion_pendiente`, `plazo_pago_vencido`, `nuevo_intento_fuera_plazo`,
+            `clave_idempotencia_reutilizada`. Nunca modifica ni elimina intentos,
+            revisiones o comprobantes anteriores.'
+  /api/v1/pedidos/mios/{pedido_id}/pago/intentos/{intento_id}/comprobante/:
+    get:
+      operationId: descargar_comprobante_de_mi_pedido
+      description: 'Descarga autenticada del comprobante de un intento. Repite el
+        control de ownership (no basta haber listado el pago): solo el comprador del
+        pedido o el artesano de su taller. Ajeno o inexistente: 404; anónimo: 401;
+        otros roles (incluida la administración): 403. Responde el archivo con su
+        MIME detectado, `Content-Disposition: attachment` con nombre generado, `X-Content-Type-Options:
+        nosniff` y `Cache-Control: private, no-store`.'
+      summary: Descargar un comprobante de un pedido propio
+      parameters:
+      - in: path
+        name: intento_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Pagos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+          description: Contenido del comprobante.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/mios/{pedido_id}/pago/intentos/{intento_id}/corregir/:
+    post:
+      operationId: corregir_intento_de_pago
+      description: 'Crea un intento nuevo de origen `correccion` vinculado al intento
+        observado de la URL (debe ser el más reciente y estar `observado`), dentro
+        de las 48 h abiertas por la observación. El intento observado y su comprobante
+        se conservan. El pago vuelve a `registrado`. `multipart/form-data` con `metodo`
+        (`transferencia` | `otro`), `referencia` (1–120 caracteres tras recortar)
+        y exactamente un `comprobante` (JPG, JPEG, PNG, WebP o PDF, máximo 10 MiB,
+        validado por contenido: extensión, MIME declarado y firma deben coincidir).
+        Cualquier otro campo —incluidos monto, moneda o estado— responde 400. Huella
+        idempotente: pedido, intento observado, método, referencia y SHA-256 del comprobante.
+        `Idempotency-Key` ausente o con formato inválido responde `{"Idempotency-Key":
+        ["..."]}`, antes de validar el cuerpo.'
+      summary: Corregir el intento de pago observado
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: intento_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Pagos
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/IntentoPagoEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pago'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoPago'
+          description: 'Conflicto sin efectos; `codigo` estable: `pago_ya_confirmado`,
+            `pago_en_revision`, `correccion_no_permitida`, `correccion_fuera_plazo`,
+            `clave_idempotencia_reutilizada`. Nunca modifica ni elimina intentos,
+            revisiones o comprobantes anteriores.'
   /api/v1/pedidos/recibidos/:
     get:
       operationId: listar_pedidos_recibidos
@@ -984,6 +1287,210 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/recibidos/{pedido_id}/pago/:
+    get:
+      operationId: consultar_pago_de_pedido_recibido
+      description: Estado actual del pago y su historial completo de intentos y revisiones,
+        en orden cronológico. Sin pago registrado, `estado` es `pendiente` y `registrable_hasta`
+        es `confirmado_en + 48 h`. Total y moneda proceden del pedido confirmado.
+        Los comprobantes se describen por nombre, tipo, tamaño y un endpoint autenticado;
+        nunca por ruta física ni URL pública. 404 si el pedido no existe o es ajeno.
+      summary: Consultar el pago de un pedido del taller propio
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Pagos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pago'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/recibidos/{pedido_id}/pago/intentos/{intento_id}/comprobante/:
+    get:
+      operationId: descargar_comprobante_de_pedido_recibido
+      description: 'Descarga autenticada del comprobante de un intento. Repite el
+        control de ownership (no basta haber listado el pago): solo el comprador del
+        pedido o el artesano de su taller. Ajeno o inexistente: 404; anónimo: 401;
+        otros roles (incluida la administración): 403. Responde el archivo con su
+        MIME detectado, `Content-Disposition: attachment` con nombre generado, `X-Content-Type-Options:
+        nosniff` y `Cache-Control: private, no-store`.'
+      summary: Descargar un comprobante de un pedido del taller propio
+      parameters:
+      - in: path
+        name: intento_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Pagos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/webp:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+          description: Contenido del comprobante.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/recibidos/{pedido_id}/pago/intentos/{intento_id}/resolver/:
+    post:
+      operationId: resolver_intento_de_pago
+      description: 'Resolución única del artesano sobre el intento registrado. `confirmado`:
+        fondos verificados; sin motivo; terminal (no admite nuevos intentos ni otra
+        resolución). `observado`: problema con la evidencia o los datos (ilegible,
+        incompleta, referencia incorrecta); motivo obligatorio (1–1000 caracteres
+        tras recortar); abre 48 h para corregir. `no_recibido`: los fondos no aparecen
+        acreditados en el medio externo; motivo obligatorio; abre 48 h para un nuevo
+        intento. No modifica inventario ni el estado del pedido. Protegida por `Idempotency-Key`:
+        huella con pedido, intento, estado y motivo recortado. `Idempotency-Key` ausente
+        o con formato inválido responde `{"Idempotency-Key": ["..."]}`, antes de validar
+        el cuerpo.'
+      summary: Confirmar, observar o marcar como no recibido un intento de pago
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: intento_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Pagos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolucionPagoEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pago'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoPago'
+          description: 'Conflicto sin efectos; `codigo` estable: `pago_ya_confirmado`,
+            `intento_ya_resuelto`, `clave_idempotencia_reutilizada`. Nunca modifica
+            ni elimina intentos, revisiones o comprobantes anteriores.'
   /api/v1/productos/:
     get:
       operationId: listar_catalogo
@@ -2345,6 +2852,28 @@ components:
         * `inventario_no_inicializado` - Registra primero la existencia inicial del producto antes de operar.
         * `ajuste_bajo_comprometido` - El ajuste negativo no puede reducir la existencia física por debajo de las unidades reservadas ni de cero.
         * `clave_idempotencia_reutilizada` - Clave reutilizada con otra petición
+    CodigoConflictoPagoEnum:
+      enum:
+      - pago_ya_confirmado
+      - pago_en_revision
+      - correccion_pendiente
+      - correccion_no_permitida
+      - intento_ya_resuelto
+      - plazo_pago_vencido
+      - correccion_fuera_plazo
+      - nuevo_intento_fuera_plazo
+      - clave_idempotencia_reutilizada
+      type: string
+      description: |-
+        * `pago_ya_confirmado` - El pago de este pedido ya fue confirmado y no admite cambios.
+        * `pago_en_revision` - Hay un pago registrado pendiente de revisión del taller.
+        * `correccion_pendiente` - El pago fue observado: registra la corrección del intento observado.
+        * `correccion_no_permitida` - Solo se puede corregir el intento observado más reciente.
+        * `intento_ya_resuelto` - Este intento de pago ya tiene una resolución y no se modifica.
+        * `plazo_pago_vencido` - Venció el plazo de 48 horas para registrar el pago.
+        * `correccion_fuera_plazo` - Venció el plazo de 48 horas para corregir el pago observado.
+        * `nuevo_intento_fuera_plazo` - Venció el plazo de 48 horas para registrar un nuevo intento de pago.
+        * `clave_idempotencia_reutilizada` - Clave reutilizada con otra petición
     CodigoConflictoSolicitudEnum:
       enum:
       - renglon_ya_resuelto
@@ -2377,6 +2906,46 @@ components:
       required:
       - id
       - nombre
+    Comprobante:
+      type: object
+      properties:
+        nombre:
+          type: string
+          description: Nombre original saneado; solo para mostrar.
+        tipo:
+          allOf:
+          - $ref: '#/components/schemas/ComprobanteTipoEnum'
+          description: |-
+            MIME detectado.
+
+            * `image/jpeg` - image/jpeg
+            * `image/png` - image/png
+            * `image/webp` - image/webp
+            * `application/pdf` - application/pdf
+        tamano:
+          type: integer
+          description: Bytes.
+        url:
+          type: string
+          description: Endpoint autenticado relativo a la raíz de la API; no es una
+            URL pública.
+      required:
+      - nombre
+      - tamano
+      - tipo
+      - url
+    ComprobanteTipoEnum:
+      enum:
+      - image/jpeg
+      - image/png
+      - image/webp
+      - application/pdf
+      type: string
+      description: |-
+        * `image/jpeg` - image/jpeg
+        * `image/png` - image/png
+        * `image/webp` - image/webp
+        * `application/pdf` - application/pdf
     ConflictoIdempotencia:
       type: object
       properties:
@@ -2394,6 +2963,16 @@ components:
           type: string
         codigo:
           $ref: '#/components/schemas/CodigoConflictoInventarioEnum'
+      required:
+      - codigo
+      - detail
+    ConflictoPago:
+      type: object
+      properties:
+        detail:
+          type: string
+        codigo:
+          $ref: '#/components/schemas/CodigoConflictoPagoEnum'
       required:
       - codigo
       - detail
@@ -2496,6 +3075,20 @@ components:
       - completada
       type: string
       description: '* `completada` - Completada'
+    EstadoPagoEnum:
+      enum:
+      - pendiente
+      - registrado
+      - observado
+      - confirmado
+      - no_recibido
+      type: string
+      description: |-
+        * `pendiente` - Pendiente de pago
+        * `registrado` - Pago registrado
+        * `observado` - Pago observado
+        * `confirmado` - Pago confirmado
+        * `no_recibido` - Pago no recibido
     EstadoSolicitudEnum:
       enum:
       - pendiente_revision
@@ -2533,6 +3126,70 @@ components:
           description: Existencia física inicial del producto (entero ≥ 0).
       required:
       - cantidad
+    IntentoPago:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        numero:
+          type: integer
+          readOnly: true
+        origen:
+          $ref: '#/components/schemas/OrigenIntentoPagoEnum'
+        intento_previo:
+          type: integer
+          nullable: true
+        metodo:
+          $ref: '#/components/schemas/MetodoPagoEnum'
+        referencia:
+          type: string
+          readOnly: true
+        registrado_en:
+          type: string
+          format: date-time
+          readOnly: true
+        comprobante:
+          allOf:
+          - $ref: '#/components/schemas/Comprobante'
+          readOnly: true
+        resolucion:
+          allOf:
+          - $ref: '#/components/schemas/ResolucionIntento'
+          nullable: true
+          readOnly: true
+      required:
+      - comprobante
+      - id
+      - intento_previo
+      - metodo
+      - numero
+      - origen
+      - referencia
+      - registrado_en
+      - resolucion
+    IntentoPagoEntradaRequest:
+      type: object
+      description: |-
+        Registro, nuevo intento o corrección: el cliente nunca envía monto, moneda,
+        comprador, taller, estado ni intento previo (este último viene de la URL).
+      properties:
+        metodo:
+          $ref: '#/components/schemas/MetodoPagoEnum'
+        referencia:
+          type: string
+          minLength: 1
+          description: Referencia del pago externo; se recorta y no puede quedar vacía.
+          maxLength: 120
+        comprobante:
+          type: string
+          format: binary
+          description: Un único archivo JPG, JPEG, PNG, WebP o PDF de hasta 10 MiB
+            (10 485 760 bytes), validado por contenido.
+      required:
+      - comprobante
+      - metodo
+      - referencia
     InventarioProducto:
       type: object
       properties:
@@ -2741,6 +3398,14 @@ components:
       required:
       - password
       - telefono
+    MetodoPagoEnum:
+      enum:
+      - transferencia
+      - otro
+      type: string
+      description: |-
+        * `transferencia` - Transferencia
+        * `otro` - Otro método
     ModalidadEntregaEnum:
       enum:
       - retiro_taller
@@ -2868,6 +3533,16 @@ components:
       - estado
       - recurso
       - tipo
+    OrigenIntentoPagoEnum:
+      enum:
+      - inicial
+      - correccion
+      - nuevo_tras_no_recibido
+      type: string
+      description: |-
+        * `inicial` - Registro inicial
+        * `correccion` - Corrección de un intento observado
+        * `nuevo_tras_no_recibido` - Nuevo intento tras pago no recibido
     OrigenPersonalizacionEnum:
       enum:
       - desde_cero
@@ -3076,6 +3751,50 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SolicitudComprador'
+    Pago:
+      type: object
+      properties:
+        pedido:
+          type: integer
+        estado:
+          $ref: '#/components/schemas/EstadoPagoEnum'
+        moneda:
+          type: string
+        total:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          description: 100 % del total congelado del pedido; el cliente nunca lo envía.
+        registrable_hasta:
+          type: string
+          format: date-time
+          nullable: true
+          description: Límite (reloj del servidor) para registrar, corregir o volver
+            a intentar; el instante exacto ya está vencido. null en registrado y confirmado.
+        plazo_vencido:
+          type: boolean
+        revision_pendiente:
+          type: boolean
+          description: Hay un intento registrado esperando la revisión del taller.
+        confirmado_en:
+          type: string
+          format: date-time
+          nullable: true
+        intentos:
+          type: array
+          items:
+            $ref: '#/components/schemas/IntentoPago'
+          readOnly: true
+      required:
+      - confirmado_en
+      - estado
+      - intentos
+      - moneda
+      - pedido
+      - plazo_vencido
+      - registrable_hasta
+      - revision_pendiente
+      - total
     PatchedActualizarPerfilTallerRequest:
       type: object
       description: Edición del perfil del taller propio, incluyendo imagen de perfil
@@ -4024,6 +4743,42 @@ components:
       description: |-
         * `aceptado` - Aceptado
         * `rechazado` - Rechazado
+    ResolucionIntento:
+      type: object
+      properties:
+        estado:
+          $ref: '#/components/schemas/ResultadoRevisionPagoEnum'
+        motivo:
+          type: string
+        revisado_en:
+          type: string
+          format: date-time
+        plazo_hasta:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - estado
+      - motivo
+      - plazo_hasta
+      - revisado_en
+    ResolucionPagoEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        estado:
+          $ref: '#/components/schemas/ResultadoRevisionPagoEnum'
+        motivo:
+          type: string
+          description: Obligatorio y no vacío en observado y no_recibido; no se admite
+            al confirmar.
+          maxLength: 1000
+      required:
+      - estado
     ResolucionRenglonEnum:
       enum:
       - pendiente
@@ -4042,6 +4797,16 @@ components:
       description: |-
         * `aceptada` - Aceptada
         * `rechazada` - Rechazada
+    ResultadoRevisionPagoEnum:
+      enum:
+      - confirmado
+      - observado
+      - no_recibido
+      type: string
+      description: |-
+        * `confirmado` - Pago confirmado
+        * `observado` - Pago observado
+        * `no_recibido` - Pago no recibido
     Revisor:
       type: object
       properties:
@@ -4436,6 +5201,9 @@ components:
       - establecer_inventario_inicial
       - registrar_entrada_inventario
       - ajustar_inventario
+      - registrar_intento_pago
+      - corregir_intento_pago
+      - resolver_intento_pago
       type: string
       description: |-
         * `crear_solicitud` - Crear solicitud
@@ -4445,6 +5213,9 @@ components:
         * `establecer_inventario_inicial` - Registrar existencia inicial
         * `registrar_entrada_inventario` - Registrar entrada de inventario
         * `ajustar_inventario` - Ajustar inventario
+        * `registrar_intento_pago` - Registrar intento de pago
+        * `corregir_intento_pago` - Corregir intento de pago observado
+        * `resolver_intento_pago` - Resolver intento de pago
     TokenAcceso:
       type: object
       properties:

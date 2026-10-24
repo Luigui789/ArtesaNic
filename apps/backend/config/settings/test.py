@@ -15,3 +15,7 @@ PASSWORD_HASHERS = ["django.contrib.auth.hashers.MD5PasswordHasher"]
 _MEDIA_TEMPORAL = TemporaryDirectory(prefix="artesanic-tests-media-")
 MEDIA_ROOT = _MEDIA_TEMPORAL.name
 atexit.register(_MEDIA_TEMPORAL.cleanup)
+
+_PRIVADO_TEMPORAL = TemporaryDirectory(prefix="artesanic-tests-private-")
+PRIVATE_MEDIA_ROOT = _PRIVADO_TEMPORAL.name
+atexit.register(_PRIVADO_TEMPORAL.cleanup)

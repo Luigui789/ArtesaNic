@@ -31,6 +31,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-artesanic}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copiar .env.example a .env}
       DJANGO_MEDIA_ROOT: /workspace/media
+      DJANGO_PRIVATE_MEDIA_ROOT: /workspace/private_media
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
     command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000 --noreload"]
@@ -40,6 +41,7 @@ services:
       - ./apps/backend:/workspace/apps/backend
       - ./docs:/workspace/docs:ro
       - backend_media:/workspace/media
+      - backend_private_media:/workspace/private_media
     depends_on:
       db:
         condition: service_healthy
@@ -79,3 +81,5 @@ volumes:
     name: ${POSTGRES_VOLUME:-artesanic_postgres_data}
   frontend_node_modules:
   backend_media:
+  # Comprobantes de pago privados (D-AUD10-05): volumen separado, nunca servido por URL.
+  backend_private_media:
