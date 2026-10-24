@@ -1038,10 +1038,10 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConflictoPago'
-          description: 'Conflicto sin efectos; `codigo` estable: `pago_ya_confirmado`,
-            `pago_en_revision`, `correccion_pendiente`, `plazo_pago_vencido`, `nuevo_intento_fuera_plazo`,
-            `clave_idempotencia_reutilizada`. Nunca modifica ni elimina intentos,
-            revisiones o comprobantes anteriores.'
+          description: 'Conflicto sin efectos; `codigo` estable: `pedido_vencido`,
+            `pago_ya_confirmado`, `pago_en_revision`, `correccion_pendiente`, `plazo_pago_vencido`,
+            `nuevo_intento_fuera_plazo`, `clave_idempotencia_reutilizada`. Nunca modifica
+            ni elimina intentos, revisiones o comprobantes anteriores.'
   /api/v1/pedidos/mios/{pedido_id}/pago/intentos/{intento_id}/comprobante/:
     get:
       operationId: descargar_comprobante_de_mi_pedido
@@ -1200,8 +1200,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConflictoPago'
-          description: 'Conflicto sin efectos; `codigo` estable: `pago_ya_confirmado`,
-            `pago_en_revision`, `correccion_no_permitida`, `correccion_fuera_plazo`,
+          description: 'Conflicto sin efectos; `codigo` estable: `pedido_vencido`,
+            `pago_ya_confirmado`, `pago_en_revision`, `correccion_no_permitida`, `correccion_fuera_plazo`,
             `clave_idempotencia_reutilizada`. Nunca modifica ni elimina intentos,
             revisiones o comprobantes anteriores.'
   /api/v1/pedidos/recibidos/:
@@ -1488,9 +1488,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ConflictoPago'
-          description: 'Conflicto sin efectos; `codigo` estable: `pago_ya_confirmado`,
-            `intento_ya_resuelto`, `clave_idempotencia_reutilizada`. Nunca modifica
-            ni elimina intentos, revisiones o comprobantes anteriores.'
+          description: 'Conflicto sin efectos; `codigo` estable: `pedido_vencido`,
+            `pago_ya_confirmado`, `intento_ya_resuelto`, `clave_idempotencia_reutilizada`.
+            Nunca modifica ni elimina intentos, revisiones o comprobantes anteriores.'
   /api/v1/productos/:
     get:
       operationId: listar_catalogo
@@ -2862,6 +2862,7 @@ components:
       - plazo_pago_vencido
       - correccion_fuera_plazo
       - nuevo_intento_fuera_plazo
+      - pedido_vencido
       - clave_idempotencia_reutilizada
       type: string
       description: |-
@@ -2873,6 +2874,7 @@ components:
         * `plazo_pago_vencido` - Venció el plazo de 48 horas para registrar el pago.
         * `correccion_fuera_plazo` - Venció el plazo de 48 horas para corregir el pago observado.
         * `nuevo_intento_fuera_plazo` - Venció el plazo de 48 horas para registrar un nuevo intento de pago.
+        * `pedido_vencido` - El pedido venció por falta de pago y ya no admite cambios en el pago.
         * `clave_idempotencia_reutilizada` - Clave reutilizada con otra petición
     CodigoConflictoSolicitudEnum:
       enum:
@@ -3089,6 +3091,14 @@ components:
         * `observado` - Pago observado
         * `confirmado` - Pago confirmado
         * `no_recibido` - Pago no recibido
+    EstadoPedidoEnum:
+      enum:
+      - confirmado
+      - vencido_falta_pago
+      type: string
+      description: |-
+        * `confirmado` - Pedido confirmado
+        * `vencido_falta_pago` - Vencido por falta de pago
     EstadoSolicitudEnum:
       enum:
       - pendiente_revision
@@ -3919,6 +3929,21 @@ components:
           allOf:
           - $ref: '#/components/schemas/TallerResumen'
           readOnly: true
+        estado:
+          allOf:
+          - $ref: '#/components/schemas/EstadoPedidoEnum'
+          readOnly: true
+          description: |-
+            Estado operativo del pedido (AUD-11); independiente del estado del pago.
+
+            * `confirmado` - Pedido confirmado
+            * `vencido_falta_pago` - Vencido por falta de pago
+        vencido_en:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Instante del vencimiento por falta de pago; null si no venció.
         confirmado_en:
           type: string
           format: date-time
@@ -3977,6 +4002,7 @@ components:
       - confirmado_en
       - costo_entrega
       - descripcion_entrega
+      - estado
       - id
       - lineas
       - modalidad_entrega
@@ -3989,6 +4015,7 @@ components:
       - total
       - total_otros_cargos
       - total_personalizacion
+      - vencido_en
     PedidoComprador:
       type: object
       description: Snapshot contractual del pedido confirmado para el comprador propietario.
@@ -4006,6 +4033,21 @@ components:
           allOf:
           - $ref: '#/components/schemas/TallerResumen'
           readOnly: true
+        estado:
+          allOf:
+          - $ref: '#/components/schemas/EstadoPedidoEnum'
+          readOnly: true
+          description: |-
+            Estado operativo del pedido (AUD-11); independiente del estado del pago.
+
+            * `confirmado` - Pedido confirmado
+            * `vencido_falta_pago` - Vencido por falta de pago
+        vencido_en:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Instante del vencimiento por falta de pago; null si no venció.
         confirmado_en:
           type: string
           format: date-time
@@ -4059,6 +4101,7 @@ components:
       - confirmado_en
       - costo_entrega
       - descripcion_entrega
+      - estado
       - id
       - lineas
       - modalidad_entrega
@@ -4071,6 +4114,7 @@ components:
       - total
       - total_otros_cargos
       - total_personalizacion
+      - vencido_en
     PerfilTallerEntradaRequest:
       type: object
       description: |-
