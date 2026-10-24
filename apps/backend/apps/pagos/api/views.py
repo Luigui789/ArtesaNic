@@ -30,7 +30,7 @@ from ..services import CodigoConflictoPago as C
 from .conflictos import errores_de_dominio, respuesta_conflicto
 from .serializers import (
     IntentoPagoEntradaSerializer,
-    PagoSerializer,
+    PagoPedidoSerializer,
     ResolucionPagoEntradaSerializer,
     VistaPago,
 )
@@ -55,7 +55,7 @@ ENTRADA_MULTIPART = (
 
 
 def _vista(pedido, lado) -> dict:
-    return PagoSerializer(
+    return PagoPedidoSerializer(
         VistaPago.de(pedido, selectors.pago_con_historial(pedido)), context={"lado": lado}
     ).data
 
@@ -123,7 +123,7 @@ class MiPagoView(APIView):
         operation_id="consultar_pago_de_mi_pedido",
         summary="Consultar el pago de un pedido propio",
         description=DESCRIPCION_LECTURA,
-        responses={200: PagoSerializer, **ERRORES, 404: NO_ENCONTRADO},
+        responses={200: PagoPedidoSerializer, **ERRORES, 404: NO_ENCONTRADO},
     )
     def get(self, request, pedido_id: int):
         pedido = selectors.pedido_del_comprador(request.user, pedido_id)
@@ -151,7 +151,7 @@ class IntentosPagoView(APIView):
         request={"multipart/form-data": IntentoPagoEntradaSerializer},
         parameters=[idempotencia.PARAMETRO_CLAVE, idempotencia.PARAMETRO_REPETIDA],
         responses={
-            201: PagoSerializer,
+            201: PagoPedidoSerializer,
             400: ERROR_ENTRADA,
             **ERRORES,
             404: NO_ENCONTRADO,
@@ -196,7 +196,7 @@ class CorregirIntentoPagoView(APIView):
         request={"multipart/form-data": IntentoPagoEntradaSerializer},
         parameters=[idempotencia.PARAMETRO_CLAVE, idempotencia.PARAMETRO_REPETIDA],
         responses={
-            201: PagoSerializer,
+            201: PagoPedidoSerializer,
             400: ERROR_ENTRADA,
             **ERRORES,
             404: NO_ENCONTRADO,
@@ -256,7 +256,7 @@ class PagoRecibidoView(APIView):
         operation_id="consultar_pago_de_pedido_recibido",
         summary="Consultar el pago de un pedido del taller propio",
         description=DESCRIPCION_LECTURA,
-        responses={200: PagoSerializer, **ERRORES, 404: NO_ENCONTRADO},
+        responses={200: PagoPedidoSerializer, **ERRORES, 404: NO_ENCONTRADO},
     )
     def get(self, request, pedido_id: int):
         pedido = selectors.pedido_del_taller(request.user, pedido_id)
@@ -286,7 +286,7 @@ class ResolverIntentoPagoView(APIView):
         request=ResolucionPagoEntradaSerializer,
         parameters=[idempotencia.PARAMETRO_CLAVE, idempotencia.parametro_repetida(200)],
         responses={
-            200: PagoSerializer,
+            200: PagoPedidoSerializer,
             400: ERROR_ENTRADA,
             **ERRORES,
             404: NO_ENCONTRADO,

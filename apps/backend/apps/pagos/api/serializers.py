@@ -150,7 +150,7 @@ class IntentoPagoSerializer(serializers.ModelSerializer):
         return ResolucionIntentoSerializer(revision).data if revision else None
 
 
-class PagoSerializer(serializers.Serializer):
+class PagoPedidoSerializer(serializers.Serializer):
     pedido = serializers.IntegerField(source="pedido.pk")
     estado = serializers.ChoiceField(choices=EstadoPago.choices, source="situacion.estado")
     moneda = serializers.CharField(source="pedido.moneda")

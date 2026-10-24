@@ -49,11 +49,14 @@ class EsquemaIdempotenciaTests(SimpleTestCase):
             tipo["schema"]["enum"],
             [
                 "ajustar_inventario",
+                "corregir_intento_pago",
                 "crear_solicitud",
                 "decidir_propuesta",
                 "establecer_inventario_inicial",
                 "finalizar_propuesta",
                 "registrar_entrada_inventario",
+                "registrar_intento_pago",
+                "resolver_intento_pago",
                 "resolver_renglon",
             ],
         )

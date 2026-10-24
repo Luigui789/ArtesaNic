@@ -928,7 +928,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pago'
+                $ref: '#/components/schemas/PagoPedido'
           description: ''
         '401':
           content:
@@ -1005,7 +1005,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pago'
+                $ref: '#/components/schemas/PagoPedido'
           description: ''
         '400':
           content:
@@ -1167,7 +1167,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pago'
+                $ref: '#/components/schemas/PagoPedido'
           description: ''
         '400':
           content:
@@ -1311,7 +1311,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pago'
+                $ref: '#/components/schemas/PagoPedido'
           description: ''
         '401':
           content:
@@ -1455,7 +1455,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Pago'
+                $ref: '#/components/schemas/PagoPedido'
           description: ''
         '400':
           content:
@@ -3751,7 +3751,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/SolicitudComprador'
-    Pago:
+    PagoPedido:
       type: object
       properties:
         pedido:
