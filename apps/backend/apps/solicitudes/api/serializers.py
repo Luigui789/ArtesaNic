@@ -122,10 +122,12 @@ class ResolucionEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serial
 
     def validate(self, attrs):
         if attrs["resolucion"] == ResolucionRenglon.RECHAZADO:
-            if not attrs.get("motivo_rechazo"):
+            motivo = (attrs.get("motivo_rechazo") or "").strip()
+            if not motivo:
                 raise serializers.ValidationError(
                     {"motivo_rechazo": ["Indica el motivo del rechazo."]}
                 )
+            attrs["motivo_rechazo"] = motivo
         elif "motivo_rechazo" in attrs:
             raise serializers.ValidationError(
                 {"motivo_rechazo": ["Un renglón aceptado no lleva motivo."]}

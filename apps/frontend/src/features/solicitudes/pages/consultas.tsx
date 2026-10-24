@@ -1,8 +1,9 @@
 import { ListPagination } from "@/components/common/pagination";
-import { formatDate } from "@/lib/format";
+import { formatCalendarDate, formatDate } from "@/lib/format";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
+import { AlertCircle } from "lucide-react";
 import { PageContainer, PageHeader } from "@/components/common/page";
 import { LoadingState } from "@/components/common/states";
 import { StatusBadge } from "@/components/common/status-badge";
@@ -179,7 +180,9 @@ export function DetalleSolicitud({ recibidas = false }: { recibidas?: boolean })
                   <p>
                     {MODALIDAD_LABELS[r.modalidad]} · Cantidad: {r.cantidad}
                   </p>
-                  {r.fechaSolicitada ? <p>Fecha solicitada: {r.fechaSolicitada}</p> : null}
+                  {r.fechaSolicitada ? (
+                    <p>Fecha solicitada: {formatCalendarDate(r.fechaSolicitada)}</p>
+                  ) : null}
                   {r.caracteristicas ? (
                     <p className="whitespace-pre-wrap break-words">
                       Características: {r.caracteristicas}
@@ -192,17 +195,44 @@ export function DetalleSolicitud({ recibidas = false }: { recibidas?: boolean })
                         : "Unidad estándar como base"}
                     </p>
                   ) : null}
-                  <p>Resolución: {RESOLUCION[r.resolucion]}</p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>Resolución: {RESOLUCION[r.resolucion]}</span>
+                    <StatusBadge
+                      tone={
+                        r.resolucion === "rechazado"
+                          ? "danger"
+                          : r.resolucion === "aceptado"
+                            ? "success"
+                            : "pending"
+                      }
+                    >
+                      {r.resolucion === "rechazado"
+                        ? "Producto rechazado"
+                        : r.resolucion === "aceptado"
+                          ? "Producto aceptado"
+                          : "Pendiente de revisión"}
+                    </StatusBadge>
+                  </div>
                   {solicitudesReales &&
                   recibidas &&
                   r.resolucion === "pendiente" &&
                   s.estado === "pendiente_revision" ? (
                     <RevisionRenglon solicitud={s.id} renglon={r.id} />
                   ) : null}
-                  {r.motivoRechazo ? (
-                    <p className="whitespace-pre-wrap break-words">
-                      Motivo de rechazo: {r.motivoRechazo}
-                    </p>
+                  {r.resolucion === "rechazado" && r.motivoRechazo ? (
+                    <div
+                      role="note"
+                      aria-label={`Motivo del rechazo del producto ${r.posicion}`}
+                      className="mt-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3"
+                    >
+                      <div className="flex items-center gap-2 font-semibold text-destructive">
+                        <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+                        <h3>Motivo del rechazo</h3>
+                      </div>
+                      <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
+                        {r.motivoRechazo}
+                      </p>
+                    </div>
                   ) : null}
                 </li>
               ))}

@@ -2,7 +2,7 @@ import { PageContainer } from "@/components/common/page";
 import { Link } from "react-router";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle2, Clock, Pencil, RefreshCw, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Pencil, RefreshCw, Store, XCircle } from "lucide-react";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { ErrorState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
@@ -168,29 +168,53 @@ function DatosDelTaller({ taller, onEditar }: { taller: TallerPropio; onEditar: 
     ["Sitio web", taller.sitioWeb],
   ];
   return (
-    <section aria-labelledby="datos-taller" className="rounded-xl border bg-card p-5">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="datos-taller" className="font-semibold">
-          Mi taller
-        </h2>
-        <Button variant="outline" className="touch-target" onClick={onEditar}>
-          <Pencil className="size-4" aria-hidden="true" />
-          Editar perfil
-        </Button>
+    <section aria-labelledby="datos-taller" className="overflow-hidden rounded-xl border bg-card">
+      <div className="relative aspect-[3/1] w-full overflow-hidden bg-surface sm:aspect-[4/1]">
+        {taller.imagenPortada ? (
+          <img
+            src={taller.imagenPortada}
+            alt={`Portada del taller ${taller.nombre}`}
+            className="h-full w-full object-cover"
+          />
+        ) : null}
       </div>
-      <p className="mt-2 text-sm">
-        <span className="text-muted-foreground">Nombre: </span>
-        {taller.nombre}
-      </p>
-      {taller.historia ? <p className="mt-2 text-sm">{taller.historia}</p> : null}
-      <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
-        {filas.map(([etiqueta, valor]) => (
-          <div key={etiqueta}>
-            <dt className="text-muted-foreground">{etiqueta}</dt>
-            <dd className="break-words">{valor || "No publicado"}</dd>
+      <div className="p-5">
+        <div className="-mt-10 flex flex-wrap items-end justify-between gap-3">
+          <div className="flex items-end gap-3">
+            {taller.imagenPerfil ? (
+              <img
+                src={taller.imagenPerfil}
+                alt={`Imagen de perfil del taller ${taller.nombre}`}
+                className="size-16 shrink-0 rounded-xl border-4 border-card bg-surface object-cover"
+              />
+            ) : (
+              <div className="flex size-16 shrink-0 items-center justify-center rounded-xl border-4 border-card bg-surface text-muted-foreground">
+                <Store className="size-6" aria-hidden="true" />
+              </div>
+            )}
+            <h2 id="datos-taller" className="font-semibold">
+              Mi taller
+            </h2>
           </div>
-        ))}
-      </dl>
+          <Button variant="outline" className="touch-target" onClick={onEditar}>
+            <Pencil className="size-4" aria-hidden="true" />
+            Editar perfil
+          </Button>
+        </div>
+        <p className="mt-3 text-sm">
+          <span className="text-muted-foreground">Nombre: </span>
+          {taller.nombre}
+        </p>
+        {taller.historia ? <p className="mt-2 text-sm">{taller.historia}</p> : null}
+        <dl className="mt-4 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+          {filas.map(([etiqueta, valor]) => (
+            <div key={etiqueta}>
+              <dt className="text-muted-foreground">{etiqueta}</dt>
+              <dd className="break-words">{valor || "No publicado"}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
     </section>
   );
 }

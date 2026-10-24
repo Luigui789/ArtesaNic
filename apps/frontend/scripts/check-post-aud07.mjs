@@ -27,6 +27,13 @@ const m = await cargarModulos(
     router: "react-router",
     vistaPedido: "@/features/pedidos/pages/confirmados",
     vistaInventario: "@/features/inventario/pages/inventario",
+    revision: "@/features/solicitudes/components/revision",
+    entrega: "@/features/solicitudes/entrega",
+    esquemaPropuesta: "@/features/solicitudes/esquema-propuesta",
+    validacionSolicitud: "@/features/solicitudes/validacion",
+    rq: "@tanstack/react-query",
+    sesion: "@/features/auth/sesion",
+    sesionReact: "@/features/auth/use-session",
   },
   { VITE_AUTH_API: "real", VITE_CATALOGO_API: "real" },
 );
@@ -279,6 +286,195 @@ verificar("no se exponen errores técnicos", () => {
     m.conflictos.mensajeSeguro("Tipo de medio multipart/form-data; boundary=abc incompatible"),
     /boundary|multipart/,
   );
+});
+verificar(
+  "propuesta del artesano: modalidad/descripción de solo lectura, retiro_taller fija C$ 0.00 y fecha con min",
+  () => {
+    const qc = new m.rq.QueryClient();
+    const baseSolicitud = {
+      id: 25,
+      taller: { id: 3, nombre: "Taller histórico" },
+      estado: "lista_propuesta",
+      modalidadEntregaPreferida: "retiro_taller",
+      descripcionEntregaPreferida: "Pasaré el sábado a las 10am",
+      creadaEn: "2026-10-22T10:00:00-06:00",
+      renglones: [
+        {
+          id: 70,
+          posicion: 1,
+          producto,
+          modalidad: "produccion",
+          cantidad: 2,
+          fechaSolicitada: "2026-11-15",
+          caracteristicas: "",
+          origenPersonalizacion: "",
+          resolucion: "aceptado",
+          motivoRechazo: "",
+          resueltoEn: "2026-10-22T10:00:00-06:00",
+        },
+      ],
+    };
+    const renderPropuesta = (solicitud) =>
+      m.server.renderToStaticMarkup(
+        h(
+          m.rq.QueryClientProvider,
+          { client: qc },
+          h(m.sesionReact.SessionProvider, null, h(m.revision.FormularioPropuesta, { solicitud })),
+        ),
+      );
+    const htmlRetiro = renderPropuesta(baseSolicitud);
+    assert.match(htmlRetiro, /Retiro en taller/);
+    assert.match(htmlRetiro, /Pasaré el sábado a las 10am/);
+    assert.match(htmlRetiro, /C\$ 0\.00/);
+    assert.match(htmlRetiro, /El retiro en el taller no tiene costo de entrega/);
+    assert.doesNotMatch(htmlRetiro, /id="propuesta-costo"/);
+    assert.doesNotMatch(htmlRetiro, /id="propuesta-modalidad"/);
+    assert.doesNotMatch(htmlRetiro, /id="propuesta-entrega"/);
+    assert.match(htmlRetiro, /type="date"/);
+    assert.match(htmlRetiro, /min="\d{4}-\d{2}-\d{2}"/);
+
+    const htmlDomicilio = renderPropuesta({
+      ...baseSolicitud,
+      modalidadEntregaPreferida: "entrega_artesano",
+      descripcionEntregaPreferida: "Managua, Altamira",
+    });
+    assert.match(htmlDomicilio, /Entrega por el artesano/);
+    assert.match(htmlDomicilio, /Managua, Altamira/);
+    assert.match(htmlDomicilio, /id="propuesta-costo"/);
+  },
+);
+const solicitudEntrega = (cambios = {}) => ({
+  id: 26,
+  taller: { id: 3, nombre: "Taller histórico" },
+  estado: "lista_propuesta",
+  modalidadEntregaPreferida: "",
+  descripcionEntregaPreferida: "",
+  creadaEn: "2026-10-22T10:00:00-06:00",
+  renglones: [
+    {
+      id: 71,
+      posicion: 1,
+      producto,
+      modalidad: "stock",
+      cantidad: 1,
+      fechaSolicitada: null,
+      caracteristicas: "",
+      origenPersonalizacion: "",
+      resolucion: "aceptado",
+      motivoRechazo: "",
+      resueltoEn: "2026-10-22T10:00:00-06:00",
+    },
+  ],
+  ...cambios,
+});
+const renderizarPropuesta = (solicitud) =>
+  m.server.renderToStaticMarkup(
+    h(
+      m.rq.QueryClientProvider,
+      { client: new m.rq.QueryClient() },
+      h(m.sesionReact.SessionProvider, null, h(m.revision.FormularioPropuesta, { solicitud })),
+    ),
+  );
+verificar("sin preferencia: el artesano elige la modalidad y no se asume retiro_taller", () => {
+  const sin = renderizarPropuesta(solicitudEntrega());
+  assert.match(sin, /id="propuesta-modalidad"/);
+  assert.match(sin, /id="propuesta-entrega"/);
+  assert.match(sin, /El comprador no indicó una preferencia de entrega/);
+  for (const etiqueta of [
+    "Retiro en taller",
+    "Punto de encuentro",
+    "Entrega por el artesano",
+    "Otra modalidad",
+  ])
+    assert.ok(sin.includes(etiqueta), etiqueta);
+  // Sin modalidad elegida no se muestra el aviso de retiro ni se oculta el costo.
+  assert.doesNotMatch(sin, /El retiro en el taller no tiene costo de entrega/);
+  assert.doesNotMatch(sin, /Condiciones de entrega elegidas por el comprador/);
+  assert.match(sin, /id="propuesta-costo"/);
+});
+verificar("con preferencia: modalidad y descripción son texto, sin controles", () => {
+  for (const modalidad of ["retiro_taller", "punto_encuentro", "entrega_artesano", "otra"]) {
+    const html = renderizarPropuesta(
+      solicitudEntrega({
+        modalidadEntregaPreferida: modalidad,
+        descripcionEntregaPreferida: "Detalle del comprador",
+      }),
+    );
+    assert.match(html, /Condiciones de entrega elegidas por el comprador/, modalidad);
+    assert.match(html, /Detalle del comprador/, modalidad);
+    assert.doesNotMatch(html, /id="propuesta-modalidad"/, modalidad);
+    assert.doesNotMatch(html, /id="propuesta-entrega"/, modalidad);
+    // Solo el retiro oculta el costo.
+    assert.equal(/id="propuesta-costo"/.test(html), modalidad !== "retiro_taller", modalidad);
+    assert.equal(
+      /El retiro en el taller no tiene costo de entrega/.test(html),
+      modalidad === "retiro_taller",
+      modalidad,
+    );
+  }
+});
+verificar(
+  "esquema de propuesta: modalidad obligatoria, otra con descripción, retiro sin costo",
+  () => {
+    const valido = {
+      modalidadEntrega: "entrega_artesano",
+      descripcionEntrega: "",
+      costoEntrega: "25.00",
+      lineas: [],
+      otrosCargos: [],
+    };
+    const errores = (cambios) =>
+      m.esquemaPropuesta.esquemaPropuesta
+        .safeParse({ ...valido, ...cambios })
+        .error?.issues.map((i) => i.path.join(".")) ?? [];
+    assert.deepEqual(errores({}), []);
+    // Sin preferencia y sin elegir: error en la modalidad, nunca retiro por omisión.
+    assert.ok(errores({ modalidadEntrega: "" }).includes("modalidadEntrega"));
+    assert.ok(errores({ modalidadEntrega: "otra" }).includes("descripcionEntrega"));
+    assert.deepEqual(errores({ modalidadEntrega: "otra", descripcionEntrega: "Encomienda" }), []);
+    assert.ok(errores({ costoEntrega: "abc" }).includes("costoEntrega"));
+    assert.ok(
+      errores({ modalidadEntrega: "punto_encuentro", costoEntrega: "" }).includes("costoEntrega"),
+    );
+    // Con retiro el costo no es editable: un valor residual inválido no bloquea.
+    assert.deepEqual(errores({ modalidadEntrega: "retiro_taller", costoEntrega: "abc" }), []);
+  },
+);
+verificar("entrega: fijada por el comprador o sin preferencia; retiro siempre C$ 0.00", () => {
+  assert.equal(
+    m.entrega.entregaFijadaPorComprador({
+      modalidadEntregaPreferida: "",
+      descripcionEntregaPreferida: "",
+    }),
+    null,
+  );
+  assert.deepEqual(
+    m.entrega.entregaFijadaPorComprador({
+      modalidadEntregaPreferida: "otra",
+      descripcionEntregaPreferida: "Encomienda",
+    }),
+    { modalidad: "otra", descripcion: "Encomienda" },
+  );
+  assert.equal(m.entrega.costoEntregaEnviado("retiro_taller", "100.00"), "0.00");
+  assert.equal(m.entrega.costoEntregaEnviado("retiro_taller", ""), "0.00");
+  for (const modalidad of ["punto_encuentro", "entrega_artesano", "otra"])
+    assert.equal(m.entrega.costoEntregaEnviado(modalidad, "100.00"), "100.00");
+});
+verificar("motivo de rechazo: límite del frontend alineado con el backend (1000)", () => {
+  assert.equal(m.validacionSolicitud.MAX_MOTIVO_RECHAZO, 1000);
+  const html = m.server.renderToStaticMarkup(
+    h(
+      m.rq.QueryClientProvider,
+      { client: new m.rq.QueryClient() },
+      h(
+        m.sesionReact.SessionProvider,
+        null,
+        h(m.revision.RevisionRenglon, { solicitud: 26, renglon: 71 }),
+      ),
+    ),
+  );
+  assert.match(html, /maxLength="1000"/);
+  assert.doesNotMatch(html, /maxLength="500"/);
 });
 console.log(`OK: ${grupos} grupos de regresión frontend AUD-07.`);
 process.exit(0);

@@ -20,6 +20,7 @@ from apps.operaciones import services as operaciones
 from apps.operaciones.models import EstadoOperacion, OperacionIdempotente
 from apps.solicitudes import services
 from apps.solicitudes.models import RenglonSolicitud, Solicitud
+from apps.solicitudes.tests.base import inicializar_stock
 from apps.talleres import services as talleres
 from apps.talleres.tests.base import crear_administrador, crear_artesano_con_taller
 
@@ -47,6 +48,7 @@ class ConcurrenciaTests(TransactionTestCase):
         taller = crear_artesano_con_taller("82222222")
         talleres.aprobar_taller(taller, revisor=crear_administrador())
         producto = crear_producto(taller, crear_categoria(), publicado=True)
+        inicializar_stock(taller.propietario, producto)
         self.comprador = crear_usuario("86666666")
         self.clave = str(uuid4())
         self.renglones = [{"producto": producto.pk, "modalidad": "stock", "cantidad": 1}]

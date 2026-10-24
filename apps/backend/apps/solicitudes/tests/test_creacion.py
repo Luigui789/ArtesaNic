@@ -5,7 +5,9 @@ from django.db import IntegrityError
 from django.utils import timezone
 
 from apps.catalogo import services as catalogo
+from apps.catalogo.models import Producto
 from apps.catalogo.tests.base import crear_producto
+from apps.inventario.models import InventarioProducto
 from apps.solicitudes import services
 from apps.solicitudes.models import (
     MAX_CARACTERISTICAS,
@@ -14,7 +16,7 @@ from apps.solicitudes.models import (
     Solicitud,
 )
 
-from .base import SolicitudesAPITestCase, datos_renglon
+from .base import SolicitudesAPITestCase, datos_renglon, inicializar_stock
 
 
 class CreacionTests(SolicitudesAPITestCase):
@@ -117,10 +119,83 @@ class CreacionTests(SolicitudesAPITestCase):
         del renglon["cantidad"]
         self.assertEqual(self.enviar(renglon).status_code, 400)
 
-    def test_no_consulta_stock_mock_para_cantidad(self):
-        respuesta = self.enviar(datos_renglon(self.producto, cantidad=100000))
-        self.assertEqual(respuesta.status_code, 201)
-        self.assertEqual(RenglonSolicitud.objects.get().cantidad, 100000)
+    def _producto_con_inventario(self, existencia=None, reservada=0):
+        """Producto de stock propio con inventario inicial (``None`` = sin inicializar)."""
+        producto = crear_producto(self.taller, self.categoria, publicado=True, nombre="Con stock")
+        if existencia is not None:
+            inicializar_stock(self.artesano, producto, cantidad=existencia)
+            InventarioProducto.objects.filter(producto=producto).update(reservada=reservada)
+        return producto
+
+    def _intentar_stock(self, producto, cantidad):
+        return self.enviar(datos_renglon(producto, modalidad="stock", cantidad=cantidad))
+
+    def test_stock_sin_inventario_inicializado_equivale_a_cero_disponibles(self):
+        """Antes se trataba como stock ilimitado (cantidad=100000 → 201); ya no."""
+        producto = self._producto_con_inventario(existencia=None)
+        self.assertFalse(InventarioProducto.objects.filter(producto=producto).exists())
+        for cantidad in (1, 100000):
+            with self.subTest(cantidad=cantidad):
+                respuesta = self._intentar_stock(producto, cantidad)
+                self.assertEqual(respuesta.status_code, 400, respuesta.data)
+                self.assertEqual(
+                    respuesta.data["renglones"][0]["cantidad"],
+                    ["No hay unidades disponibles actualmente para venta desde stock."],
+                )
+        self.assertFalse(Solicitud.objects.exists())
+        # No crea inventario como efecto de la validación.
+        self.assertFalse(InventarioProducto.objects.filter(producto=producto).exists())
+
+    def test_stock_acepta_exactamente_lo_disponible(self):
+        producto = self._producto_con_inventario(existencia=4)
+        respuesta = self._intentar_stock(producto, 4)
+        self.assertEqual(respuesta.status_code, 201, respuesta.data)
+
+    def test_stock_rechaza_mas_de_lo_disponible(self):
+        producto = self._producto_con_inventario(existencia=4)
+        respuesta = self._intentar_stock(producto, 5)
+        self.assertEqual(respuesta.status_code, 400, respuesta.data)
+        self.assertIn("4 unidades", respuesta.data["renglones"][0]["cantidad"][0])
+        self.assertFalse(Solicitud.objects.exists())
+
+    def test_stock_descuenta_lo_reservado(self):
+        producto = self._producto_con_inventario(existencia=4, reservada=1)  # disponible = 3
+        respuesta = self._intentar_stock(producto, 4)
+        self.assertEqual(respuesta.status_code, 400, respuesta.data)
+        self.assertIn("3 unidades", respuesta.data["renglones"][0]["cantidad"][0])
+        self.assertEqual(self._intentar_stock(producto, 3).status_code, 201)
+
+    def test_stock_con_disponible_cero_rechaza_cualquier_cantidad_positiva(self):
+        for existencia, reservada in ((0, 0), (4, 4)):
+            producto = self._producto_con_inventario(existencia=existencia, reservada=reservada)
+            for cantidad in (1, 2):
+                with self.subTest(existencia=existencia, reservada=reservada, cantidad=cantidad):
+                    self.assertEqual(self._intentar_stock(producto, cantidad).status_code, 400)
+        self.assertFalse(Solicitud.objects.exists())
+
+    def test_la_validacion_temprana_no_reserva_unidades(self):
+        producto = self._producto_con_inventario(existencia=4)
+        self.assertEqual(self._intentar_stock(producto, 4).status_code, 201)
+        inventario = InventarioProducto.objects.get(producto=producto)
+        self.assertEqual((inventario.existencia_fisica, inventario.reservada), (4, 0))
+
+    def test_produccion_y_personalizacion_no_consultan_stock(self):
+        producto = self._producto_con_inventario(existencia=None)
+        Producto.objects.filter(pk=producto.pk).update(
+            permite_produccion=True, permite_personalizacion=True
+        )
+        produccion = datos_renglon(
+            producto, modalidad="produccion", fecha_solicitada=str(self.fecha), cantidad=100000
+        )
+        self.assertEqual(self.enviar(produccion).status_code, 201)
+        personalizacion = datos_renglon(
+            producto,
+            modalidad="personalizacion",
+            caracteristicas="Con iniciales",
+            origen_personalizacion="desde_cero",
+            cantidad=100000,
+        )
+        self.assertEqual(self.enviar(personalizacion).status_code, 201)
 
     def test_stock_no_requiere_datos_de_otras_modalidades(self):
         respuesta = self.enviar(datos_renglon(self.producto))

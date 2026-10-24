@@ -29,6 +29,7 @@ CAMPOS_PUBLICOS = {
     "taller",
     "creado_en",
     "fotografia_url",
+    "disponible_stock",
 }
 
 
@@ -87,10 +88,44 @@ class VisibilidadTests(CatalogoAPITestCase):
         self.assertEqual(set(producto), CAMPOS_PUBLICOS)
         self.assertEqual(producto["taller"], {"id": self.taller.pk, "nombre": "Barro y Sombra"})
         self.assertEqual(producto["precio"], "850.00")
+        self.assertEqual(producto["disponible_stock"], 0)
         texto = str(producto)
         self.assertNotIn(self.artesano.telefono, texto)
-        for interno in ("publicado", "propietario", "revisado_por", "estado"):
+        for interno in (
+            "publicado",
+            "propietario",
+            "revisado_por",
+            "estado",
+            "existencia_fisica",
+            "reservada",
+            "movimientos",
+            "ajustes",
+            "motivos",
+        ):
             self.assertNotIn(interno, texto)
+
+    def test_disponible_stock_publico_segun_modalidad_e_inventario(self):
+        from apps.inventario import services as inventario
+        from apps.inventario.models import InventarioProducto
+
+        inventario.establecer_inventario_inicial(
+            artesano=self.artesano, producto_id=self.publicado.pk, cantidad=8
+        )
+        InventarioProducto.objects.filter(producto=self.publicado).update(reservada=3)
+        solo_prod = crear_producto(
+            self.taller,
+            self.categoria,
+            nombre="Solo producción",
+            permite_stock=False,
+            permite_produccion=True,
+            publicado=True,
+        )
+
+        detalle_stock = self.client.get(url_producto(self.publicado.pk)).json()
+        self.assertEqual(detalle_stock["disponible_stock"], 5)
+
+        detalle_prod = self.client.get(url_producto(solo_prod.pk)).json()
+        self.assertIsNone(detalle_prod["disponible_stock"])
 
     def test_el_taller_del_producto_lleva_a_su_perfil_publico(self):
         producto = self.client.get(url_producto(self.publicado.pk)).json()

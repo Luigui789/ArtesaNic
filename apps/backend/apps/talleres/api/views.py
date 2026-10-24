@@ -9,6 +9,7 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.cache import never_cache
 from drf_spectacular.utils import OpenApiResponse, extend_schema
 from rest_framework import exceptions
+from rest_framework.parsers import JSONParser, MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -20,7 +21,7 @@ from apps.accounts.api.views import RESPUESTA_400
 from .. import services
 from ..models import Taller
 from .serializers import (
-    PerfilTallerEntradaSerializer,
+    ActualizarPerfilTallerSerializer,
     TallerPropioSerializer,
     TallerPublicoSerializer,
 )
@@ -70,6 +71,7 @@ class TallerView(_VistaPublica):
 @method_decorator(never_cache, name="dispatch")
 class MiTallerView(APIView):
     permission_classes = [EsArtesano, EsPropietario]
+    parser_classes = [JSONParser, MultiPartParser]
 
     def get_object(self) -> Taller:
         # El taller sale de la identidad autenticada; la petición no lo identifica.
@@ -103,7 +105,7 @@ class MiTallerView(APIView):
         description="Modifica solo los campos enviados del perfil público (RF-008). Estado, "
         "propietario y revisión no son modificables: enviarlos responde 400. Editar el perfil "
         "no cambia el estado de aprobación.",
-        request=PerfilTallerEntradaSerializer(partial=True),
+        request=ActualizarPerfilTallerSerializer(partial=True),
         responses={
             200: TallerPropioSerializer,
             400: RESPUESTA_400,
@@ -114,7 +116,7 @@ class MiTallerView(APIView):
     )
     def patch(self, request):
         taller = self.get_object()
-        entrada = PerfilTallerEntradaSerializer(taller, data=request.data, partial=True)
+        entrada = ActualizarPerfilTallerSerializer(taller, data=request.data, partial=True)
         entrada.is_valid(raise_exception=True)
         try:
             taller = services.actualizar_perfil(taller, **entrada.validated_data)

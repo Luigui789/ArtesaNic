@@ -19,6 +19,7 @@ from django.utils import timezone
 from apps.accounts.tests.base import PASSWORD, crear_usuario
 from apps.catalogo.tests.base import crear_categoria, crear_producto
 from apps.solicitudes.models import EstadoSolicitud, RenglonSolicitud, Solicitud
+from apps.solicitudes.tests.base import inicializar_stock
 from apps.talleres import services as talleres
 from apps.talleres.tests.base import crear_administrador, crear_artesano_con_taller
 
@@ -48,6 +49,8 @@ class SmokeSolicitudesTests(LiveServerTestCase):
         )
         segundo_a = crear_producto(taller_a, categoria, publicado=True, nombre="Segunda pieza")
         producto_b = crear_producto(taller_b, categoria, publicado=True)
+        inicializar_stock(taller_a.propietario, producto_a, segundo_a)
+        inicializar_stock(taller_b.propietario, producto_b)
         cliente = build_opener(HTTPCookieProcessor(CookieJar()))
 
         def peticion(ruta, *, datos=None, token=None, csrf=None):

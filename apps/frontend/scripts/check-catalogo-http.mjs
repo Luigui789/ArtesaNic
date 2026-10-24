@@ -127,6 +127,9 @@ responder({ cuerpo: productoDTO });
 assert.equal((await http.getCatalogProduct(15)).taller.id, 3);
 assert.equal(ultima().url, "/api/v1/productos/15/");
 
+responder({ cuerpo: { ...productoDTO, modalidades: ["stock"], disponible_stock: 6 } });
+assert.equal((await http.getCatalogProduct(15)).disponibleStock, 6);
+
 // Despublicado o de un taller no aprobado: 404.
 responder({ status: 404, cuerpo: { detail: "No encontrado." } });
 await assert.rejects(http.getCatalogProduct(99), (e) => {

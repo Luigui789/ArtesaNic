@@ -89,13 +89,27 @@ autorizado.
   admite hasta 2000 caracteres), y la preferencia de entrega opcional (RF-016, AUD-06):
   `modalidad_entrega_preferida` (`retiro_taller`, `punto_encuentro`, `entrega_artesano` u
   `otra`) y `descripcion_entrega_preferida` (hasta 500; obligatoria con `otra`, opcional con
-  las demás, no admitida sin modalidad). Sin preferencia no se presupone ninguna. No hay
-  modalidad de cumplimiento global. El plan y el costo de entrega los fija el artesano
-  en su propuesta.
+  las demás, no admitida sin modalidad). Sin preferencia («Sin preferencia»,
+  `modalidad_entrega_preferida = ""`) no se presupone ninguna, y menos `retiro_taller`: el
+  comprador no fijó modalidad y el artesano define el plan en su propuesta. Si el comprador
+  **sí** eligió una, el artesano no puede cambiar ni la modalidad ni la descripción
+  ([propuestas](propuestas.md)). No hay modalidad de cumplimiento global. El costo de
+  entrega lo fija siempre el artesano en su propuesta (`retiro_taller` cuesta C$ 0.00).
 - Cada producto debe estar publicado, pertenecer a taller aprobado y admitir la modalidad.
 - Todos los productos deben pertenecer al mismo taller. Se permiten productos repetidos.
 - Cantidad entera mayor que cero (hasta `2147483647`); se rechazan booleanos y floats.
-- `stock`: solo producto, modalidad y cantidad. AUD-05 no consulta inventario SQL ni mock.
+- `stock`: solo producto, modalidad y cantidad. Desde las decisiones post-AUD-09
+  ([D-POST09-04](../decisiones/v1.md#decisiones-post-aud-09)) el backend valida la cantidad
+  contra la **disponibilidad actual** (`existencia_fisica − reservada`), la misma que
+  muestra `disponible_stock` del [catálogo](catalogo.md). Un producto que admite stock pero
+  no tiene `InventarioProducto` tiene disponibilidad **0** (nunca stock ilimitado, y la
+  validación no crea inventario): cualquier cantidad responde `400` en
+  `renglones[i].cantidad` («No hay unidades disponibles actualmente para venta desde
+  stock.»). Con inventario y cantidad mayor que lo disponible responde «Supera el stock
+  disponible actualmente (N unidades).». Es una comprobación temprana: **no reserva
+  unidades** y no sustituye la revalidación transaccional bajo bloqueo que ejecuta AUD-07 al
+  confirmar la propuesta ([inventario](inventario.md)). `produccion` y `personalizacion` no
+  usan esta validación.
 - `produccion`: además exige fecha ISO de calendario, hoy o futura al crear, según Managua.
 - `personalizacion`: además exige características no vacías y origen `desde_cero` o
   `unidad_estandar`. Texto libre, sin atributos cerrados; no reserva/consume la base.

@@ -27,6 +27,7 @@ from apps.solicitudes.models import (
     ResolucionRenglon,
     RevisionRenglonSolicitud,
 )
+from apps.solicitudes.tests.base import inicializar_stock
 from apps.talleres import services as talleres
 from apps.talleres.tests.base import crear_administrador, crear_artesano_con_taller
 
@@ -54,6 +55,7 @@ class CarreraTestCase(TransactionTestCase):
         talleres.aprobar_taller(taller, revisor=crear_administrador())
         self.artesano = taller.propietario
         self.producto = crear_producto(taller, crear_categoria(), publicado=True)
+        inicializar_stock(self.artesano, self.producto)
         self.comprador = crear_usuario("86666666")
         self.dentro = threading.Event()
         self.continuar = threading.Event()
@@ -209,7 +211,7 @@ class CarrerasDePropuestaTests(CarreraTestCase):
             artesano=self.artesano,
             clave=str(uuid4()),
             solicitud_id=self.solicitud.pk,
-            modalidad_entrega="retiro_taller",
+            modalidad_entrega="entrega_artesano",
             costo_entrega=Decimal(costo),
             lineas=[{"renglon": self.renglon.pk}],
             otros_cargos=[{"descripcion": "Empaque", "monto": Decimal("5.00")}],
@@ -243,7 +245,7 @@ class CarrerasDePropuestaTests(CarreraTestCase):
                 propuestas.finalizar_propuesta(
                     artesano=self.artesano,
                     solicitud_id=self.solicitud.pk,
-                    modalidad_entrega="retiro_taller",
+                    modalidad_entrega="entrega_artesano",
                     costo_entrega=Decimal("1.00"),
                     lineas=[{"renglon": self.renglon.pk}],
                     otros_cargos=[{"descripcion": "x", "monto": Decimal("1.00")}],

@@ -57,6 +57,8 @@ class ConfirmacionBaseTestCase(PropuestaAPITestCase):
     """Extiende el escenario mixto de PropuestaAPITestCase añadiendo también un renglón
     de personalización fabricada desde cero y el inventario inicial necesario."""
 
+    existencia_p_stock = 10
+
     def setUp(self):
         super().setUp()
         self.p_pers_cero = crear_producto(
@@ -67,10 +69,7 @@ class ConfirmacionBaseTestCase(PropuestaAPITestCase):
             precio=Decimal("400.00"),
             permite_personalizacion=True,
         )
-        # Inicializamos inventario para los productos que usan unidades estándar.
-        inventario.establecer_inventario_inicial(
-            artesano=self.artesano, producto_id=self.p_stock.pk, cantidad=10
-        )
+        # p_stock ya tiene existencia 10 (``existencia_p_stock``); falta la de personalización.
         inventario.establecer_inventario_inicial(
             artesano=self.artesano, producto_id=self.p_pers.pk, cantidad=4
         )
@@ -593,6 +592,7 @@ class ConstraintsPedidosBDTests(ConfirmacionBaseTestCase):
             {"costo_entrega": Decimal("-1.00")},
             {"moneda": "USD"},
             {"modalidad_entrega": "otra", "descripcion_entrega": "  "},
+            {"modalidad_entrega": "retiro_taller"},
         ):
             with (
                 self.subTest(pedido=cambios),

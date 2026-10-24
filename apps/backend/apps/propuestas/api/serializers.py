@@ -74,15 +74,29 @@ class CargoEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer)
 
 
 class PropuestaEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
-    modalidad_entrega = serializers.ChoiceField(choices=ModalidadEntrega.choices)
+    modalidad_entrega = serializers.ChoiceField(
+        choices=ModalidadEntrega.choices,
+        required=False,
+        help_text=(
+            "Si el comprador eligió modalidad, la propuesta adopta la suya y enviar otra "
+            "responde 400. Si dejó «Sin preferencia», es obligatoria: el artesano define el "
+            "plan y la ausencia de preferencia no equivale a retiro_taller."
+        ),
+    )
     descripcion_entrega = serializers.CharField(
         required=False,
         allow_blank=True,
         max_length=MAX_DESCRIPCION_ENTREGA,
-        help_text="Obligatoria con «otra»; opcional con las demás.",
+        help_text=(
+            "Obligatoria con «otra»; opcional con las demás. Si el comprador eligió "
+            "modalidad, la descripción es la suya y enviar otra responde 400."
+        ),
     )
     costo_entrega = _importe_entrada(
-        help_text="Costo de entrega definido manualmente por el artesano (RF-016.3)."
+        help_text=(
+            "Costo de entrega definido manualmente por el artesano (RF-016.3). Con "
+            "retiro_taller debe ser 0.00 (400 en otro caso)."
+        )
     )
     lineas = LineaPropuestaEntradaSerializer(
         many=True,

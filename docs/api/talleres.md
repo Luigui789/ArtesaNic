@@ -49,11 +49,13 @@ Perfiles públicos de los talleres **aprobados**: la colección, ordenada por no
   "whatsapp_publico": "87776655",
   "facebook_url": "",
   "instagram_url": "https://instagram.com/ceramicalopez",
-  "sitio_web": ""
+  "sitio_web": "",
+  "imagen_perfil_url": "/media/talleres/{uuid}/perfil/{uuid}.jpg",
+  "imagen_portada_url": null
 }
 ```
 
-La respuesta no incluye propietario, estado, revisión ni datos de la cuenta. **El teléfono de acceso nunca se publica**: los contactos públicos son solo los que el artesano escribe en `telefono_publico` y `whatsapp_publico` (RN-006, RNF-013).
+`imagen_perfil_url` e `imagen_portada_url` son la URL de cada imagen o `null` si el taller no la tiene ([imágenes](#imágenes-del-taller)). La respuesta no incluye propietario, estado, revisión ni datos de la cuenta. **El teléfono de acceso nunca se publica**: los contactos públicos son solo los que el artesano escribe en `telefono_publico` y `whatsapp_publico` (RN-006, RNF-013).
 
 ### `GET /api/v1/talleres/mi-taller/`
 
@@ -78,6 +80,24 @@ Modifica solo los campos enviados del perfil. Editar el perfil no cambia el esta
 | `horario` | No | Máximo 200 |
 | `telefono_publico`, `whatsapp_publico` | No | Teléfono de Nicaragua, se guarda en 8 dígitos ([autenticación §4](autenticacion.md#4-teléfono)); `""` lo retira |
 | `facebook_url`, `instagram_url`, `sitio_web` | No | URL `http` o `https`; `""` la retira |
+
+### Imágenes del taller
+
+`PATCH /api/v1/talleres/mi-taller/` admite **JSON** (solo campos de texto) o **`multipart/form-data`**, necesario para subir imágenes. Además de los campos de la tabla anterior acepta dos archivos opcionales:
+
+| Campo | Contenido |
+|---|---|
+| `imagen_perfil` | Imagen de perfil o logo del taller |
+| `imagen_portada` | Imagen de portada del taller |
+
+Reglas (post-AUD-09, [D-POST09-05](../decisiones/v1.md#decisiones-post-aud-09)):
+
+- Formatos **JPEG, PNG o WebP** estáticos, máximo **5 MiB** por archivo.
+- El servidor valida el contenido real del archivo con Pillow; ni el nombre ni el tipo MIME que declara el cliente se toman como prueba. El archivo se guarda con un nombre generado por el servidor.
+- No se aceptan imágenes en base64 dentro del JSON.
+- Las dos imágenes son **independientes**: omitir un campo conserva la imagen existente, y reemplazar una no obliga a reemplazar la otra. Un archivo inválido responde `400` en su campo y no cambia nada.
+- Las respuestas de lectura (`GET` público, `GET`/`PATCH` propios) devuelven `imagen_perfil_url` e `imagen_portada_url`, no los archivos.
+- Editar las imágenes tampoco cambia el estado de aprobación.
 
 `estado`, `propietario`, `revisado_por`, `revisado_en`, `motivo_rechazo`, `creado_en`, `id` y cualquier otro campo se rechazan con `400` (`{"estado": ["Campo no permitido."]}`). Mismos errores `401`, `403` y `404` que la consulta.
 

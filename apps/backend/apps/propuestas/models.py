@@ -97,6 +97,12 @@ class Propuesta(_Inmutable):
                 name="propuesta_entrega_valida",
             ),
             models.CheckConstraint(
+                condition=~Q(modalidad_entrega=ModalidadEntrega.RETIRO_TALLER)
+                | Q(costo_entrega=CERO),
+                name="propuesta_retiro_taller_sin_costo",
+                violation_error_message="El retiro en el taller no tiene costo de entrega.",
+            ),
+            models.CheckConstraint(
                 condition=Q(costo_entrega__gte=0)
                 & Q(subtotal_productos__gt=0)
                 & Q(total_personalizacion__gte=0)

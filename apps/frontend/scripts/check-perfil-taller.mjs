@@ -86,6 +86,18 @@ assert.deepEqual(taller, {
 });
 assert.equal("demo" in taller, false, "La API pública no trae datos de la demo.");
 
+// Cuando el taller tiene imagen_perfil_url e imagen_portada_url, se mapean a imagenPerfil e imagenPortada.
+responder({
+  cuerpo: {
+    ...tallerDTO,
+    imagen_perfil_url: "/media/talleres/abc/perfil/123.png",
+    imagen_portada_url: "/media/talleres/abc/portada/456.jpg",
+  },
+});
+const tallerConImagenes = await real.getPerfilTaller(3);
+assert.equal(tallerConImagenes.imagenPerfil, "/media/talleres/abc/perfil/123.png");
+assert.equal(tallerConImagenes.imagenPortada, "/media/talleres/abc/portada/456.jpg");
+
 // Pendiente, rechazado o inexistente: 404 de la API.
 responder({ status: 404, cuerpo: { detail: "No encontrado." } });
 await assert.rejects(real.getPerfilTaller(8), (e) => {

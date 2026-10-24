@@ -15,9 +15,13 @@ export interface PerfilTaller {
   facebook: string;
   instagram: string;
   sitioWeb: string;
+  /** URL persistida de la imagen de perfil/logo del taller (cuando existe). */
+  imagenPerfil?: string | undefined;
+  /** URL persistida de la imagen horizontal de portada del taller (cuando existe). */
+  imagenPortada?: string | undefined;
   /**
    * Datos que solo tiene el servidor simulado. La API pública no publica al
-   * responsable ni ofrece fotografías del taller.
+   * responsable.
    */
   demo?: {
     responsable: string;
@@ -49,4 +53,10 @@ export interface PerfilTallerEntrada {
   facebookUrl: string;
   instagramUrl: string;
   sitioWeb: string;
+}
+
+/** Cambios admitidos por `PATCH /api/v1/talleres/mi-taller/`. */
+export interface ActualizarPerfilTallerInput extends Partial<PerfilTallerEntrada> {
+  imagenPerfil?: File | undefined;
+  imagenPortada?: File | undefined;
 }

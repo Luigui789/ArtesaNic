@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.accounts.api.serializers import (
@@ -5,8 +6,9 @@ from apps.accounts.api.serializers import (
     SinCamposDesconocidosMixin,
     TelefonoField,
 )
+from apps.catalogo.imagenes import validar_fotografia
 
-from ..models import CAMPOS_PERFIL, Taller, validar_url_web
+from ..models import CAMPOS_ACTUALIZABLES_PERFIL, CAMPOS_PERFIL, Taller, validar_url_web
 
 
 class TelefonoPublicoField(TelefonoField):
@@ -40,6 +42,26 @@ class PerfilTallerEntradaSerializer(SinCamposDesconocidosMixin, serializers.Mode
         }
 
 
+class ActualizarPerfilTallerSerializer(PerfilTallerEntradaSerializer):
+    """Edición del perfil del taller propio, incluyendo imagen de perfil e imagen de portada."""
+
+    imagen_perfil = serializers.FileField(
+        required=False,
+        allow_null=True,
+        validators=[validar_fotografia],
+        help_text="Imagen estática JPEG, PNG o WebP del logo/perfil del taller, máximo 5 MiB.",
+    )
+    imagen_portada = serializers.FileField(
+        required=False,
+        allow_null=True,
+        validators=[validar_fotografia],
+        help_text="Imagen estática JPEG, PNG o WebP de portada del taller, máximo 5 MiB.",
+    )
+
+    class Meta(PerfilTallerEntradaSerializer.Meta):
+        fields = list(CAMPOS_ACTUALIZABLES_PERFIL)
+
+
 class RegistroArtesanoSerializer(RegistroSerializer):
     """Cuenta del artesano más los datos iniciales de su taller."""
 
@@ -49,16 +71,29 @@ class RegistroArtesanoSerializer(RegistroSerializer):
     )
 
 
-class TallerPublicoSerializer(serializers.ModelSerializer):
+class _TallerLecturaSerializer(serializers.ModelSerializer):
+    imagen_perfil_url = serializers.SerializerMethodField()
+    imagen_portada_url = serializers.SerializerMethodField()
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_imagen_perfil_url(self, obj):
+        return obj.imagen_perfil.url if obj.imagen_perfil else None
+
+    @extend_schema_field(serializers.URLField(allow_null=True))
+    def get_imagen_portada_url(self, obj):
+        return obj.imagen_portada.url if obj.imagen_portada else None
+
+
+class TallerPublicoSerializer(_TallerLecturaSerializer):
     """Perfil público del taller aprobado. Sin propietario, estado ni datos de la cuenta."""
 
     class Meta:
         model = Taller
-        fields = ["id", *CAMPOS_PERFIL]
+        fields = ["id", *CAMPOS_PERFIL, "imagen_perfil_url", "imagen_portada_url"]
         read_only_fields = fields
 
 
-class TallerPropioSerializer(serializers.ModelSerializer):
+class TallerPropioSerializer(_TallerLecturaSerializer):
     """Taller del artesano autenticado: el perfil y el resultado de su revisión."""
 
     class Meta:
@@ -66,6 +101,8 @@ class TallerPropioSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             *CAMPOS_PERFIL,
+            "imagen_perfil_url",
+            "imagen_portada_url",
             "estado",
             "motivo_rechazo",
             "revisado_en",

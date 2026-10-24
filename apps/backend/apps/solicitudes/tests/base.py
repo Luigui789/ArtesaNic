@@ -20,11 +20,28 @@ def url_recibida(solicitud_id):
     return f"{URL_RECIBIDAS}{solicitud_id}/"
 
 
+STOCK_DE_PRUEBA = 1000
+
+
+def inicializar_stock(artesano, *productos, cantidad=STOCK_DE_PRUEBA):
+    """Inventario inicial explícito: sin él, la disponibilidad desde stock es 0."""
+    from apps.inventario import services as inventario
+
+    for producto in productos:
+        inventario.establecer_inventario_inicial(
+            artesano=artesano, producto_id=producto.pk, cantidad=cantidad
+        )
+
+
 def datos_renglon(producto_base, **cambios):
     return {"producto": producto_base.pk, "modalidad": "stock", "cantidad": 1} | cambios
 
 
 class SolicitudesAPITestCase(CatalogoAPITestCase):
+    # Sin inventario inicializado la disponibilidad desde stock es 0: los escenarios que
+    # necesitan stock lo declaran. Las pruebas de inventario lo desactivan.
+    stock_inicial = True
+
     def setUp(self):
         super().setUp()
         self.comprador = crear_usuario("86666666")
@@ -43,6 +60,9 @@ class SolicitudesAPITestCase(CatalogoAPITestCase):
             nombre="Hamaca",
         )
         self.producto_ajeno = crear_producto(self.taller_ajeno, self.categoria, publicado=True)
+        if self.stock_inicial:
+            inicializar_stock(self.artesano, self.producto, self.otro_producto)
+            inicializar_stock(self.artesano_ajeno, self.producto_ajeno)
         self.fecha = timezone.localdate() + timedelta(days=7)
         self.autenticar(self.comprador)
 

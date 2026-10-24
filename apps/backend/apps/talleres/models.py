@@ -1,5 +1,7 @@
 """Taller del artesano y su aprobación administrativa (RF-008, RF-013, RN-002, RN-006)."""
 
+from uuid import uuid4
+
 from django.conf import settings
 from django.core.validators import RegexValidator, URLValidator
 from django.db import models
@@ -8,6 +10,25 @@ from django.utils import timezone
 
 from apps.accounts.models import Rol
 from apps.accounts.phone import MENSAJE_FORMATO, PATRON_TELEFONO_NORMALIZADO
+from apps.catalogo.imagenes import EXTENSIONES, validar_fotografia
+
+
+def _ruta_imagen_taller(archivo, subcarpeta: str) -> str:
+    formato = getattr(archivo, "formato_validado", None)
+    if formato is None:
+        validar_fotografia(archivo)
+        formato = archivo.formato_validado
+    return f"talleres/{uuid4().hex}/{subcarpeta}/{uuid4().hex}.{EXTENSIONES[formato]}"
+
+
+def ruta_imagen_perfil(instance, filename):
+    # No usa PK ni filename del cliente. Solo un archivo validado puede obtener ruta.
+    return _ruta_imagen_taller(instance.imagen_perfil, "perfil")
+
+
+def ruta_imagen_portada(instance, filename):
+    # No usa PK ni filename del cliente. Solo un archivo validado puede obtener ruta.
+    return _ruta_imagen_taller(instance.imagen_portada, "portada")
 
 
 class EstadoTaller(models.TextChoices):
@@ -32,6 +53,13 @@ CAMPOS_PERFIL = (
     "instagram_url",
     "sitio_web",
 )
+
+CAMPOS_IMAGENES = (
+    "imagen_perfil",
+    "imagen_portada",
+)
+
+CAMPOS_ACTUALIZABLES_PERFIL = (*CAMPOS_PERFIL, *CAMPOS_IMAGENES)
 
 # Contiene al menos un carácter que no es espacio. \S significa lo mismo en
 # Python y en PostgreSQL.
@@ -73,6 +101,22 @@ class Taller(models.Model):
     facebook_url = models.URLField("Facebook", blank=True, validators=[validar_url_web])
     instagram_url = models.URLField("Instagram", blank=True, validators=[validar_url_web])
     sitio_web = models.URLField("sitio web", blank=True, validators=[validar_url_web])
+    imagen_perfil = models.ImageField(
+        "imagen de perfil",
+        upload_to=ruta_imagen_perfil,
+        null=True,
+        blank=True,
+        max_length=200,
+        validators=[validar_fotografia],
+    )
+    imagen_portada = models.ImageField(
+        "imagen de portada",
+        upload_to=ruta_imagen_portada,
+        null=True,
+        blank=True,
+        max_length=200,
+        validators=[validar_fotografia],
+    )
 
     estado = models.CharField(
         "estado", max_length=20, choices=EstadoTaller.choices, default=EstadoTaller.PENDIENTE

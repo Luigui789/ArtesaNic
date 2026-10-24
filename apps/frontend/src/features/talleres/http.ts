@@ -5,7 +5,12 @@
 import { z } from "zod";
 import { solicitar } from "@/features/catalogo/http";
 import { solicitar as solicitarComun } from "@/lib/http";
-import type { PerfilTaller, PerfilTallerEntrada, TallerPropio } from "./types";
+import type {
+  ActualizarPerfilTallerInput,
+  PerfilTaller,
+  PerfilTallerEntrada,
+  TallerPropio,
+} from "./types";
 
 interface TallerPublicoDTO {
   id: number;
@@ -19,6 +24,14 @@ interface TallerPublicoDTO {
   facebook_url: string;
   instagram_url: string;
   sitio_web: string;
+  imagen_perfil_url?: string | null | undefined;
+  imagen_portada_url?: string | null | undefined;
+}
+
+function resolverImagenTaller(url: string): string {
+  const base = import.meta.env["VITE_API_URL"] as string | undefined;
+  if (base && /^https?:\/\//.test(base)) return new URL(url, base).href;
+  return url;
 }
 
 export function aPerfilTaller(t: TallerPublicoDTO): PerfilTaller {
@@ -34,6 +47,8 @@ export function aPerfilTaller(t: TallerPublicoDTO): PerfilTaller {
     facebook: t.facebook_url,
     instagram: t.instagram_url,
     sitioWeb: t.sitio_web,
+    ...(t.imagen_perfil_url ? { imagenPerfil: resolverImagenTaller(t.imagen_perfil_url) } : {}),
+    ...(t.imagen_portada_url ? { imagenPortada: resolverImagenTaller(t.imagen_portada_url) } : {}),
   };
 }
 
@@ -59,6 +74,8 @@ const esquemaTallerPropio = z.object({
   facebook_url: z.string(),
   instagram_url: z.string(),
   sitio_web: z.string(),
+  imagen_perfil_url: z.string().nullable().optional(),
+  imagen_portada_url: z.string().nullable().optional(),
   estado: z.enum(["pendiente", "aprobado", "rechazado"]),
   motivo_rechazo: z.string(),
   revisado_en: z.string().nullable(),
@@ -112,14 +129,22 @@ export const CAMPOS_PERFIL_API = {
 /**
  * Cuerpo del `PATCH` con lista cerrada: solo campos del perfil. Estado, propietario,
  * revisión e `id` no existen aquí, así que no pueden viajar. `""` retira un opcional.
+ * Cuando se incluyen archivos reales (`imagenPerfil` o `imagenPortada`), devuelve `FormData`.
  */
-export function cuerpoPerfilTaller(cambios: Partial<PerfilTallerEntrada>) {
+export function cuerpoPerfilTaller(
+  cambios: ActualizarPerfilTallerInput,
+): Record<string, string> | FormData {
   const cuerpo: Record<string, string> = {};
   for (const [campo, api] of Object.entries(CAMPOS_PERFIL_API)) {
     const valor = cambios[campo as keyof PerfilTallerEntrada];
     if (typeof valor === "string") cuerpo[api] = valor;
   }
-  return cuerpo;
+  if (!cambios.imagenPerfil && !cambios.imagenPortada) return cuerpo;
+  const form = new FormData();
+  for (const [api, valor] of Object.entries(cuerpo)) form.set(api, valor);
+  if (cambios.imagenPerfil) form.set("imagen_perfil", cambios.imagenPerfil);
+  if (cambios.imagenPortada) form.set("imagen_portada", cambios.imagenPortada);
+  return form;
 }
 
 /**
@@ -128,7 +153,7 @@ export function cuerpoPerfilTaller(cambios: Partial<PerfilTallerEntrada>) {
  * servidor, que la interfaz muestra tal cual.
  */
 export async function actualizarMiTaller(
-  cambios: Partial<PerfilTallerEntrada>,
+  cambios: ActualizarPerfilTallerInput,
 ): Promise<TallerPropio> {
   return aTallerPropio(
     await solicitarComun("/talleres/mi-taller/", {

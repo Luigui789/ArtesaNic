@@ -12,6 +12,7 @@ import { getCatalogProduct, listCatalog } from "@/features/catalogo/api";
 import { ProductImage } from "@/features/catalogo/components/product-card";
 import type { CatalogProduct } from "@/features/catalogo/types";
 import { MODALIDAD_LABELS } from "@/lib/labels";
+import { formatCalendarDate } from "@/lib/format";
 import { parseRouteId } from "@/lib/route-id";
 import { NotFound } from "@/app/not-found";
 import {
@@ -212,13 +213,40 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
                         aria-label={`Cantidad del producto ${i + 1}`}
                         type="number"
                         min={1}
-                        max={2147483647}
+                        max={
+                          r.modalidad === "stock" &&
+                          typeof r.producto.disponibleStock === "number" &&
+                          r.producto.disponibleStock > 0
+                            ? r.producto.disponibleStock
+                            : 2147483647
+                        }
                         step={1}
                         value={Number.isNaN(r.cantidad) ? "" : r.cantidad}
                         onChange={(e) => cambiar(i, { cantidad: Number(e.target.value) })}
                       />
                     </label>
                   </div>
+                  {r.modalidad === "stock" && typeof r.producto.disponibleStock === "number" ? (
+                    <div
+                      role="status"
+                      className="rounded-lg border bg-surface/50 px-3 py-2 text-sm"
+                    >
+                      <p className="font-medium">
+                        {r.producto.disponibleStock === 0
+                          ? "Sin unidades disponibles actualmente"
+                          : `Disponibles actualmente: ${r.producto.disponibleStock} ${
+                              r.producto.disponibleStock === 1 ? "unidad" : "unidades"
+                            }`}
+                      </p>
+                      {r.cantidad > r.producto.disponibleStock ? (
+                        <p role="alert" className="mt-1 text-xs text-destructive">
+                          {r.producto.disponibleStock === 0
+                            ? "No hay unidades disponibles en stock para solicitar en este momento."
+                            : `La cantidad solicitada supera las unidades disponibles actualmente (${r.producto.disponibleStock}).`}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
                   {r.modalidad === "produccion" ? (
                     <label className="block space-y-1 text-sm">
                       Fecha solicitada
@@ -420,8 +448,17 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
                     <p>
                       {MODALIDAD_LABELS[r.modalidad]} · Cantidad: {r.cantidad}
                     </p>
+                    {r.modalidad === "stock" && typeof r.producto.disponibleStock === "number" ? (
+                      <p className="text-sm text-muted-foreground">
+                        Disponibles actualmente: {r.producto.disponibleStock}{" "}
+                        {r.producto.disponibleStock === 1 ? "unidad" : "unidades"}
+                      </p>
+                    ) : null}
                     {r.modalidad === "produccion" ? (
-                      <p>Fecha solicitada: {r.fechaSolicitada || "Sin definir"}</p>
+                      <p>
+                        Fecha solicitada:{" "}
+                        {r.fechaSolicitada ? formatCalendarDate(r.fechaSolicitada) : "Sin definir"}
+                      </p>
                     ) : null}
                     {r.modalidad === "personalizacion" ? (
                       <>

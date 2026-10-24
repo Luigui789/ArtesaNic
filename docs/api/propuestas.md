@@ -113,9 +113,23 @@ Reglas de las condiciones comerciales:
 - **Cargo de personalización:** solo en renglones de personalización; ≥ 0; por defecto 0.
 - **Fecha comprometida:** obligatoria solo en producción; fecha válida, hoy o posterior
   (Managua). No se exige que sea igual o posterior a la fecha solicitada: ninguna regla lo fija.
-- **Plan de entrega:** `retiro_taller`, `punto_encuentro`, `entrega_artesano` u `otra`;
-  `otra` exige descripción, en las demás es opcional. El costo lo define manualmente el
-  artesano (≥ 0); retirar en el taller no lo fuerza a 0.
+- **Plan de entrega** (RF-016; decisiones [D-POST09-01 a D-POST09-03](../decisiones/v1.md#decisiones-post-aud-09)):
+  `retiro_taller`, `punto_encuentro`, `entrega_artesano` u `otra`; `otra` exige descripción,
+  en las demás es opcional. `modalidad_entrega` y `descripcion_entrega` son **opcionales** en
+  el cuerpo y dependen de la solicitud:
+  - **El comprador eligió modalidad** (`modalidad_entrega_preferida` no vacía): la propuesta
+    adopta la modalidad y la descripción del comprador. El artesano no puede cambiarlas:
+    enviar otra modalidad o descripción responde `400` por `modalidad_entrega` o
+    `descripcion_entrega`. Omitirlas, o enviar exactamente las mismas, es válido.
+  - **El comprador dejó «Sin preferencia»** (`modalidad_entrega_preferida = ""`): no fijó
+    nada y el artesano define el plan. `modalidad_entrega` es obligatoria (`400` si falta:
+    la ausencia de preferencia **no** equivale a `retiro_taller`) y `otra` exige
+    `descripcion_entrega`.
+  - **Costo de entrega:** lo define manualmente el artesano (≥ 0), salvo con `retiro_taller`,
+    que **siempre** cuesta `0.00`, sea la modalidad del comprador o la elegida por el artesano:
+    cualquier otro costo responde `400` en `costo_entrega`. Lo respalda además un CHECK en
+    PostgreSQL (`propuesta_retiro_taller_sin_costo`, y `pedido_retiro_taller_sin_costo` en el
+    snapshot del pedido).
 - **Otros cargos:** descripción no vacía (hasta 200), monto ≥ 0, opcionalmente atribuido a un
   renglón aceptado; hasta 20. No existen descuentos, promociones ni impuestos en V1.
 - **Importes:** C$ con dos decimales exactos (`Decimal`, nunca float). Entradas hasta
