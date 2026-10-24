@@ -161,15 +161,18 @@ await verificar("detalle confirmado: sin aviso de vencimiento", () => {
     h(m.pagina.ContenidoPedidoConfirmado, {
       pedido: m.pedidos.aPedido(pedidoDTO()),
       pago: h("p", null, "SECCION-PAGO"),
+      cumplimiento: h("p", null, "SECCION-CUMPLIMIENTO"),
     }),
   );
   assert.match(html, /Pedido confirmado/);
   assert.doesNotMatch(html, /Vencido/);
-  assert.match(html, /seguimiento de producción/);
+  // AUD-12 reemplazó el aviso provisional por el seguimiento real (sección inyectada).
+  assert.doesNotMatch(html, /próxima etapa/);
+  assert.match(html, /SECCION-CUMPLIMIENTO/);
   assert.match(html, /SECCION-PAGO/);
 });
 
-await verificar("detalle vencido: fecha, mensaje y sin seguimiento de producción", () => {
+await verificar("detalle vencido: fecha y mensaje de vencimiento", () => {
   const html = render(
     h(m.pagina.ContenidoPedidoConfirmado, {
       pedido: m.pedidos.aPedido(vencidoDTO),
@@ -180,7 +183,7 @@ await verificar("detalle vencido: fecha, mensaje y sin seguimiento de producció
   assert.match(html, /Vencido el <strong[^>]*>[^<]*2026/);
   assert.match(html, /El plazo para registrar o corregir el pago terminó/);
   assert.match(html, /no habían sido manipuladas fueron liberadas/);
-  assert.doesNotMatch(html, /seguimiento de producción/);
+  assert.doesNotMatch(html, /próxima etapa/);
   assert.match(html, /SECCION-PAGO/, "la sección de pago (historial) sigue presente");
 });
 
