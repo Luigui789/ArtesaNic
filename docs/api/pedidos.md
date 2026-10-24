@@ -9,7 +9,8 @@ RN-011, RN-016, RN-021, RN-022, RN-023, RN-024; RNF-008, RNF-011, RNF-014, RNF-0
 **Esquema:** [OpenAPI generado](openapi.yaml), etiquetas `Pedidos` y `Solicitudes`.
 **Decisiones:** [D-AUD07-01 a D-AUD07-12](../decisiones/v1.md#concreciones-de-aud-07).
 **Relacionados:** [revisión y propuesta](propuestas.md), [inventario y reservas](inventario.md),
-[idempotencia](idempotencia.md).
+[idempotencia](idempotencia.md), [pago externo (AUD-10)](pagos.md): el pago vive en su propio
+agregado y no modifica este snapshot.
 
 ## Separación conceptual del dominio
 
