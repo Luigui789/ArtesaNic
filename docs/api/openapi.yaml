@@ -791,8 +791,11 @@ paths:
           - decidir_propuesta
           - establecer_inventario_inicial
           - finalizar_propuesta
+          - iniciar_cumplimiento_linea
           - registrar_entrada_inventario
+          - registrar_entrega_pedido
           - registrar_intento_pago
+          - registrar_recepcion_entrega
           - resolver_intento_pago
           - resolver_renglon
         required: true
@@ -904,6 +907,143 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/mios/{pedido_id}/cumplimiento/:
+    get:
+      operationId: consultar_cumplimiento_de_mi_pedido
+      description: Estado global del pedido, avance de cada renglón (estado derivado,
+        inicio, cantidades entregada y pendiente procedentes del ledger) y el historial
+        de entregas con la respuesta del comprador. Comprador y artesano reciben la
+        misma representación, sin identificadores de inventario. 404 si el pedido
+        no existe o es ajeno.
+      summary: Consultar el cumplimiento y las entregas de un pedido propio
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Cumplimiento
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CumplimientoPedido'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/mios/{pedido_id}/entregas/{entrega_id}/recepcion/:
+    post:
+      operationId: registrar_recepcion_de_entrega
+      description: 'Evidencia del comprador, una sola por entrega (`409 recepcion_ya_registrada`).
+        `confirmada` sin motivo; `discrepancia` con motivo obligatorio (1–1000 caracteres
+        tras recortar). No revierte la entrega, no repone inventario ni cambia el
+        estado del pedido, y se admite aunque el pedido ya esté `entregado`. Protegida
+        por `Idempotency-Key`: huella con `pedido_id`, `entrega_id`, `resultado` y
+        `motivo` recortado. `Idempotency-Key` ausente o con formato inválido responde
+        `{"Idempotency-Key": ["..."]}`, antes de validar el cuerpo.'
+      summary: Confirmar la recepción o registrar una discrepancia de una entrega
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: entrega_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Cumplimiento
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecepcionEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CumplimientoPedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoCumplimiento'
+          description: 'Conflicto sin efectos (nada se escribe); `codigo` estable:
+            `pago_no_confirmado`, `recepcion_ya_registrada`, `clave_idempotencia_reutilizada`.'
   /api/v1/pedidos/mios/{pedido_id}/pago/:
     get:
       operationId: consultar_pago_de_mi_pedido
@@ -1287,6 +1427,233 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/recibidos/{pedido_id}/cumplimiento/:
+    get:
+      operationId: consultar_cumplimiento_de_pedido_recibido
+      description: Estado global del pedido, avance de cada renglón (estado derivado,
+        inicio, cantidades entregada y pendiente procedentes del ledger) y el historial
+        de entregas con la respuesta del comprador. Comprador y artesano reciben la
+        misma representación, sin identificadores de inventario. 404 si el pedido
+        no existe o es ajeno.
+      summary: Consultar el cumplimiento y las entregas de un pedido del taller propio
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Cumplimiento
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CumplimientoPedido'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/recibidos/{pedido_id}/entregas/:
+    post:
+      operationId: registrar_entrega_de_pedido
+      description: 'Crea una entrega numerada con su fecha declarada (no futura) y
+        las cantidades de uno o varios renglones ya iniciados, sin superar lo pendiente
+        de ninguno. Exige `Pago.estado = confirmado`, comprobado en el servidor dentro
+        de la transacción y después de bloquear el pedido (`409 pago_no_confirmado`).
+        Todo o nada: ante cualquier error no se crea la entrega ni se consume inventario.
+        Cada línea `stock` consume de su reserva lo entregado (`consumo`); producción
+        y personalización no vuelven a consumir. Cuando todos los renglones quedan
+        completos el pedido pasa a `entregado`. Protegida por `Idempotency-Key`: huella
+        con `pedido_id`, `fecha` y `lineas` ordenadas por línea. `Idempotency-Key`
+        ausente o con formato inválido responde `{"Idempotency-Key": ["..."]}`, antes
+        de validar el cuerpo.'
+      summary: Registrar una entrega con cantidades por renglón
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Cumplimiento
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntregaEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CumplimientoPedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoCumplimiento'
+          description: 'Conflicto sin efectos (nada se escribe); `codigo` estable:
+            `pedido_vencido`, `pedido_entregado`, `pago_no_confirmado`, `linea_no_iniciada`,
+            `cantidad_entrega_excede_pendiente`, `clave_idempotencia_reutilizada`.'
+  /api/v1/pedidos/recibidos/{pedido_id}/lineas/{linea_id}/iniciar/:
+    post:
+      operationId: iniciar_cumplimiento_de_linea
+      description: 'Registra el inicio del trabajo de una línea del pedido. Exige
+        `Pago.estado = confirmado`, comprobado en el servidor dentro de la transacción
+        y después de bloquear el pedido (`409 pago_no_confirmado`). `stock`, `produccion`
+        y `personalizacion` desde cero no tocan inventario; `personalizacion` sobre
+        `unidad_estandar` consume en el acto toda su reserva (movimiento `consumo`).
+        El primer inicio lleva el pedido de `confirmado` a `en_cumplimiento`. Cuerpo
+        `{}`. Protegida por `Idempotency-Key`: huella con `pedido_id` y `linea_id`.
+        `Idempotency-Key` ausente o con formato inválido responde `{"Idempotency-Key":
+        ["..."]}`, antes de validar el cuerpo.'
+      summary: Iniciar la preparación, producción o personalización de un renglón
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: linea_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Cumplimiento
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CumplimientoPedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoCumplimiento'
+          description: 'Conflicto sin efectos (nada se escribe); `codigo` estable:
+            `pedido_vencido`, `pedido_entregado`, `pago_no_confirmado`, `linea_ya_iniciada`,
+            `clave_idempotencia_reutilizada`.'
   /api/v1/pedidos/recibidos/{pedido_id}/pago/:
     get:
       operationId: consultar_pago_de_pedido_recibido
@@ -2726,6 +3093,16 @@ components:
     BlankEnum:
       enum:
       - ''
+    CantidadEntregada:
+      type: object
+      properties:
+        linea:
+          type: integer
+        cantidad:
+          type: integer
+      required:
+      - cantidad
+      - linea
     CargoEntradaRequest:
       type: object
       description: |-
@@ -2948,6 +3325,42 @@ components:
         * `image/png` - image/png
         * `image/webp` - image/webp
         * `application/pdf` - application/pdf
+    ConflictoCumplimiento:
+      type: object
+      properties:
+        detail:
+          type: string
+        codigo:
+          $ref: '#/components/schemas/ConflictoCumplimientoCodigoEnum'
+        lineas:
+          type: array
+          items:
+            type: integer
+          description: Líneas del pedido afectadas, cuando el conflicto se refiere
+            a renglones.
+      required:
+      - codigo
+      - detail
+    ConflictoCumplimientoCodigoEnum:
+      enum:
+      - pedido_vencido
+      - pedido_entregado
+      - pago_no_confirmado
+      - linea_ya_iniciada
+      - linea_no_iniciada
+      - cantidad_entrega_excede_pendiente
+      - recepcion_ya_registrada
+      - clave_idempotencia_reutilizada
+      type: string
+      description: |-
+        * `pedido_vencido` - El pedido venció por falta de pago y no admite cumplimiento.
+        * `pedido_entregado` - El pedido ya fue entregado por completo.
+        * `pago_no_confirmado` - El trabajo y las entregas solo pueden registrarse con el pago confirmado.
+        * `linea_ya_iniciada` - Este producto del pedido ya fue iniciado.
+        * `linea_no_iniciada` - Inicia el trabajo de cada producto antes de registrar su entrega.
+        * `cantidad_entrega_excede_pendiente` - La cantidad indicada supera lo que falta por entregar de ese producto.
+        * `recepcion_ya_registrada` - Ya registraste tu respuesta sobre esta entrega.
+        * `clave_idempotencia_reutilizada` - Clave reutilizada con otra petición
     ConflictoIdempotencia:
       type: object
       properties:
@@ -2988,6 +3401,78 @@ components:
       required:
       - codigo
       - detail
+    CumplimientoLinea:
+      type: object
+      properties:
+        linea:
+          type: integer
+          description: Id de la `LineaPedido`.
+        posicion:
+          type: integer
+        modalidad:
+          $ref: '#/components/schemas/ModalidadEnum'
+        cantidad:
+          type: integer
+          description: Cantidad acordada (snapshot).
+        estado:
+          allOf:
+          - $ref: '#/components/schemas/CumplimientoLineaEstadoEnum'
+          description: |-
+            Derivado: `pendiente` sin inicio; `en_cumplimiento` iniciado con cantidad pendiente; `entregado` cuando lo entregado alcanza lo acordado.
+
+            * `pendiente` - Pendiente
+            * `en_cumplimiento` - En cumplimiento
+            * `entregado` - Entregado
+        iniciado_en:
+          type: string
+          format: date-time
+          nullable: true
+        cantidad_entregada:
+          type: integer
+          description: Suma del ledger de entregas.
+        cantidad_pendiente:
+          type: integer
+      required:
+      - cantidad
+      - cantidad_entregada
+      - cantidad_pendiente
+      - estado
+      - iniciado_en
+      - linea
+      - modalidad
+      - posicion
+    CumplimientoLineaEstadoEnum:
+      enum:
+      - pendiente
+      - en_cumplimiento
+      - entregado
+      type: string
+      description: |-
+        * `pendiente` - Pendiente
+        * `en_cumplimiento` - En cumplimiento
+        * `entregado` - Entregado
+    CumplimientoPedido:
+      type: object
+      description: Representación equivalente para comprador y artesano (sin ids de
+        inventario).
+      properties:
+        pedido:
+          type: integer
+        estado:
+          $ref: '#/components/schemas/EstadoPedidoEnum'
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/CumplimientoLinea'
+        entregas:
+          type: array
+          items:
+            $ref: '#/components/schemas/Entrega'
+      required:
+      - entregas
+      - estado
+      - lineas
+      - pedido
     DecisionPropuesta:
       type: object
       description: Resultado de la decisión final del comprador sobre la propuesta
@@ -3058,6 +3543,58 @@ components:
           maxLength: 500
       required:
       - cantidad
+    Entrega:
+      type: object
+      properties:
+        id:
+          type: integer
+        numero:
+          type: integer
+        fecha:
+          type: string
+          format: date
+          description: Fecha declarada de la entrega.
+        registrado_en:
+          type: string
+          format: date-time
+          description: Instante real del registro (servidor).
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/CantidadEntregada'
+        recepcion:
+          allOf:
+          - $ref: '#/components/schemas/Recepcion'
+          nullable: true
+          description: Respuesta del comprador; null mientras no responda.
+      required:
+      - fecha
+      - id
+      - lineas
+      - numero
+      - recepcion
+      - registrado_en
+    EntregaEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        fecha:
+          type: string
+          format: date
+          description: Fecha declarada de la entrega efectiva (`AAAA-MM-DD`); no puede
+            ser posterior a la fecha actual de America/Managua según el servidor.
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaEntregaEntradaRequest'
+          description: Renglones entregados, cada uno una sola vez; el orden no importa.
+      required:
+      - fecha
+      - lineas
     Error:
       type: object
       description: Forma de los errores que no son de validación de campos.
@@ -3094,10 +3631,14 @@ components:
     EstadoPedidoEnum:
       enum:
       - confirmado
+      - en_cumplimiento
+      - entregado
       - vencido_falta_pago
       type: string
       description: |-
         * `confirmado` - Pedido confirmado
+        * `en_cumplimiento` - En cumplimiento
+        * `entregado` - Entregado
         * `vencido_falta_pago` - Vencido por falta de pago
     EstadoSolicitudEnum:
       enum:
@@ -3235,6 +3776,26 @@ components:
       - inicializado_en
       - producto
       - reservada
+    LineaEntregaEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        linea:
+          type: integer
+          minimum: 1
+          description: Id de la `LineaPedido`.
+        cantidad:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+          description: Unidades entregadas (> 0).
+      required:
+      - cantidad
+      - linea
     LineaPedido:
       type: object
       properties:
@@ -3937,6 +4498,8 @@ components:
             Estado operativo del pedido (AUD-11); independiente del estado del pago.
 
             * `confirmado` - Pedido confirmado
+            * `en_cumplimiento` - En cumplimiento
+            * `entregado` - Entregado
             * `vencido_falta_pago` - Vencido por falta de pago
         vencido_en:
           type: string
@@ -4041,6 +4604,8 @@ components:
             Estado operativo del pedido (AUD-11); independiente del estado del pago.
 
             * `confirmado` - Pedido confirmado
+            * `en_cumplimiento` - En cumplimiento
+            * `entregado` - Entregado
             * `vencido_falta_pago` - Vencido por falta de pago
         vencido_en:
           type: string
@@ -4530,6 +5095,37 @@ components:
       required:
       - costo_entrega
       - lineas
+    Recepcion:
+      type: object
+      properties:
+        resultado:
+          $ref: '#/components/schemas/ResultadoEnum'
+        motivo:
+          type: string
+        registrado_en:
+          type: string
+          format: date-time
+      required:
+      - motivo
+      - registrado_en
+      - resultado
+    RecepcionEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        resultado:
+          $ref: '#/components/schemas/ResultadoEnum'
+        motivo:
+          type: string
+          description: Obligatorio y no vacío (tras recortar) en `discrepancia`, hasta
+            1000 caracteres; no se admite en `confirmada`.
+          maxLength: 1000
+      required:
+      - resultado
     RecursoOperacion:
       type: object
       properties:
@@ -4841,6 +5437,14 @@ components:
       description: |-
         * `aceptada` - Aceptada
         * `rechazada` - Rechazada
+    ResultadoEnum:
+      enum:
+      - confirmada
+      - discrepancia
+      type: string
+      description: |-
+        * `confirmada` - Recepción confirmada
+        * `discrepancia` - Discrepancia registrada
     ResultadoRevisionPagoEnum:
       enum:
       - confirmado
@@ -5248,6 +5852,9 @@ components:
       - registrar_intento_pago
       - corregir_intento_pago
       - resolver_intento_pago
+      - iniciar_cumplimiento_linea
+      - registrar_entrega_pedido
+      - registrar_recepcion_entrega
       type: string
       description: |-
         * `crear_solicitud` - Crear solicitud
@@ -5260,6 +5867,9 @@ components:
         * `registrar_intento_pago` - Registrar intento de pago
         * `corregir_intento_pago` - Corregir intento de pago observado
         * `resolver_intento_pago` - Resolver intento de pago
+        * `iniciar_cumplimiento_linea` - Iniciar el cumplimiento de un renglón
+        * `registrar_entrega_pedido` - Registrar entrega de pedido
+        * `registrar_recepcion_entrega` - Registrar recepción o discrepancia de una entrega
     TokenAcceso:
       type: object
       properties:

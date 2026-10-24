@@ -35,6 +35,15 @@ class TipoOperacion(models.TextChoices):
     REGISTRAR_INTENTO_PAGO = "registrar_intento_pago", "Registrar intento de pago"
     CORREGIR_INTENTO_PAGO = "corregir_intento_pago", "Corregir intento de pago observado"
     RESOLVER_INTENTO_PAGO = "resolver_intento_pago", "Resolver intento de pago"
+    INICIAR_CUMPLIMIENTO_LINEA = (
+        "iniciar_cumplimiento_linea",
+        "Iniciar el cumplimiento de un renglón",
+    )
+    REGISTRAR_ENTREGA_PEDIDO = "registrar_entrega_pedido", "Registrar entrega de pedido"
+    REGISTRAR_RECEPCION_ENTREGA = (
+        "registrar_recepcion_entrega",
+        "Registrar recepción o discrepancia de una entrega",
+    )
 
 
 class EstadoOperacion(models.TextChoices):
