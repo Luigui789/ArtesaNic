@@ -370,6 +370,12 @@ await verificar("artesano sin pago confirmado: sin acciones", () => {
   assert.match(html, /cuando confirmes el pago/);
   assert.doesNotMatch(html, /Iniciar (producción|personalización|preparación)/);
   assert.doesNotMatch(html, /Registrar entrega/);
+  const cargando = vista({ pagoConfirmado: undefined });
+  assert.doesNotMatch(cargando, /cuando confirmes el pago/, "sin aviso mientras carga el pago");
+  assert.doesNotMatch(
+    cargando,
+    /Iniciar (producción|personalización|preparación)|Registrar una entrega/,
+  );
 });
 
 await verificar("entregas parciales: solo renglones iniciados con pendiente y su máximo", () => {

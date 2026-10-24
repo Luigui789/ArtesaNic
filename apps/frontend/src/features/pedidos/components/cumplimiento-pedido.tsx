@@ -86,7 +86,7 @@ export function CumplimientoPedido({
           pedido={pedido}
           cumplimiento={query.data}
           recibido={recibido}
-          pagoConfirmado={pago.data?.estado === "confirmado"}
+          pagoConfirmado={pago.data ? pago.data.estado === "confirmado" : undefined}
         />
       )}
     </Section>
@@ -97,17 +97,18 @@ export function VistaCumplimiento({
   pedido,
   cumplimiento: c,
   recibido,
-  pagoConfirmado = false,
+  pagoConfirmado,
 }: {
   pedido: PedidoConfirmado;
   cumplimiento: Cumplimiento;
   recibido: boolean;
-  /** Solo lo usa el artesano: sin pago confirmado no se ofrece iniciar ni entregar. */
-  pagoConfirmado?: boolean;
+  /** Solo lo usa el artesano: sin pago confirmado no se ofrece iniciar ni entregar;
+   * `undefined` mientras el pago no se conoce (sin acciones ni aviso). */
+  pagoConfirmado?: boolean | undefined;
 }) {
   const snapshot = new Map(pedido.lineas.map((l) => [l.id, l]));
   const operable = c.estado === "confirmado" || c.estado === "en_cumplimiento";
-  const acciones = recibido && operable && pagoConfirmado;
+  const acciones = recibido && operable && pagoConfirmado === true;
   const entregables = c.lineas.filter((l) => l.iniciadoEn !== null && l.cantidadPendiente > 0);
   return (
     <div className="min-w-0 space-y-5">
@@ -115,7 +116,7 @@ export function VistaCumplimiento({
         <Nota>El pedido venció por falta de pago: no admite trabajo ni entregas.</Nota>
       ) : c.estado === "entregado" ? (
         <Nota>Se entregaron todas las cantidades acordadas.</Nota>
-      ) : recibido && !pagoConfirmado ? (
+      ) : recibido && pagoConfirmado === false ? (
         <Nota>Podrás iniciar el trabajo y registrar entregas cuando confirmes el pago.</Nota>
       ) : null}
       <ol className="space-y-3" aria-label="Avance por producto">
