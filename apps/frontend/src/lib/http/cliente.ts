@@ -87,7 +87,25 @@ export async function esperarRenovacion(): Promise<void> {
 }
 
 export async function solicitar<T>(ruta: string, opciones: Opciones<T> = {}): Promise<T> {
-  const { metodo = "GET", cuerpo, autenticada, csrf, mensajes, signal, esquema } = opciones;
+  const respuesta = await responder(ruta, opciones);
+  if (respuesta.status === 204) return undefined as T;
+  return leerJson(respuesta, ruta, opciones.esquema);
+}
+
+/**
+ * Descarga binaria con la misma sesión, renovación y errores que `solicitar` (por ejemplo,
+ * un comprobante de pago privado). El contenido queda solo en memoria: quien lo muestre
+ * crea y revoca su URL temporal.
+ */
+export async function solicitarBinario(
+  ruta: string,
+  opciones: Omit<Opciones, "metodo" | "cuerpo" | "esquema"> = {},
+): Promise<Blob> {
+  return (await responder(ruta, opciones)).blob();
+}
+
+async function responder<T>(ruta: string, opciones: Opciones<T>): Promise<Response> {
+  const { metodo = "GET", cuerpo, autenticada, csrf, mensajes, signal } = opciones;
   // Sin token todavía, una petición autenticada espera la recuperación de la sesión.
   if (autenticada && !tokenDeAcceso()) await esperarRenovacion();
 
@@ -119,6 +137,5 @@ export async function solicitar<T>(ruta: string, opciones: Opciones<T> = {}): Pr
   }
 
   if (!respuesta.ok) throw await aError(respuesta, mensajes);
-  if (respuesta.status === 204) return undefined as T;
-  return leerJson(respuesta, ruta, esquema);
+  return respuesta;
 }

@@ -27,3 +27,6 @@ staticfiles/
 .idea/
 .vscode/
 .migration-evidence/
+
+# Comprobantes de pago privados (D-AUD10-05); nunca versionar.
+private_media/

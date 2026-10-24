@@ -83,4 +83,6 @@ Hoy cada `api.ts` reexporta funciones de `src/mocks/`. Para integrar un dominio:
 
 El mock comparte un único almacén entre dominios legacy (aceptar un pedido de esa demo reserva unidades del producto); las nuevas solicitudes no invocan ese ciclo. Mientras un dominio siga simulado, sus datos no conocen los del dominio ya conectado; la integración completa de sesión pertenece a AUD-18.
 
+**Pagos (AUD-10):** `pagos/api.ts` es la frontera: en modo real usa `pagos/http.ts` (DTO `snake_case` → contratos `camelCase`, multipart con `Idempotency-Key`); en demo el contrato real responde `501` y las pantallas legacy siguen con `PaymentPanel` simulado. `pagos/comprobante.ts` refleja la whitelist del servidor (JPG, JPEG, PNG, WebP, PDF; 10 MB). Los comprobantes se descargan como `Blob` en memoria y su URL temporal se revoca; no se usan DataURL, `localStorage` ni IndexedDB. Ver [contrato de pagos](../../../../docs/api/pagos.md).
+
 **Sesión (AUD-18):** `auth/api.ts` elige con `VITE_AUTH_API` (`mock` por defecto, `real`) entre la sesión simulada de `src/mocks/sesion.ts` y `auth/http.ts`. Todos los dominios HTTP usan el cliente común `src/lib/http/` (Bearer, CSRF, renovación y errores). En modo real, las pantallas que siguen simuladas con la identidad de la demo se envuelven en `SoloDemo`. Ver [arquitectura del frontend](../../../../docs/arquitectura/frontend.md).

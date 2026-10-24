@@ -130,10 +130,11 @@ Las reglas tienen un único lugar: la normalización del teléfono está en `pho
 | `apps/propuestas/` (AUD-06/07) | [Propuesta final y decisión del comprador](../api/propuestas.md): cotización con precio del servidor, cargos, plan y costo de entrega, total y `DecisionPropuesta` (`aceptada`/`rechazada`). |
 | `apps/pedidos/` (AUD-07) | [Pedido confirmado](../api/pedidos.md): snapshot contractual inmutable (`Pedido`, `LineaPedido`, `CargoPedido`) creado al aceptar la propuesta, independiente de cambios posteriores del catálogo. |
 | `apps/inventario/` (AUD-07) | [Inventario y reservas](../api/inventario.md): existencia física, reservada y disponible (`InventarioProducto`), reservas activas por línea (`ReservaInventario`) y bitácora append-only (`MovimientoInventario`). |
+| `apps/pagos/` (AUD-10) | [Pago externo](../api/pagos.md): `Pago` (uno por pedido), `IntentoPago` y `RevisionIntentoPago` append-only, comprobantes privados validados por contenido en `PRIVATE_MEDIA_ROOT` y descarga autenticada. |
 | `apps/operaciones/` (AUD-08) | [Idempotencia](../api/idempotencia.md): las mutaciones comerciales envuelven su servicio con `ejecutar_idempotente` y añaden su `TipoOperacion`. |
 | `apps/accounts/api/serializers.py` | Añadir `artesano_id` y `artesano_estado` al perfil cuando exista el taller. |
 | `apps/talleres/api/permissions.py` | `EsArtesanoAprobado` (implementado): toda función operativa del artesano lo exige; los modelos con dueño implementan `pertenece_a(usuario)`. |
-| `config/settings/base.py` | Almacenamiento de archivos: imágenes públicas del catálogo separadas de los comprobantes privados, que llegarán con los pagos. |
+| `config/settings/base.py` | Almacenamiento de archivos: imágenes públicas del catálogo en `MEDIA_ROOT`; comprobantes de pago privados en `PRIVATE_MEDIA_ROOT`, sin URL (D-AUD10-05). |
 
 Las aplicaciones se crean cuando su fase empieza. La lista prevista (`workshops`, `catalog`, `orders`, `payments`, `messaging`, `notifications`, `audit`) es orientativa: no tiene que coincidir con los ocho módulos de la especificación, y la administración es una capacidad de cada dominio, no una aplicación aparte.
 

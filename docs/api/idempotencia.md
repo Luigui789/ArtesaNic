@@ -1,8 +1,8 @@
 # Contrato de idempotencia V1 (AUD-08)
 
-**Fecha:** 20 de octubre de 2026; tipos de AUD-06 añadidos el 21 de octubre y tipos de AUD-07 añadidos el 22 de octubre (America/Managua).
+**Fecha:** 20 de octubre de 2026; tipos de AUD-06 añadidos el 21 de octubre, de AUD-07 el 22 de octubre y de AUD-10 el 24 de octubre (America/Managua).
 **Fuentes:** RF-009.7, RNF-011, RNF-014.3–5, RNF-015.7; regla de no duplicar solicitudes por reintentos.
-**Esquema:** [OpenAPI generado](openapi.yaml), etiquetas `Solicitudes`, `Pedidos`, `Inventario` y `Operaciones`.
+**Esquema:** [OpenAPI generado](openapi.yaml), etiquetas `Solicitudes`, `Pedidos`, `Inventario`, `Pagos` y `Operaciones`.
 **Decisiones:** [D-AUD08-01 a D-AUD08-08](../decisiones/v1.md#concreciones-de-aud-08).
 
 ## Principio
@@ -51,6 +51,9 @@ renglones de AUD-06), un replay muestra ese estado actual.
 | `establecer_inventario_inicial` | `POST /api/v1/inventario/productos/{producto_id}/inicial/` | `producto_id`, `cantidad` y `motivo` recortado. Recurso `inventarioproducto`, código registrado `201` |
 | `registrar_entrada_inventario` | `POST /api/v1/inventario/productos/{producto_id}/entradas/` | `producto_id`, `cantidad` y `motivo` recortado. Recurso `inventarioproducto`, código registrado `200` |
 | `ajustar_inventario` | `POST /api/v1/inventario/productos/{producto_id}/ajustes/` | `producto_id`, `delta` y `motivo` recortado. Recurso `inventarioproducto`, código registrado `200` |
+| `registrar_intento_pago` | `POST /api/v1/pedidos/mios/{pedido_id}/pago/intentos/` | `pedido_id`, `metodo`, `referencia` recortada y `comprobante_sha256` (SHA-256 del contenido; el nombre del archivo no cuenta). Recurso `intentopago`, código registrado `201` |
+| `corregir_intento_pago` | `POST /api/v1/pedidos/mios/{pedido_id}/pago/intentos/{intento_id}/corregir/` | Lo anterior más `intento_previo_id`. Recurso `intentopago`, código registrado `201` |
+| `resolver_intento_pago` | `POST /api/v1/pedidos/recibidos/{pedido_id}/pago/intentos/{intento_id}/resolver/` | `pedido_id`, `intento_id`, `estado` y `motivo` recortado. Recurso `revisionintentopago`, código registrado `200` |
 
 Las huellas de AUD-06 y AUD-07 incluyen el destino: la misma clave contra otro renglón, otra
 solicitud u otro producto es otra petición (`409 clave_idempotencia_reutilizada`), nunca una repetición.
@@ -58,6 +61,8 @@ Claves distintas contra un renglón ya resuelto, una propuesta ya emitida, una p
 decidida o un inventario ya inicializado no son un problema de idempotencia sino de negocio:
 `409 renglon_ya_resuelto`, `409 propuesta_ya_emitida`, `409 propuesta_ya_decidida` o
 `409 inventario_ya_inicializado` ([revisión y propuesta](propuestas.md), [inventario](inventario.md)).
+En pagos, una clave distinta sobre un pago en revisión o confirmado, o sobre un intento ya resuelto, responde
+`409 pago_en_revision`, `409 pago_ya_confirmado` o `409 intento_ya_resuelto` ([pagos](pagos.md)).
 
 La huella es SHA-256 de un JSON canónico (claves ordenadas, sin espacios, fechas ISO).
 No incluye comprador, taller, estado, cabeceras, token ni timestamps; el orden de las
@@ -144,8 +149,9 @@ clave=..., datos=<contrato normalizado>, operacion=<mutación>)`. La vista usa
 Implementadas: creación de solicitud (AUD-08), resolución de renglón y emisión de
 propuesta (AUD-06), decisión de propuesta (`decidir_propuesta`) y operaciones de inventario
 estándar (`establecer_inventario_inicial`, `registrar_entrada_inventario`,
-`ajustar_inventario`) en AUD-07. Pendientes: registro de pago (AUD-10); entregas,
-clasificación/liberación y reembolsos (AUD-11 en adelante).
+`ajustar_inventario`) en AUD-07 y pagos externos (`registrar_intento_pago`,
+`corregir_intento_pago`, `resolver_intento_pago`) en AUD-10 ([pagos](pagos.md)). Pendientes:
+entregas, clasificación/liberación y reembolsos (AUD-11 en adelante).
 
 ## Tema operativo pendiente
 

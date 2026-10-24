@@ -32,6 +32,9 @@ class TipoOperacion(models.TextChoices):
         "Registrar entrada de inventario",
     )
     AJUSTAR_INVENTARIO = "ajustar_inventario", "Ajustar inventario"
+    REGISTRAR_INTENTO_PAGO = "registrar_intento_pago", "Registrar intento de pago"
+    CORREGIR_INTENTO_PAGO = "corregir_intento_pago", "Corregir intento de pago observado"
+    RESOLVER_INTENTO_PAGO = "resolver_intento_pago", "Resolver intento de pago"
 
 
 class EstadoOperacion(models.TextChoices):

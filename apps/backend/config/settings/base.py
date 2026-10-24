@@ -69,6 +69,7 @@ INSTALLED_APPS = [
     "apps.propuestas",
     "apps.pedidos",
     "apps.inventario",
+    "apps.pagos",
     "apps.operaciones",
 ]
 
@@ -140,6 +141,10 @@ STATIC_URL = "static/"
 
 MEDIA_ROOT = Path(env("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
 MEDIA_URL = "/media/"
+
+# Comprobantes de pago (D-AUD10-05): fuera de MEDIA_ROOT y sin URL pública. Solo se leen
+# por el endpoint autenticado que repite el control de ownership. Backup: BD + esta carpeta.
+PRIVATE_MEDIA_ROOT = Path(env("DJANGO_PRIVATE_MEDIA_ROOT", str(BASE_DIR / "private_media")))
 
 # --- Frontend (SPA), CORS, CSRF y cookies (ADR-003, ADR-007) ---
 
@@ -236,6 +241,11 @@ SPECTACULAR_SETTINGS = {
         "TipoMovimientoInventarioEnum": "apps.inventario.models.TipoMovimientoInventario",
         "EstadoReservaEnum": "apps.inventario.models.EstadoReserva",
         "CodigoConflictoInventarioEnum": "apps.inventario.api.conflictos.CODIGOS_CONFLICTO",
+        "EstadoPagoEnum": "apps.pagos.models.EstadoPago",
+        "MetodoPagoEnum": "apps.pagos.models.MetodoPago",
+        "OrigenIntentoPagoEnum": "apps.pagos.models.OrigenIntento",
+        "ResultadoRevisionPagoEnum": "apps.pagos.models.ResultadoRevision",
+        "CodigoConflictoPagoEnum": "apps.pagos.api.conflictos.CODIGOS_CONFLICTO",
         "TipoOperacionEnum": "apps.operaciones.models.TipoOperacion",
         "EstadoOperacionEnum": "apps.operaciones.api.serializers.ESTADOS_VISIBLES",
         "CodigoConflictoIdempotenciaEnum": "apps.operaciones.api.serializers.CODIGOS_CONFLICTO",
