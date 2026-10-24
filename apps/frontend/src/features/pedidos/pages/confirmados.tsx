@@ -12,17 +12,33 @@ import { useSession } from "@/features/auth/use-session";
 import { claves } from "@/lib/query-keys";
 import { mensajeDominio } from "@/lib/errores-dominio";
 import { mostrarImporte } from "@/lib/importes";
-import { formatCalendarDate, formatDate } from "@/lib/format";
+import { formatCalendarDate, formatDate, formatDateTime } from "@/lib/format";
 import { parseRouteId } from "@/lib/route-id";
 import { reintentarSalvoErrorDelCliente } from "@/lib/http";
 import { MODALIDAD_LABELS } from "@/lib/labels";
+import { CalendarX2, CheckCircle2 } from "lucide-react";
 import {
+  ESTADO_PEDIDO_LABELS,
   listarPedidosConfirmados,
   consultarPedidoConfirmado,
+  type EstadoPedidoOperativo,
   type PedidoConfirmado,
 } from "../confirmados";
 import { ResumenContractual } from "../components/resumen-contractual";
 import { PagoPedido } from "@/features/pagos/components/pago-pedido";
+/** Estado operativo con texto e icono propios: no se comunica solo por color (AUD-11). */
+export function EstadoPedidoBadge({ estado }: { estado: EstadoPedidoOperativo }) {
+  const vencido = estado === "vencido_falta_pago";
+  return (
+    <StatusBadge
+      tone={vencido ? "danger" : "success"}
+      icon={vencido ? CalendarX2 : CheckCircle2}
+      prefix="Estado del pedido"
+    >
+      {ESTADO_PEDIDO_LABELS[estado]}
+    </StatusBadge>
+  );
+}
 export function ListadoPedidosConfirmados({ recibidos = false }: { recibidos?: boolean }) {
   const { usuario } = useSession();
   const [page, setPage] = useState(1);
@@ -70,7 +86,7 @@ export function ListadoPedidosConfirmados({ recibidos = false }: { recibidos?: b
                 <li key={p.id} className="rounded-xl border bg-card p-4 sm:p-5">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="min-w-0 space-y-2">
-                      <StatusBadge tone="success">Confirmado</StatusBadge>
+                      <EstadoPedidoBadge estado={p.estado} />
                       <h2 className="font-display text-xl font-semibold">
                         <Link
                           to={`${base}/${p.id}`}
@@ -120,12 +136,33 @@ export function ContenidoPedidoConfirmado({
   pago?: ReactNode;
 }) {
   const solicitud = recibido ? "/panel/solicitudes" : "/solicitudes";
+  const vencido = p.estado === "vencido_falta_pago";
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
-        <StatusBadge tone="success">Pedido confirmado</StatusBadge>
-        <p className="text-sm text-muted-foreground">{formatDate(p.confirmadoEn)}</p>
+        <EstadoPedidoBadge estado={p.estado} />
+        <p className="text-sm text-muted-foreground">Confirmado el {formatDate(p.confirmadoEn)}</p>
       </div>
+      {vencido ? (
+        <section
+          aria-labelledby="pedido-vencido"
+          className="rounded-lg border border-destructive/30 bg-destructive/5 p-4"
+        >
+          <h2 id="pedido-vencido" className="font-semibold">
+            {ESTADO_PEDIDO_LABELS.vencido_falta_pago}
+          </h2>
+          {p.vencidoEn ? (
+            <p className="mt-1 text-sm">
+              Vencido el{" "}
+              <strong className="whitespace-nowrap">{formatDateTime(p.vencidoEn)}</strong>
+            </p>
+          ) : null}
+          <p className="mt-2 text-sm">
+            El plazo para registrar o corregir el pago terminó. Las unidades reservadas que no
+            habían sido manipuladas fueron liberadas.
+          </p>
+        </section>
+      ) : null}
       <p className="text-sm">
         {recibido
           ? `Comprador: ${p.comprador?.nombre ?? "Comprador"}`
@@ -210,9 +247,11 @@ export function ContenidoPedidoConfirmado({
           <Button asChild variant="outline" className="w-full">
             <Link to={`${solicitud}/${p.solicitud}`}>Ver solicitud y propuesta</Link>
           </Button>
-          <p className="rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
-            El seguimiento de producción y entregas estará disponible en una próxima etapa.
-          </p>
+          {vencido ? null : (
+            <p className="rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
+              El seguimiento de producción y entregas estará disponible en una próxima etapa.
+            </p>
+          )}
         </div>
       </div>
     </>
@@ -245,7 +284,13 @@ export function DetallePedidoConfirmado({ recibido = false }: { recibido?: boole
           <ContenidoPedidoConfirmado
             pedido={query.data}
             recibido={recibido}
-            pago={<PagoPedido pedido={query.data.id} recibido={recibido} />}
+            pago={
+              <PagoPedido
+                pedido={query.data.id}
+                recibido={recibido}
+                pedidoVencido={query.data.estado === "vencido_falta_pago"}
+              />
+            }
           />
         )}
       </PageContainer>
