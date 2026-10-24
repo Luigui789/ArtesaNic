@@ -129,7 +129,17 @@ de pago (`pedidoVencido`) oculta formularios y acciones pero conserva intentos, 
 revisiones y motivos. La interfaz no vence pedidos: lo hace el proceso backend
 ([contrato](../api/pedidos.md#estado-operativo-y-vencimiento-aud-11)).
 
-Los endpoints pendientes de entregas operativas, mensajes/notificaciones reales y
+**Actualización AUD-12:** el detalle real (`DetallePedidoConfirmado`) integra
+`features/pedidos/components/cumplimiento-pedido.tsx` en lugar del aviso «próxima etapa»: avance
+por renglón (acordado, entregado, pendiente, estado, fecha comprometida y características),
+botón de inicio por renglón según la modalidad (solo con Pago confirmado), formulario de entrega
+con `<input type="date">` y cantidades limitadas a lo pendiente, historial de entregas y la
+respuesta del comprador (confirmar o registrar discrepancia). Cliente en
+`features/pedidos/cumplimiento.ts`, sin rutas nuevas ni actualizaciones optimistas
+([contrato](../api/cumplimiento.md)). Los estados globales `en_cumplimiento` y `entregado` tienen
+texto e icono propios.
+
+Los endpoints pendientes de cancelación y cierre parcial, mensajes/notificaciones reales y
 perfil personal permanecen fuera de alcance. No se inventaron llamadas ni estados para
 ocultar esa ausencia. El taller rechazado aún no tiene acción backend de volver a solicitar
 revisión. El dashboard aclara que sus tareas se basan en solicitudes recientes, porque la API

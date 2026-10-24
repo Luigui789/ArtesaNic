@@ -24,19 +24,25 @@ Back-Artesanic/
 │   │   └── api/               Contrato Idempotency-Key reutilizable y consulta de resultado propia
 │   ├── inventario/             Existencia física, reservada, reservas y bitácora append-only (AUD-07)
 │   │   ├── models.py           InventarioProducto, ReservaInventario y MovimientoInventario
-│   │   ├── services.py         Existencia inicial, entradas, ajustes y reservas atómicas con FOR UPDATE
+│   │   ├── services.py         Existencia inicial, entradas, ajustes, reservas atómicas con FOR UPDATE,
+│   │   │                       liberación (AUD-11) y consumo parcial de reservas (AUD-12, uso interno)
 │   │   ├── selectors.py        Inventario y movimientos propios del taller
 │   │   ├── api/               Gestión de inventario del artesano y conflictos 409
 │   │   └── tests/             Reglas por modalidad, ajustes bajo comprometido y carreras en PostgreSQL
-│   ├── pedidos/                Pedido confirmado, snapshot inmutable (AUD-07) y estado operativo (AUD-11)
+│   ├── pedidos/                Pedido confirmado, snapshot inmutable (AUD-07), estado operativo (AUD-11)
+│   │                           y cumplimiento por renglón con entregas (AUD-12)
 │   │   ├── models.py           Pedido, LineaPedido y CargoPedido (snapshot); EstadoOperativoPedido y
-│   │   │                       EventoEstadoPedido (proyección mutable e historial append-only)
-│   │   ├── services.py         Creación transaccional desde la propuesta aceptada (+ estado inicial)
+│   │   │                       EventoEstadoPedido (proyección mutable e historial append-only);
+│   │   │                       CumplimientoLineaPedido, EntregaPedido, LineaEntrega y RecepcionEntrega
+│   │   ├── services.py         Creación transaccional desde la propuesta aceptada (+ estado y cumplimiento)
+│   │   ├── cumplimiento.py     Iniciar renglón, registrar entrega y recepción: Pago confirmado, locks,
+│   │   │                       consumo de reservas, transiciones y puntos de integración AUD-20
 │   │   ├── vencimiento.py      Vencimiento por falta de pago: candidatos por lote, lock y revalidación
 │   │   ├── management/commands/procesar_vencimientos_pago.py
 │   │   │                       Proceso automático (--once / --interval), servicio Compose «vencimientos»
-│   │   ├── selectors.py        Lectura en tres consultas sin JOIN al catálogo vivo
-│   │   ├── api/               Lecturas de comprador (/pedidos/mios/) y taller (/pedidos/recibidos/)
+│   │   ├── selectors.py        Lectura en tres consultas sin JOIN al catálogo vivo; cumplimiento en cuatro
+│   │   ├── api/               Lecturas de comprador (/pedidos/mios/) y taller (/pedidos/recibidos/),
+│   │   │                       cumplimiento, inicio de renglón, entregas y recepción (AUD-12)
 │   │   └── tests/             Snapshot, permisos, idempotencia, plazos, liberación, carreras y smoke
 │   ├── solicitudes/            Solicitud, RenglonSolicitud (AUD-05) y su revisión (AUD-06)
 │   │   ├── models.py           Modalidad por renglón, estados, preferencia de entrega e historial

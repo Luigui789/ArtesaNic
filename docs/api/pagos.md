@@ -304,7 +304,9 @@ estados vive en `apps/pagos/services.py` y sus pruebas.
   pago); las mutaciones posteriores responden `409 pedido_vencido` y las lecturas siguen
   disponibles. Ver [pedidos](pedidos.md#estado-operativo-y-vencimiento-aud-11) y
   [D-AUD11](../decisiones/v1.md#concreciones-de-aud-11).
-- **RF-010 / fases de producción:** consultar `Pago.estado == "confirmado"` como precondición.
+- **RF-010 / AUD-12 (implementado):** iniciar renglones y registrar entregas exigen
+  `Pago.estado == "confirmado"` dentro del lock `Pedido → Pago` (`409 pago_no_confirmado`).
+  Ver [cumplimiento](cumplimiento.md).
 - **RF-021:** devoluciones de pagos confirmados; AUD-10 no revierte un pago confirmado.
 - **RF-020 (AUD-20):** notificaciones de eventos de pago. No existe aún infraestructura
   persistente de notificaciones; el punto de integración son los servicios
