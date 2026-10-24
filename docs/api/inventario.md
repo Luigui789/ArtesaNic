@@ -59,7 +59,7 @@ Cada `LineaPedido` que compromete unidades estándar genera una fila en `Reserva
 | `linea_pedido` | Referencia única a la `LineaPedido` (`OneToOne`, `PROTECT`) |
 | `producto` | Producto cuyas unidades estándar quedan reservadas (`PROTECT`) |
 | `cantidad` | Entero $> 0$, igual a `linea_pedido.cantidad` |
-| `estado` | `activa` (creada en AUD-07), `liberada` o `consumida` (preparados para AUD-11/12/13) |
+| `estado` | `activa` (creada en AUD-07), `liberada` (vencimiento, AUD-11) o `consumida` (preparado para AUD-12/13) |
 | `creada_en` | Timestamp de creación |
 
 ## Bitácora de movimientos (`MovimientoInventario`)
@@ -73,12 +73,28 @@ Todo cambio en `existencia_fisica` o `reservada` registra un `MovimientoInventar
 | `ajuste_positivo` | AUD-07 | $> 0$ | `(+cantidad, +0)` con `motivo` obligatorio |
 | `ajuste_negativo` | AUD-07 | $< 0$ | `(-|delta|, +0)` con `motivo` obligatorio; exige `existencia_fisica - |delta| >= reservada` |
 | `reserva` | AUD-07 | $> 0$ | `(+0, +cantidad)` vinculada a `pedido`, `linea_pedido` y `reserva` |
-| `liberacion` | AUD-12/13 | $> 0$ | Preparado en el esquema para liberación de reserva sin manipulación |
+| `liberacion` | AUD-11 | $> 0$ | `(+0, -cantidad)` vinculada a `pedido`, `linea_pedido` y `reserva`; `actor = NULL` en el vencimiento automático |
 | `consumo` | AUD-11 | $< 0$ | Preparado en el esquema para entrega completada |
 | `reincorporacion` | AUD-12/13 | $> 0$ | Preparado en el esquema para clasificación posterior |
 | `baja` | AUD-12/13 | $< 0$ | Preparado en el esquema para unidades dañadas o dadas de baja |
 
 Cada movimiento almacena `existencia_posterior` y `reservada_posterior` (con `CHECK` `reservada_posterior <= existencia_posterior`), `actor`, `motivo`, referencias opcionales a `pedido`, `linea_pedido` y `reserva`, y `creado_en`.
+
+## Liberación por vencimiento (AUD-11)
+
+`liberar_reservas_de_pedido` (en `apps/inventario/services.py`) se ejecuta dentro de la
+transacción de vencimiento, con el `Pedido` ya bloqueado: bloquea las reservas del pedido y
+después los `InventarioProducto` en orden ascendente de `producto_id`, valida que **todas**
+estén `activa` y solo entonces escribe. Por reserva: `reservada -= cantidad`,
+`estado = "liberada"` y un movimiento `liberacion` con `existencia_despues = existencia_antes`,
+`reservada_despues = reservada_antes - cantidad` y motivo «Vencimiento automático por falta de
+pago.». Ejemplo: física 10, reservada 4, disponible 6 → física 10, reservada 0, disponible 10.
+
+PostgreSQL lo respalda con `movimiento_liberacion_coherente` (pedido, línea y reserva
+obligatorios; existencia sin cambio; reservada reducida exactamente en `cantidad`) y
+`movimiento_liberacion_unica_por_reserva` (`UNIQUE` parcial). Una reserva `consumida` o
+`liberada` en un pedido sin pago confirmado es una inconsistencia: se aborta todo
+(`ReservaInconsistente`), sin reparación automática ([D-AUD11-11](../decisiones/v1.md#concreciones-de-aud-11)).
 
 ## Endpoints del artesano
 

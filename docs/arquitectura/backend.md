@@ -28,12 +28,16 @@ Back-Artesanic/
 │   │   ├── selectors.py        Inventario y movimientos propios del taller
 │   │   ├── api/               Gestión de inventario del artesano y conflictos 409
 │   │   └── tests/             Reglas por modalidad, ajustes bajo comprometido y carreras en PostgreSQL
-│   ├── pedidos/                Pedido confirmado y snapshot contractual inmutable (AUD-07)
-│   │   ├── models.py           Pedido, LineaPedido y CargoPedido con snapshot de producto/categoría/importes
-│   │   ├── services.py         Creación transaccional desde la propuesta aceptada
+│   ├── pedidos/                Pedido confirmado, snapshot inmutable (AUD-07) y estado operativo (AUD-11)
+│   │   ├── models.py           Pedido, LineaPedido y CargoPedido (snapshot); EstadoOperativoPedido y
+│   │   │                       EventoEstadoPedido (proyección mutable e historial append-only)
+│   │   ├── services.py         Creación transaccional desde la propuesta aceptada (+ estado inicial)
+│   │   ├── vencimiento.py      Vencimiento por falta de pago: candidatos por lote, lock y revalidación
+│   │   ├── management/commands/procesar_vencimientos_pago.py
+│   │   │                       Proceso automático (--once / --interval), servicio Compose «vencimientos»
 │   │   ├── selectors.py        Lectura en tres consultas sin JOIN al catálogo vivo
 │   │   ├── api/               Lecturas de comprador (/pedidos/mios/) y taller (/pedidos/recibidos/)
-│   │   └── tests/             Snapshot, aislamiento del catálogo, permisos, idempotencia y smoke HTTP
+│   │   └── tests/             Snapshot, permisos, idempotencia, plazos, liberación, carreras y smoke
 │   ├── solicitudes/            Solicitud, RenglonSolicitud (AUD-05) y su revisión (AUD-06)
 │   │   ├── models.py           Modalidad por renglón, estados, preferencia de entrega e historial
 │   │   ├── services.py         Creación y resolución transaccionales; lock de la solicitud; DR-03
