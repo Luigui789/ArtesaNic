@@ -481,6 +481,8 @@ await verificar("pedido confirmado incluye la sección de pago inyectada", () =>
         solicitud: 1,
         propuesta: 1,
         taller: { id: 1, nombre: "Taller" },
+        estado: "confirmado",
+        vencidoEn: null,
         confirmadoEn: "2026-10-24T10:00:00-06:00",
         moneda: "NIO",
         modalidadEntrega: "retiro_taller",

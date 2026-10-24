@@ -104,6 +104,8 @@ const pedidoDTO = {
   solicitud: 25,
   propuesta: 4,
   taller: { id: 3, nombre: "Taller histórico" },
+  estado: "confirmado",
+  vencido_en: null,
   confirmado_en: "2026-10-22T10:00:00-06:00",
   moneda: "NIO",
   modalidad_entrega: "retiro_taller",
