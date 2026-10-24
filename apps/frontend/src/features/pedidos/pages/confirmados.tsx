@@ -1,5 +1,5 @@
 import { ENTREGA_LABELS } from "@/features/solicitudes/labels";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link, useParams } from "react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { SiteLayout } from "@/components/layout/site-layout";
@@ -22,6 +22,7 @@ import {
   type PedidoConfirmado,
 } from "../confirmados";
 import { ResumenContractual } from "../components/resumen-contractual";
+import { PagoPedido } from "@/features/pagos/components/pago-pedido";
 export function ListadoPedidosConfirmados({ recibidos = false }: { recibidos?: boolean }) {
   const { usuario } = useSession();
   const [page, setPage] = useState(1);
@@ -111,9 +112,12 @@ export function ListadoPedidosConfirmados({ recibidos = false }: { recibidos?: b
 export function ContenidoPedidoConfirmado({
   pedido: p,
   recibido = false,
+  pago,
 }: {
   pedido: PedidoConfirmado;
   recibido?: boolean;
+  /** Sección de pago (AUD-10); se inyecta desde la página, que tiene sesión y caché. */
+  pago?: ReactNode;
 }) {
   const solicitud = recibido ? "/panel/solicitudes" : "/solicitudes";
   return (
@@ -129,6 +133,7 @@ export function ContenidoPedidoConfirmado({
       </p>
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-6">
+          {pago}
           <Section
             title="Productos acordados"
             description="Estos datos se conservaron al confirmar el pedido."
@@ -206,8 +211,7 @@ export function ContenidoPedidoConfirmado({
             <Link to={`${solicitud}/${p.solicitud}`}>Ver solicitud y propuesta</Link>
           </Button>
           <p className="rounded-lg border bg-muted/50 p-4 text-sm text-muted-foreground">
-            El registro de pagos y el seguimiento de entregas estarán disponibles en una próxima
-            etapa.
+            El seguimiento de producción y entregas estará disponible en una próxima etapa.
           </p>
         </div>
       </div>
@@ -238,7 +242,11 @@ export function DetallePedidoConfirmado({ recibido = false }: { recibido?: boole
         ) : query.isError ? (
           <ErrorState mensaje={mensajeDominio(query.error)} onRetry={() => void query.refetch()} />
         ) : (
-          <ContenidoPedidoConfirmado pedido={query.data} recibido={recibido} />
+          <ContenidoPedidoConfirmado
+            pedido={query.data}
+            recibido={recibido}
+            pago={<PagoPedido pedido={query.data.id} recibido={recibido} />}
+          />
         )}
       </PageContainer>
     </SiteLayout>

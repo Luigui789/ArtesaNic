@@ -8,4 +8,9 @@ export const claves = {
     ["movimientos-reales", usuario, producto] as const,
   propuesta: (usuario: number | undefined, recibida: boolean, solicitud: number) =>
     ["propuesta-real", usuario, recibida, solicitud] as const,
+  pago: (usuario: number | undefined, recibido: boolean, pedido: number) =>
+    ["pago-real", usuario, recibido, pedido] as const,
+  /** Binario privado: solo en memoria y con identidad; se descarta al desmontar. */
+  comprobante: (usuario: number | undefined, url: string) =>
+    ["comprobante-real", usuario, url] as const,
 };

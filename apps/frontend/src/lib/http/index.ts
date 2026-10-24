@@ -1,4 +1,10 @@
-export { esperarRenovacion, renovarAcceso, solicitar, type Opciones } from "./cliente";
+export {
+  esperarRenovacion,
+  renovarAcceso,
+  solicitar,
+  solicitarBinario,
+  type Opciones,
+} from "./cliente";
 export { obtenerTokenCsrf } from "./csrf";
 export {
   ApiError,

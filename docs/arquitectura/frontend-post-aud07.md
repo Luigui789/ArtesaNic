@@ -40,8 +40,8 @@ con ejemplos de la documentación AUD-07: existencia inicial acepta únicamente 
 no existencia_posterior; el pedido del artesano incluye taller además de comprador.
 Se usa el contrato implementado, sin modificar backend para adaptar ejemplos.
 
-Pagos, entregas operativas, mensajería real, notificaciones reales y edición de perfil
-personal carecen de endpoints en esta base. Se preservan y aíslan sus pantallas de demo;
+Entregas operativas, mensajería real, notificaciones reales y edición de perfil
+personal carecen de endpoints en esta base (los pagos reales llegaron con AUD-10, ver más abajo). Se preservan y aíslan sus pantallas de demo;
 no se simulan datos reales. La consulta pública del producto no ofrece disponibilidad
 pública: no se revela el inventario privado del artesano al comprador.
 
@@ -117,7 +117,12 @@ navegadores. El smoke automatizado complementa las pruebas de componentes y cont
 
 ## Deuda conservada y límites
 
-Los endpoints pendientes de pagos, entregas operativas, mensajes/notificaciones reales y
+**Actualización AUD-10:** el detalle de pedido real (`/pedidos/:id` y `/panel/pedidos/:id`)
+muestra la sección de pago de `features/pagos/components/pago-pedido.tsx` contra el
+[contrato de pagos](../api/pagos.md): registro, corrección, nuevo intento, revisión del
+artesano, historial y comprobantes privados descargados en memoria.
+
+Los endpoints pendientes de entregas operativas, mensajes/notificaciones reales y
 perfil personal permanecen fuera de alcance. No se inventaron llamadas ni estados para
 ocultar esa ausencia. El taller rechazado aún no tiene acción backend de volver a solicitar
 revisión. El dashboard aclara que sus tareas se basan en solicitudes recientes, porque la API

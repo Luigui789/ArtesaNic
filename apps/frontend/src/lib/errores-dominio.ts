@@ -18,6 +18,15 @@ const MENSAJES: Record<string, string> = {
   solicitud_rechazada: "Esta solicitud fue rechazada y ya no admite cambios.",
   solicitud_sin_renglones_aceptados: "No hay productos aceptados para preparar una propuesta.",
   producto_sin_fotografia: "Agrega una fotografía principal antes de publicar el producto.",
+  pago_ya_confirmado: "El pago de este pedido ya fue confirmado. Actualiza para ver el resultado.",
+  pago_en_revision:
+    "Ya hay un pago registrado esperando la revisión del taller. Actualiza para ver su estado.",
+  correccion_pendiente: "El pago fue observado: corrige el intento observado.",
+  correccion_no_permitida: "Solo puedes corregir el intento observado más reciente.",
+  intento_ya_resuelto: "Este intento de pago ya fue revisado. Actualiza para ver el resultado.",
+  plazo_pago_vencido: "Venció el plazo de 48 horas para registrar el pago.",
+  correccion_fuera_plazo: "Venció el plazo de 48 horas para corregir el pago observado.",
+  nuevo_intento_fuera_plazo: "Venció el plazo de 48 horas para registrar un nuevo intento de pago.",
   resultado_pendiente:
     "No pudimos confirmar el resultado anterior. Reintenta con los mismos datos antes de iniciar otra operación.",
 };
