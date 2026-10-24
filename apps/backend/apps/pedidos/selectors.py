@@ -11,7 +11,9 @@ def pedidos_con_detalle():
     No hace join con ``catalogo_producto`` ni ``catalogo_categoria``: la lectura usa
     exclusivamente el snapshot contractual persistido en ``LineaPedido``.
     """
-    return Pedido.objects.select_related("taller", "comprador").prefetch_related(
+    return Pedido.objects.select_related(
+        "taller", "comprador", "estado_operativo"
+    ).prefetch_related(
         Prefetch("lineas", queryset=LineaPedido.objects.order_by("posicion", "id")),
         Prefetch(
             "cargos",

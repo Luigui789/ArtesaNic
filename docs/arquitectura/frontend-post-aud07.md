@@ -122,6 +122,13 @@ muestra la sección de pago de `features/pagos/components/pago-pedido.tsx` contr
 [contrato de pagos](../api/pagos.md): registro, corrección, nuevo intento, revisión del
 artesano, historial y comprobantes privados descargados en memoria.
 
+**Actualización AUD-11:** listado y detalle muestran el estado operativo del pedido con
+`EstadoPedidoBadge` (texto e icono, no solo color): «Pedido confirmado» o «Vencido por falta de
+pago». El detalle vencido indica «Vencido el …» y explica la liberación de reservas; la sección
+de pago (`pedidoVencido`) oculta formularios y acciones pero conserva intentos, comprobantes,
+revisiones y motivos. La interfaz no vence pedidos: lo hace el proceso backend
+([contrato](../api/pedidos.md#estado-operativo-y-vencimiento-aud-11)).
+
 Los endpoints pendientes de entregas operativas, mensajes/notificaciones reales y
 perfil personal permanecen fuera de alcance. No se inventaron llamadas ni estados para
 ocultar esa ausencia. El taller rechazado aún no tiene acción backend de volver a solicitar

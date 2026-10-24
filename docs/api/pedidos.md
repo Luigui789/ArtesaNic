@@ -7,7 +7,8 @@ cancelaciones y reembolsos pertenecen a AUD-10/11/12/13.
 **Fuentes:** RF-005, RF-006, RF-016, RF-017, RF-018, RF-022, RF-023; RN-009, RN-010,
 RN-011, RN-016, RN-021, RN-022, RN-023, RN-024; RNF-008, RNF-011, RNF-014, RNF-015.
 **Esquema:** [OpenAPI generado](openapi.yaml), etiquetas `Pedidos` y `Solicitudes`.
-**Decisiones:** [D-AUD07-01 a D-AUD07-12](../decisiones/v1.md#concreciones-de-aud-07).
+**Decisiones:** [D-AUD07-01 a D-AUD07-12](../decisiones/v1.md#concreciones-de-aud-07);
+estado operativo y vencimiento: [D-AUD11-01 a D-AUD11-18](../decisiones/v1.md#concreciones-de-aud-11).
 **Relacionados:** [revisión y propuesta](propuestas.md), [inventario y reservas](inventario.md),
 [idempotencia](idempotencia.md), [pago externo (AUD-10)](pagos.md): el pago vive en su propio
 agregado y no modifica este snapshot.
@@ -48,6 +49,7 @@ La aceptación ejecuta en una única transacción ACID en PostgreSQL:
 5. Registro de `DecisionPropuesta(decision="aceptada")`.
 6. Creación de `Pedido`, `LineaPedido` y `CargoPedido` con snapshot contractual completo.
 7. Creación de `ReservaInventario(estado="activa")`, incremento de `InventarioProducto.reservada` y registro de `MovimientoInventario(tipo="reserva")` por cada línea que compromete stock estándar.
+8. Creación de `EstadoOperativoPedido(estado="confirmado")` (AUD-11, D-AUD11-02).
 
 Si `"decision": "rechazar"`, se registra únicamente `DecisionPropuesta(decision="rechazada")` y no se crea `Pedido`, `ReservaInventario` ni `MovimientoInventario`.
 
@@ -100,6 +102,8 @@ Orden estable `-confirmado_en, -id`. Parámetros opcionales `page` y `page_size`
     "departamento": "Masaya",
     "municipio": "San Juan de Oriente"
   },
+  "estado": "confirmado",
+  "vencido_en": null,
   "confirmado_en": "2026-10-22T09:15:00-06:00",
   "moneda": "NIO",
   "modalidad_entrega": "entrega_artesano",
@@ -150,7 +154,43 @@ La vista del artesano (`/api/v1/pedidos/recibidos/...`) sustituye `taller` por `
 
 ### Consultas y rendimiento
 
-Los selectores de pedidos (`pedidos_con_detalle`) resuelven el detalle o cada página en **3 consultas SQL** (`Pedido` con `taller` y `comprador`, `Prefetch` de `lineas` y `Prefetch` de `otros_cargos`), sin unir las tablas del catálogo porque el nombre del producto y la categoría provienen directamente del snapshot persistido en `LineaPedido`.
+Los selectores de pedidos (`pedidos_con_detalle`) resuelven el detalle o cada página en **3 consultas SQL** (`Pedido` con `taller`, `comprador` y `estado_operativo`, `Prefetch` de `lineas` y `Prefetch` de `otros_cargos`), sin unir las tablas del catálogo porque el nombre del producto y la categoría provienen directamente del snapshot persistido en `LineaPedido`.
+
+## Estado operativo y vencimiento (AUD-11)
+
+`estado` y `vencido_en` vienen de `EstadoOperativoPedido`, una proyección mutable separada del
+snapshot (que sigue inmutable). Son independientes del estado del pago (`GET …/pago/`):
+
+| `estado` | Etiqueta | `vencido_en` |
+|---|---|---|
+| `confirmado` | Pedido confirmado | `null` |
+| `vencido_falta_pago` | Vencido por falta de pago | instante en que el proceso ejecutó la transición |
+
+**Cuándo vence (RN-013).** Un pedido `confirmado` vence cuando `situacion_pago()` indica plazo
+vencido, con `ahora >= límite` (el instante exacto ya está vencido):
+
+| Situación del pago | Límite | ¿Vence? |
+|---|---|---|
+| Sin `Pago` | `confirmado_en + 48 h` | Sí, al alcanzar el límite |
+| `observado` sin corrección | `Pago.plazo_hasta` | Sí, al alcanzar el límite |
+| `no_recibido` sin nuevo intento | `Pago.plazo_hasta` | Sí, al alcanzar el límite |
+| `registrado` (en revisión) | — | Nunca mientras siga en revisión |
+| `confirmado` | — | Nunca |
+
+**Efectos, en una transacción por pedido:** todas las reservas `activa` pasan a `liberada`,
+`InventarioProducto.reservada` baja (la existencia física no cambia), se crea un movimiento
+`liberacion` por reserva, el estado pasa a `vencido_falta_pago` y se registra
+`EventoEstadoPedido(confirmado → vencido_falta_pago, tipo="automatico", actor=NULL)`. El `Pago`,
+sus intentos, revisiones y comprobantes no cambian. Después, toda mutación de pago responde
+`409 pedido_vencido`. No hay reembolso: no existía pago confirmado.
+
+**Quién lo ejecuta.** El proceso `procesar_vencimientos_pago` (servicio Compose
+`vencimientos`, cada 60 s), nunca una petición HTTP ni el navegador: no existe endpoint para
+forzarlo. Operación en [desarrollo local](../arquitectura/desarrollo-local-backend.md#vencimientos-automáticos-aud-11).
+
+**Concurrencia.** El comprador (registrar/corregir) y el proceso compiten por el lock del
+`Pedido` y ambos revalidan dentro de él: o el pago quedó `registrado` antes del límite y el
+proceso no vence, o venció primero y el comprador recibe `409`. Nunca ambos.
 
 ## Permisos y aislamiento
 
@@ -164,5 +204,5 @@ Los selectores de pedidos (`pedidos_con_detalle`) resuelven el detalle o cada p�
 
 - Interfaz de usuario de aceptación/rechazo y vista de pedido (AUD-09).
 - Plazo de pago, selección de método de pago, comprobantes y verificación de pagos (AUD-10).
-- Estado operativo de ejecución/producción y entregas (AUD-11).
-- Cancelaciones, vencimiento de pago, liberación/clasificación de inventario y reembolsos (AUD-12 y AUD-13).
+- Vencimiento por falta de pago, liberación de reservas y estado operativo inicial (AUD-11, sección anterior).
+- Producción, preparación, entregas, cancelaciones, clasificación de inventario manipulado y reembolsos (AUD-12 y AUD-13).

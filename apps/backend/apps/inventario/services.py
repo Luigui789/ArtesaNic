@@ -165,6 +165,69 @@ def reservar_para_pedido(
     return reservas
 
 
+class ReservaInconsistente(Exception):
+    """Reserva no activa en un pedido que todavía no tiene Pago confirmado (D-AUD11-11).
+
+    Indica una violación previa de RN-015; el vencimiento aborta sin reparar datos.
+    """
+
+    def __init__(self, reserva: ReservaInventario):
+        self.reserva_id = reserva.pk
+        self.estado = reserva.estado
+        super().__init__(f"Reserva #{reserva.pk} en estado inesperado «{reserva.estado}».")
+
+
+MOTIVO_LIBERACION_VENCIMIENTO = "Vencimiento automático por falta de pago."
+
+
+def liberar_reservas_de_pedido(*, pedido, motivo: str, actor=None) -> list[ReservaInventario]:
+    """Libera todas las reservas activas del pedido (``activa → liberada``).
+
+    Debe ejecutarse dentro de la transacción del llamador con el ``Pedido`` ya bloqueado.
+    Bloquea las reservas y después los inventarios en orden ascendente de ``producto_id``
+    (el mismo orden que AUD-07), valida todas antes de escribir y, si alguna no está activa,
+    lanza ``ReservaInconsistente`` sin modificar nada. La existencia física no cambia.
+    """
+    reservas = list(
+        ReservaInventario.objects.select_for_update(of=("self",))
+        .filter(pedido=pedido)
+        .order_by("id")
+    )
+    for reserva in reservas:
+        if reserva.estado != EstadoReserva.ACTIVA:
+            raise ReservaInconsistente(reserva)
+    if not reservas:
+        return []
+    inventarios = {
+        inv.producto_id: inv
+        for inv in InventarioProducto.objects.select_for_update(of=("self",))
+        .filter(producto_id__in={r.producto_id for r in reservas})
+        .order_by("producto_id")
+    }
+    for reserva in reservas:
+        inv = inventarios[reserva.producto_id]
+        reservada_antes = inv.reservada
+        inv.reservada = reservada_antes - reserva.cantidad
+        inv.save(update_fields=["reservada", "actualizado_en"])
+        reserva.estado = EstadoReserva.LIBERADA
+        reserva.save(update_fields=["estado", "actualizada_en"])
+        MovimientoInventario.objects.create(
+            producto_id=reserva.producto_id,
+            tipo=TipoMovimientoInventario.LIBERACION,
+            cantidad=reserva.cantidad,
+            existencia_antes=inv.existencia_fisica,
+            existencia_despues=inv.existencia_fisica,
+            reservada_antes=reservada_antes,
+            reservada_despues=inv.reservada,
+            actor=actor,
+            pedido=pedido,
+            linea_pedido_id=reserva.linea_pedido_id,
+            reserva=reserva,
+            motivo=motivo,
+        )
+    return reservas
+
+
 def _es_entero(valor: object) -> bool:
     return isinstance(valor, int) and not isinstance(valor, bool)
 

@@ -19,3 +19,6 @@ atexit.register(_MEDIA_TEMPORAL.cleanup)
 _PRIVADO_TEMPORAL = TemporaryDirectory(prefix="artesanic-tests-private-")
 PRIVATE_MEDIA_ROOT = _PRIVADO_TEMPORAL.name
 atexit.register(_PRIVADO_TEMPORAL.cleanup)
+
+# Las pruebas verifican los logs con assertLogs; no los imprimen en la salida de la suite.
+LOGGING["handlers"]["consola"] = {"class": "logging.NullHandler"}  # noqa: F405
