@@ -6,7 +6,8 @@ y en el detalle real de pedido del frontend (`features/pedidos/components/cumpli
 **Fuentes:** RF-010, RF-017, RF-022, RF-023; RN-015, RN-018, RN-021, RN-022, RN-023 y RN-024
 (solo para conservar la información de consumo).
 **Esquema:** [OpenAPI generado](openapi.yaml), etiqueta `Cumplimiento`.
-**Decisiones:** [D-AUD12-01 a D-AUD12-20](../decisiones/v1.md#concreciones-de-aud-12).
+**Decisiones:** [D-AUD12-01 a D-AUD12-20](../decisiones/v1.md#concreciones-de-aud-12); cambios de
+AUD-13 en [D-AUD13-01 y D-AUD13-05](../decisiones/v1.md#concreciones-de-aud-13).
 **Relacionados:** [pedidos](pedidos.md), [pagos](pagos.md), [inventario](inventario.md),
 [idempotencia](idempotencia.md).
 
@@ -44,6 +45,8 @@ Pedido (snapshot inmutable, AUD-07)
 | `en_cumplimiento` | En cumplimiento | Primer renglón iniciado |
 | `entregado` | Entregado | Todas las líneas con `cantidad_entregada == cantidad` |
 | `vencido_falta_pago` | Vencido por falta de pago | Proceso de AUD-11 (terminal para AUD-12) |
+| `cancelado_artesano` | Cancelado por el taller | Cancelación antes de cualquier entrega (AUD-13, terminal) |
+| `cerrado_parcial` | Cerrado parcialmente | El comprador acepta un cierre parcial (AUD-13, terminal) |
 
 No existen los estados globales históricos `aceptado`, `en_produccion` ni
 `listo_para_entrega`. Cada transición deja un `EventoEstadoPedido(tipo="artesano",
@@ -141,7 +144,8 @@ leen del detalle del pedido (snapshot).
 
 Cuerpo `{}` (cualquier campo responde `400`). Orden de validación dentro de la transacción:
 pedido propio (`404`), línea del pedido (`404`), `pedido_vencido`, `pedido_entregado`,
-`pago_no_confirmado`, `linea_ya_iniciada`. Huella: `{"pedido_id", "linea_id"}`. Misma clave y
+`pedido_finalizado` (AUD-13), `pago_no_confirmado`, `cierre_parcial_pendiente` (AUD-13),
+`linea_ya_iniciada`. Huella: `{"pedido_id", "linea_id"}`. Misma clave y
 otra línea: `409 clave_idempotencia_reutilizada`; dos claves distintas sobre la misma línea:
 `409 linea_ya_iniciada`.
 
@@ -186,6 +190,8 @@ cierres parciales. Es evidencia histórica para AUD-13.
 | `404` | — | Pedido, línea o entrega inexistente o ajeno |
 | `409` | `pedido_vencido` | Pedido vencido por falta de pago |
 | `409` | `pedido_entregado` | Pedido ya entregado por completo |
+| `409` | `pedido_finalizado` | Pedido cancelado por el taller o cerrado parcialmente (AUD-13) |
+| `409` | `cierre_parcial_pendiente` | Hay una propuesta de cierre parcial sin respuesta (AUD-13) |
 | `409` | `pago_no_confirmado` | Pago inexistente o no confirmado |
 | `409` | `linea_ya_iniciada` | El renglón ya fue iniciado |
 | `409` | `linea_no_iniciada` | Entrega de un renglón sin iniciar |
@@ -219,10 +225,14 @@ pago. Los hitos son solo visuales (no hay estados nuevos en el backend) y se der
 estado del pedido, del estado del pago y del cumplimiento, leídos de las mismas `queryKey`
 que las secciones de pago y seguimiento, sin peticiones adicionales.
 
-## Fuera de alcance (AUD-13 / AUD-20)
+## Resolución (AUD-13) y fuera de alcance (AUD-20)
 
 Cancelación del artesano, cierre parcial y su objeción, reembolsos, reincorporación, baja y
-clasificación reutilizable/baja. Las notificaciones persistentes pertenecen a AUD-20; los
+clasificación reutilizable/baja están en [resolución de pedidos](resolucion-pedidos.md). Desde
+AUD-13, iniciar y entregar responden `409 pedido_finalizado` en un pedido cancelado o cerrado
+parcialmente y `409 cierre_parcial_pendiente` mientras una propuesta de cierre espera al
+comprador; el seguimiento queda visible en modo histórico. La respuesta del comprador a una
+entrega sigue admitida. Las notificaciones persistentes pertenecen a AUD-20; los
 puntos de integración (`pedido_en_cumplimiento`, `entrega_registrada`, `pedido_entregado`,
 `recepcion_confirmada`, `discrepancia_entrega`) se emiten tras el `COMMIT` en
 `apps/pedidos/cumplimiento.py` y hoy solo registran un log `INFO`.

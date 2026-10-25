@@ -260,6 +260,7 @@ podrá consultar estado y timestamps, nunca el comprobante.
 | `correccion_fuera_plazo` | Corrección con `ahora >= plazo_hasta` |
 | `nuevo_intento_fuera_plazo` | Nuevo intento con `ahora >= plazo_hasta` |
 | `pedido_vencido` | Registrar, corregir o resolver en un pedido «Vencido por falta de pago» (AUD-11, D-AUD11-17) |
+| `pedido_finalizado` | Registrar, corregir o resolver en un pedido entregado, cancelado por el taller o cerrado parcialmente (AUD-13, D-AUD13-01); se comprueba bajo el lock del `Pedido`, antes del estado del pago |
 | `clave_idempotencia_reutilizada` | Misma clave con otra huella |
 
 Un `409` de negocio no deja registro idempotente ni archivo.
@@ -307,7 +308,14 @@ estados vive en `apps/pagos/services.py` y sus pruebas.
 - **RF-010 / AUD-12 (implementado):** iniciar renglones y registrar entregas exigen
   `Pago.estado == "confirmado"` dentro del lock `Pedido → Pago` (`409 pago_no_confirmado`).
   Ver [cumplimiento](cumplimiento.md).
-- **RF-021:** devoluciones de pagos confirmados; AUD-10 no revierte un pago confirmado.
+- **RF-015 / RF-021 / AUD-13 (implementado):** la cancelación del taller exige que el pago no
+  esté `registrado` ni `observado` (`409 pago_pendiente_de_resolucion`); con Pago confirmado
+  crea un reembolso total y el cierre parcial aceptado, uno parcial. El `Pago` no cambia: la
+  devolución se registra aparte ([reembolsos](reembolsos.md)). Un pedido finalizado rechaza
+  nuevas mutaciones de pago con `409 pedido_finalizado`; el historial y los comprobantes siguen
+  legibles. El registro de pago y la cancelación compiten por el lock del `Pedido`: si gana el
+  registro, la cancelación responde `pago_pendiente_de_resolucion`; si gana la cancelación, el
+  registro responde `pedido_finalizado`.
 - **RF-020 (AUD-20):** notificaciones de eventos de pago. No existe aún infraestructura
   persistente de notificaciones; el punto de integración son los servicios
   `registrar_intento`, `corregir_intento` y `resolver_intento`, al confirmar la transacción.

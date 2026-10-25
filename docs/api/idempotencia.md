@@ -1,6 +1,6 @@
 # Contrato de idempotencia V1 (AUD-08)
 
-**Fecha:** 20 de octubre de 2026; tipos de AUD-06 añadidos el 21 de octubre, de AUD-07 el 22 de octubre y de AUD-10 y AUD-12 el 24 de octubre (America/Managua).
+**Fecha:** 20 de octubre de 2026; tipos de AUD-06 añadidos el 21 de octubre, de AUD-07 el 22 de octubre y de AUD-10, AUD-12 y AUD-13 el 24 de octubre (America/Managua).
 **Fuentes:** RF-009.7, RNF-011, RNF-014.3–5, RNF-015.7; regla de no duplicar solicitudes por reintentos.
 **Esquema:** [OpenAPI generado](openapi.yaml), etiquetas `Solicitudes`, `Pedidos`, `Inventario`, `Pagos` y `Operaciones`.
 **Decisiones:** [D-AUD08-01 a D-AUD08-08](../decisiones/v1.md#concreciones-de-aud-08).
@@ -155,8 +155,10 @@ estándar (`establecer_inventario_inicial`, `registrar_entrada_inventario`,
 `ajustar_inventario`) en AUD-07 y pagos externos (`registrar_intento_pago`,
 `corregir_intento_pago`, `resolver_intento_pago`) en AUD-10 ([pagos](pagos.md)) y
 cumplimiento (`iniciar_cumplimiento_linea`, `registrar_entrega_pedido`,
-`registrar_recepcion_entrega`) en AUD-12 ([cumplimiento](cumplimiento.md)). Pendientes:
-cancelación, cierre parcial, clasificación y reembolsos (AUD-13).
+`registrar_recepcion_entrega`) en AUD-12 ([cumplimiento](cumplimiento.md)) y resolución
+(`cancelar_pedido_artesano`, `proponer_cierre_parcial`, `responder_cierre_parcial`,
+`registrar_devolucion_reembolso`, `clasificar_inventario_pedido`, migración `operaciones.0006`)
+en AUD-13 ([resolución](resolucion-pedidos.md#huellas-de-idempotencia), [reembolsos](reembolsos.md)).
 
 ## Tema operativo pendiente
 
