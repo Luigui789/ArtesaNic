@@ -1,11 +1,17 @@
-/** RF-007: tasa de cambio simulada (mock, sin servicios externos). */
-export const TASA_CAMBIO = 36.8; // C$ por US$
-
 export type Currency = "NIO" | "USD";
 
-export function formatPrice(cordobas: number, currency: Currency): string {
-  if (currency === "USD") {
-    const usd = cordobas / TASA_CAMBIO;
+/**
+ * RF-007: precio en córdobas o su conversión informativa a dólares. Función pura: la tasa
+ * (C$ por US$) la recibe del servidor; sin tasa válida solo hay córdobas. Nunca altera el
+ * importe en córdobas, que es el contractual.
+ */
+export function formatPrice(
+  cordobas: number,
+  currency: Currency,
+  tasaCambio: number | null,
+): string {
+  if (currency === "USD" && tasaCambio !== null && Number.isFinite(tasaCambio) && tasaCambio > 0) {
+    const usd = cordobas / tasaCambio;
     return `US$ ${usd.toLocaleString("en-US", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,

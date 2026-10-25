@@ -103,6 +103,17 @@ def _entrega_preferida(modalidad: str, descripcion: str) -> dict:
     return {"modalidad_entrega_preferida": modalidad, "descripcion_entrega_preferida": descripcion}
 
 
+def _bloquear_productos(ids: set[int]) -> None:
+    """Serializa la nueva solicitud con publicar y moderar sobre cada producto (D-AUD14-07).
+
+    Orden ascendente y determinista. Si una moderación obtuvo antes el lock, la consulta
+    de catálogo posterior ya la ve y el producto queda no disponible; si la solicitud lo
+    obtuvo primero, la moderación espera y la solicitud queda como compromiso previo.
+    Solo afecta al alta: resolver, proponer, confirmar o cumplir no se filtran.
+    """
+    list(Producto.objects.select_for_update().filter(pk__in=ids).order_by("pk").values_list("pk"))
+
+
 @transaction.atomic
 def crear_solicitud(
     *,
@@ -134,6 +145,7 @@ def crear_solicitud(
             for campo in ("producto", "cantidad")
         ):
             raise SolicitudInvalida({"renglones": ["Producto y cantidad deben ser enteros."]})
+    _bloquear_productos({d["producto"] for d in renglones})
     productos = {
         p.pk: p
         for p in Producto.objects.catalogo()

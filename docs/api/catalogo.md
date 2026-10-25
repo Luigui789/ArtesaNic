@@ -1,12 +1,12 @@
 # Contrato de API — Catálogo
 
-**Estado:** contrato de AUD-04 ampliado con fotografía principal real por DR-01 ([sección 7](#7-fotografía-principal-dr-01)).
+**Estado:** contrato de AUD-04 ampliado con fotografía principal real por DR-01 ([sección 7](#7-fotografía-principal-dr-01)) y moderación administrativa por AUD-14 ([sección 5.1](#51-moderación-administrativa-aud-14)).
 
-**Fecha:** 2026-10-21
+**Fecha:** 2026-10-25
 
 **Esquema generado:** [`openapi.yaml`](openapi.yaml), etiquetas `Catálogo` y `Productos propios`.
 
-**Requisitos:** RF-001, RF-003, RF-017, RF-019; RN-002, RN-003, RN-004; RNF-003, RNF-004, RNF-005, RNF-007. Decisiones de la tarea: D-AUD04-01 a D-AUD04-09 ([sección 8](#8-decisiones-aplicadas-en-aud-04)).
+**Requisitos:** RF-001, RF-003, RF-013.3, RF-017, RF-019; RN-002, RN-003, RN-004; RNF-003, RNF-004, RNF-005, RNF-007. Decisiones de la tarea: D-AUD04-01 a D-AUD04-09 ([sección 8](#8-decisiones-aplicadas-en-aud-04)) y D-AUD14-01 a D-AUD14-04 y D-AUD14-07 ([decisiones V1](../decisiones/v1.md#concreciones-de-aud-14)).
 
 La habilitación del artesano (`EsArtesanoAprobado`) se describe en [talleres §3](talleres.md#3-habilitación-operativa-del-artesano).
 
@@ -81,7 +81,7 @@ Es informativo: no reserva unidades. No se exponen `existencia_fisica`, `reserva
 
 ### Lectura del taller propio
 
-La misma forma más `publicado` (booleano) y `actualizado_en`.
+La misma forma más `publicado` (booleano), `moderacion` y `actualizado_en`. `moderacion` es `null` o `{"motivo": "…", "moderado_en": "2026-10-25T15:30:00-06:00"}`: motivo y fecha del retiro administrativo, sin la identidad del administrador ([sección 5.1](#51-moderación-administrativa-aud-14)). La lectura pública no incluye `moderacion`, porque un producto moderado nunca aparece en ella.
 
 ### Escritura (`POST` y `PATCH`)
 
@@ -122,6 +122,18 @@ Se combinan libremente; al menos una es obligatoria. La API valida la lista (`40
 - Editar no cambia la publicación.
 - Publicar exige fotografía principal persistida; de lo contrario responde `409` con `{"codigo": "producto_sin_fotografia", "detail": "Agrega una fotografía principal válida antes de publicar."}`. Se verifica también al repetir la acción sobre históricos sin foto.
 - Despublicar conserva la imagen. Eliminar la imagen de un publicado responde `400` en `fotografia_principal`.
+- Publicar un producto moderado responde `409` con `{"codigo": "producto_moderado", "detail": "Este producto fue retirado por moderación y no puede publicarse."}` y no cambia `publicado`. Esta comprobación va antes que la de la fotografía.
+
+### 5.1 Moderación administrativa (AUD-14)
+
+**Publicación del artesano ≠ moderación administrativa.** `Producto.publicado` es la intención del artesano. La moderación es una decisión distinta del administrador de plataforma, registrada en `ModeracionProducto` (1:1 con el producto, `PROTECT`) con actor, motivo y fecha (RF-019.5, RN-003). Moderar **no** modifica `publicado`: se conservan las dos decisiones. Si moderar consistiera en poner `publicado = false`, el artesano podría volver a publicar.
+
+- **Visibilidad derivada, no persistida:** `visible = publicado ∧ taller aprobado ∧ sin moderación`. `Producto.objects.catalogo()` aplica las tres condiciones. Un producto moderado desaparece del listado, de los filtros y del detalle público (`404`), y también de **nuevas solicitudes**, que validan contra el mismo `catalogo()` (`400`, «El producto no está disponible para nuevas solicitudes.»).
+- **Los históricos continúan (D-AUD14-03):** las solicitudes, renglones, propuestas, pedidos, pagos, reservas, entregas y reembolsos creados antes no cambian. Una solicitud previa puede revisarse, proponerse, aceptarse y convertirse en pedido. Retirar del catálogo no cancela compromisos existentes, el mismo principio que la despublicación (D-AUD06-06).
+- **El artesano (D-AUD14-04)** puede editar (`PATCH`) y despublicar el producto moderado. Despublicar no levanta la moderación. No puede volver a publicarlo (`409 producto_moderado`).
+- **Terminal en V1 (D-AUD14-02):** la moderación es append-only, no se edita ni se borra, y no existe restitución, apelación ni reapertura.
+- **Escritura solo en Django Admin** (`/admin/catalogo/producto/`, acción «Retirar productos por moderación», permiso `catalogo.moderar_producto`). Pide un motivo obligatorio de hasta 1000 caracteres tras recortar espacios (D-AUD14-01) e invoca `services.moderar_producto` por cada producto, con `request.user` como actor. Al terminar informa `moderados: N` y `ya moderados: M`. Moderar de nuevo un producto ya moderado no crea otra fila ni cambia el actor o el motivo originales. El admin de productos es de solo lectura: no agrega, edita ni borra. No hay endpoints REST administrativos.
+- **Concurrencia (D-AUD14-07):** moderar, publicar y crear una solicitud se serializan sobre el `SELECT … FOR UPDATE` del `Producto`. `crear_solicitud` bloquea sus productos por `id` ascendente antes de validar el catálogo. Si la moderación obtiene antes el lock, la solicitud responde `400`. Si la solicitud lo obtiene antes, queda como compromiso previo. Nunca queda una solicitud a medias ni un producto moderado visible.
 
 ## 6. Catálogo público (RF-003)
 
@@ -159,7 +171,7 @@ Un producto publicado de un taller aprobado. Si no existe, no está publicado o 
 
 ### `GET /api/v1/productos/mios/`
 
-Productos del taller propio, publicados y no publicados, del más reciente al más antiguo, con la misma paginación (`page`, `page_size`). No admite parámetro de taller. En el OpenAPI: `PaginatedProductoPropioList`, con `results` de `ProductoPropio`.
+Productos del taller propio, publicados, no publicados y moderados, del más reciente al más antiguo, con la misma paginación (`page`, `page_size`). No admite parámetro de taller. En el OpenAPI: `PaginatedProductoPropioList`, con `results` de `ProductoPropio`.
 
 ### Errores de la gestión
 
@@ -170,6 +182,7 @@ Productos del taller propio, publicados y no publicados, del más reciente al m�
 | `403` | La cuenta no es de artesano, o su taller está pendiente, rechazado o no existe (`"Tu taller todavía no está aprobado: …"`). El artesano no aprobado sigue gestionando `GET`/`PATCH /api/v1/talleres/mi-taller/` |
 | `404` | El producto no existe **o pertenece a otro taller**: las dos respuestas son idénticas, para no revelar productos ajenos |
 | `405` | `PUT` o `DELETE` |
+| `409` | `producto_sin_fotografia` o `producto_moderado` al publicar |
 
 ## 7. Fotografía principal: DR-01
 

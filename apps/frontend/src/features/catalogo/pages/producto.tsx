@@ -24,7 +24,6 @@ import {
 } from "@/features/catalogo/api";
 import { ModalidadesTexto, ProductImage } from "@/features/catalogo/components/product-card";
 import { useCurrency } from "@/hooks/use-currency";
-import { TASA_CAMBIO } from "@/lib/format";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { parseRouteId } from "@/lib/route-id";
 import { NotFound } from "@/app/not-found";
@@ -32,7 +31,7 @@ import { NotFound } from "@/app/not-found";
 export default function DetalleProducto() {
   const { id: idParam } = useParams<{ id: string }>();
   const id = parseRouteId(idParam);
-  const { format } = useCurrency();
+  const { format, currency } = useCurrency();
 
   useDocumentHead({
     title: "Producto artesanal | Artesanías de Masaya",
@@ -146,9 +145,11 @@ export default function DetalleProducto() {
               <p className="text-3xl font-bold text-primary">{format(p.precio)}</p>
               <CurrencySwitcher />
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Conversión informativa: 1 US$ = C$ {TASA_CAMBIO}
-            </p>
+            {currency === "USD" ? (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Valor en dólares solo informativo: el precio acordado es en córdobas.
+              </p>
+            ) : null}
 
             <div className="mt-6">
               <h2 className="text-base font-semibold">Descripción</h2>

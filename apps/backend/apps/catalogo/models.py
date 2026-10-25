@@ -5,11 +5,15 @@ capacidades declarativas que pueden combinarse: no registran existencias, que
 pertenecen al inventario (RF-022), ni datos de un pedido, que pertenecen al futuro
 dominio de pedidos. Ese dominio congelará nombre, precio y modalidad de cada renglón:
 editar o despublicar un producto nunca modifica un pedido confirmado (RN-003).
+``publicado`` es la decisión del artesano; la moderación administrativa vive aparte, en
+``ModeracionProducto`` (AUD-14).
 """
 
 from decimal import Decimal
 
-from django.core.validators import MinValueValidator, RegexValidator
+from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.core.validators import MaxLengthValidator, MinValueValidator, RegexValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -87,12 +91,17 @@ CAMPOS_EDITABLES = (
 
 class ProductoQuerySet(models.QuerySet):
     def catalogo(self):
-        """Productos visibles en el catálogo público (RF-003, RN-003).
+        """Productos visibles en el catálogo público y para nuevas solicitudes (RF-003, RF-019).
 
-        Publicados y de un taller aprobado. Un producto marcado como publicado de un
-        taller pendiente o rechazado no aparece.
+        Publicados por el artesano, de un taller aprobado y sin moderación administrativa.
+        La visibilidad se deriva; no se persiste (D-AUD14-02). Un producto marcado como
+        publicado de un taller pendiente o rechazado, o retirado por moderación, no aparece.
         """
-        return self.filter(publicado=True, taller__estado=EstadoTaller.APROBADO)
+        return self.filter(
+            publicado=True,
+            taller__estado=EstadoTaller.APROBADO,
+            moderacion__isnull=True,
+        )
 
     def del_taller(self, taller: Taller):
         return self.filter(taller=taller)
@@ -178,3 +187,66 @@ class Producto(models.Model):
     def pertenece_a(self, usuario) -> bool:
         """Contrato de ``EsPropietario``: solo el artesano dueño del taller lo gestiona."""
         return usuario.is_authenticated and self.taller.propietario_id == usuario.pk
+
+    @property
+    def moderacion_vigente(self) -> "ModeracionProducto | None":
+        try:
+            return self.moderacion
+        except ModeracionProducto.DoesNotExist:
+            return None
+
+
+# Límite técnico del motivo (D-AUD14-01); RF-019 solo exige que exista.
+MAX_MOTIVO_MODERACION = 1000
+
+
+class ModeracionProducto(models.Model):
+    """Retiro administrativo del producto, con actor y motivo (RF-019.5, RN-003).
+
+    Es una autoridad distinta de ``Producto.publicado`` (la decisión del artesano): su
+    existencia saca el producto del catálogo y de nuevas solicitudes sin cambiar
+    ``publicado`` ni los compromisos ya creados (D-AUD14-02/03). Append-only y terminal
+    en V1: no se edita, no se borra y no hay restitución (D-AUD14-02).
+    """
+
+    producto = models.OneToOneField(
+        Producto,
+        on_delete=models.PROTECT,
+        related_name="moderacion",
+        verbose_name="producto",
+    )
+    moderado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="moderaciones_producto",
+        verbose_name="moderado por",
+    )
+    motivo = models.TextField(
+        "motivo",
+        max_length=MAX_MOTIVO_MODERACION,
+        validators=[MaxLengthValidator(MAX_MOTIVO_MODERACION)],
+    )
+    moderado_en = models.DateTimeField("moderado en", default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "moderación de producto"
+        verbose_name_plural = "moderaciones de productos"
+        permissions = [("moderar_producto", "Puede moderar productos")]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(motivo__regex=PATRON_NO_EN_BLANCO),
+                name="moderacion_motivo_obligatorio",
+                violation_error_message="Indica el motivo de la moderación.",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Moderación de «{self.producto_id}»"
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("Una moderación registrada no se modifica.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("Una moderación registrada no se elimina.")

@@ -123,7 +123,8 @@ function aCatalogo(p: Product): CatalogProduct {
 
 function aPropio(p: Product): OwnProduct {
   // La demo no registra la hora de edición; se informa la de alta.
-  return { ...aCatalogo(p), publicado: p.publicado, actualizadoEn: p.creadoEn };
+  // La demo no modera productos: la moderación es exclusiva de Django Admin (AUD-14).
+  return { ...aCatalogo(p), publicado: p.publicado, moderacion: null, actualizadoEn: p.creadoEn };
 }
 
 /** Equivale a `GET /productos/`: solo publicados. En la demo todos los talleres están aprobados. */

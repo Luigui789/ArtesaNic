@@ -49,6 +49,7 @@ export { ApiError, reintentarSalvoErrorDelCliente } from "./http";
 export type {
   CatalogFilters,
   CatalogProduct,
+  ModeracionProducto,
   OwnProduct,
   Paginated,
   ProductInput,

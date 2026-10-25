@@ -144,8 +144,29 @@ class ProductoPublicoSerializer(_ProductoLecturaSerializer):
         read_only_fields = fields
 
 
+class ModeracionPropiaSerializer(serializers.Serializer):
+    """Moderación vista por el artesano: motivo y fecha, sin la identidad del actor."""
+
+    motivo = serializers.CharField(read_only=True)
+    moderado_en = serializers.DateTimeField(read_only=True)
+
+
 class ProductoPropioSerializer(_ProductoLecturaSerializer):
-    """Producto del taller propio: añade su estado de publicación y última edición."""
+    """Producto del taller propio: añade su estado de publicación, moderación y última edición.
+
+    ``publicado`` es la decisión del artesano; ``moderacion`` (null si no existe) indica un
+    retiro administrativo que impide publicarlo (RF-019, D-AUD14-04).
+    """
+
+    moderacion = serializers.SerializerMethodField(
+        help_text="Retiro por moderación administrativa: motivo y fecha; null si no existe. "
+        "Un producto moderado no aparece en el catálogo ni puede publicarse."
+    )
+
+    @extend_schema_field(ModeracionPropiaSerializer(allow_null=True))
+    def get_moderacion(self, obj):
+        moderacion = obj.moderacion_vigente
+        return ModeracionPropiaSerializer(moderacion).data if moderacion else None
 
     class Meta:
         model = Producto
@@ -158,6 +179,7 @@ class ProductoPropioSerializer(_ProductoLecturaSerializer):
             "modalidades",
             "taller",
             "publicado",
+            "moderacion",
             "creado_en",
             "fotografia_url",
             "actualizado_en",
