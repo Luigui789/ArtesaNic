@@ -13,6 +13,7 @@ from django.apps import apps as registro_apps
 from django.core.exceptions import ValidationError
 from django.core.management import call_command
 from django.db import IntegrityError, connection, transaction
+from django.db.models import F
 from django.test.utils import CaptureQueriesContext
 from django.utils.dateparse import parse_datetime
 
@@ -335,7 +336,10 @@ class InconsistenciaTests(VencimientoTestCase):
             renglones=[datos_renglon(producto, cantidad=1), datos_renglon(producto, cantidad=2)],
         )
         primera, segunda = ReservaInventario.objects.filter(pedido=pedido).order_by("id")
-        ReservaInventario.objects.filter(pk=segunda.pk).update(estado=EstadoReserva.CONSUMIDA)
+        # Coherente con el CHECK de AUD-12: «consumida» exige cantidad_consumida = cantidad.
+        ReservaInventario.objects.filter(pk=segunda.pk).update(
+            estado=EstadoReserva.CONSUMIDA, cantidad_consumida=F("cantidad")
+        )
         momento = pedido.confirmado_en + vencimiento.PLAZO
         with self.assertLogs("apps.pedidos.vencimiento", "CRITICAL") as logs:
             resultado = self.procesar(momento + UN_DIA)

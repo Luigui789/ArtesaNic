@@ -342,7 +342,7 @@ const NOMBRE: Record<string, string> = {
   ajuste_negativo: "Ajuste: resta",
   reserva: "Reserva de pedido",
   liberacion: "Liberación",
-  consumo: "Entrega",
+  consumo: "Consumo de unidad reservada",
   reincorporacion: "Reincorporación",
   baja: "Baja",
 };

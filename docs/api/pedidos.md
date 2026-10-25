@@ -8,10 +8,11 @@ cancelaciones y reembolsos pertenecen a AUD-10/11/12/13.
 RN-011, RN-016, RN-021, RN-022, RN-023, RN-024; RNF-008, RNF-011, RNF-014, RNF-015.
 **Esquema:** [OpenAPI generado](openapi.yaml), etiquetas `Pedidos` y `Solicitudes`.
 **Decisiones:** [D-AUD07-01 a D-AUD07-12](../decisiones/v1.md#concreciones-de-aud-07);
-estado operativo y vencimiento: [D-AUD11-01 a D-AUD11-18](../decisiones/v1.md#concreciones-de-aud-11).
+estado operativo y vencimiento: [D-AUD11-01 a D-AUD11-18](../decisiones/v1.md#concreciones-de-aud-11);
+cumplimiento y entregas: [D-AUD12-01 a D-AUD12-20](../decisiones/v1.md#concreciones-de-aud-12).
 **Relacionados:** [revisión y propuesta](propuestas.md), [inventario y reservas](inventario.md),
 [idempotencia](idempotencia.md), [pago externo (AUD-10)](pagos.md): el pago vive en su propio
-agregado y no modifica este snapshot.
+agregado y no modifica este snapshot; [cumplimiento por renglón y entregas (AUD-12)](cumplimiento.md).
 
 ## Separación conceptual del dominio
 
@@ -50,6 +51,7 @@ La aceptación ejecuta en una única transacción ACID en PostgreSQL:
 6. Creación de `Pedido`, `LineaPedido` y `CargoPedido` con snapshot contractual completo.
 7. Creación de `ReservaInventario(estado="activa")`, incremento de `InventarioProducto.reservada` y registro de `MovimientoInventario(tipo="reserva")` por cada línea que compromete stock estándar.
 8. Creación de `EstadoOperativoPedido(estado="confirmado")` (AUD-11, D-AUD11-02).
+9. Creación de un `CumplimientoLineaPedido` pendiente por cada `LineaPedido` (AUD-12, D-AUD12-04).
 
 Si `"decision": "rechazar"`, se registra únicamente `DecisionPropuesta(decision="rechazada")` y no se crea `Pedido`, `ReservaInventario` ni `MovimientoInventario`.
 
@@ -164,7 +166,13 @@ snapshot (que sigue inmutable). Son independientes del estado del pago (`GET …
 | `estado` | Etiqueta | `vencido_en` |
 |---|---|---|
 | `confirmado` | Pedido confirmado | `null` |
+| `en_cumplimiento` | En cumplimiento (AUD-12: primer renglón iniciado) | `null` |
+| `entregado` | Entregado (AUD-12: todas las cantidades entregadas) | `null` |
 | `vencido_falta_pago` | Vencido por falta de pago | instante en que el proceso ejecutó la transición |
+
+Las transiciones `confirmado → en_cumplimiento → entregado` y su avance por renglón se
+documentan en [cumplimiento](cumplimiento.md). Solo un pedido `confirmado` puede vencer: con
+Pago confirmado (requisito para iniciar) nunca vence.
 
 **Cuándo vence (RN-013).** Un pedido `confirmado` vence cuando `situacion_pago()` indica plazo
 vencido, con `ahora >= límite` (el instante exacto ya está vencido):
@@ -205,4 +213,5 @@ proceso no vence, o venció primero y el comprador recibe `409`. Nunca ambos.
 - Interfaz de usuario de aceptación/rechazo y vista de pedido (AUD-09).
 - Plazo de pago, selección de método de pago, comprobantes y verificación de pagos (AUD-10).
 - Vencimiento por falta de pago, liberación de reservas y estado operativo inicial (AUD-11, sección anterior).
-- Producción, preparación, entregas, cancelaciones, clasificación de inventario manipulado y reembolsos (AUD-12 y AUD-13).
+- Producción, preparación, entregas y recepción por renglón: implementadas en AUD-12 ([cumplimiento](cumplimiento.md)).
+- Cancelaciones, cierre parcial, clasificación de inventario manipulado y reembolsos (AUD-13).

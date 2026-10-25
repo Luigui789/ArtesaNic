@@ -2,10 +2,14 @@
 import { solicitar } from "@/lib/http";
 import { paginaDe, type PaginaDTO } from "@/lib/paginacion";
 import type { Propuesta, RenglonSolicitud } from "@/features/solicitudes/types";
-/** Estado operativo del pedido (AUD-11); independiente del estado del pago. */
-export type EstadoPedidoOperativo = "confirmado" | "vencido_falta_pago";
+/** Estado operativo global del pedido (AUD-11/12); independiente del estado del pago. El
+ * avance y la modalidad se conservan por renglón (ver `cumplimiento.ts`). */
+export type EstadoPedidoOperativo =
+  "confirmado" | "en_cumplimiento" | "entregado" | "vencido_falta_pago";
 export const ESTADO_PEDIDO_LABELS: Record<EstadoPedidoOperativo, string> = {
   confirmado: "Pedido confirmado",
+  en_cumplimiento: "En cumplimiento",
+  entregado: "Entregado",
   vencido_falta_pago: "Vencido por falta de pago",
 };
 export interface LineaPedidoConfirmado {

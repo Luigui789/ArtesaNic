@@ -2,12 +2,14 @@
 
 **Fecha:** 22 de octubre de 2026 (America/Managua).
 **Estado:** inventario de unidades estándar, reservas transaccionales al confirmar pedido y
-bitácora append-only de movimientos (`apps/inventario/`). La liberación, clasificación,
-consumo por entrega y baja por cancelación/devolución pertenecen a AUD-11/12/13.
+bitácora append-only de movimientos (`apps/inventario/`). Liberación por vencimiento en
+AUD-11; consumo por entrega y por inicio de transformación en AUD-12; clasificación,
+reincorporación y baja por cancelación/devolución pertenecen a AUD-13.
 **Fuentes:** RF-001, RF-005, RF-017, RF-018, RF-022, RF-023; RN-009, RN-011, RN-021,
 RN-022, RN-023; RNF-008, RNF-011, RNF-014, RNF-015.
 **Esquema:** [OpenAPI generado](openapi.yaml), etiqueta `Inventario`.
-**Decisiones:** [D-AUD07-04 a D-AUD07-12](../decisiones/v1.md#concreciones-de-aud-07).
+**Decisiones:** [D-AUD07-04 a D-AUD07-12](../decisiones/v1.md#concreciones-de-aud-07),
+[D-AUD11](../decisiones/v1.md#concreciones-de-aud-11) y [D-AUD12](../decisiones/v1.md#concreciones-de-aud-12).
 **Relacionados:** [pedidos confirmados](pedidos.md), [revisión y propuesta](propuestas.md),
 [idempotencia](idempotencia.md).
 
@@ -30,7 +32,7 @@ Restricciones en PostgreSQL (`CHECK`):
 - `reservada >= 0`
 - `reservada <= existencia_fisica` (nunca puede existir `disponible < 0`)
 
-Reservar unidades al confirmar un pedido **incrementa `reservada` y no reduce `existencia_fisica`** (RF-022, RN-011). La existencia física solo disminuirá cuando una entrega se complete (`consumo`, AUD-11) o por un ajuste negativo o baja sobre unidades disponibles no comprometidas.
+Reservar unidades al confirmar un pedido **incrementa `reservada` y no reduce `existencia_fisica`** (RF-022, RN-011). La existencia física solo disminuye por un `consumo` de una reserva (entrega de stock o inicio de transformación, AUD-12), por un ajuste negativo o por una baja sobre unidades disponibles no comprometidas.
 
 ## Reglas de reserva por modalidad de renglón
 
@@ -58,8 +60,9 @@ Cada `LineaPedido` que compromete unidades estándar genera una fila en `Reserva
 | `pedido` | Referencia al `Pedido` confirmado (`PROTECT`) |
 | `linea_pedido` | Referencia única a la `LineaPedido` (`OneToOne`, `PROTECT`) |
 | `producto` | Producto cuyas unidades estándar quedan reservadas (`PROTECT`) |
-| `cantidad` | Entero $> 0$, igual a `linea_pedido.cantidad` |
-| `estado` | `activa` (creada en AUD-07), `liberada` (vencimiento, AUD-11) o `consumida` (preparado para AUD-12/13) |
+| `cantidad` | Entero $> 0$, igual a `linea_pedido.cantidad`; dato histórico que nunca se reescribe |
+| `cantidad_consumida` | Entero, `0 <= cantidad_consumida <= cantidad` (AUD-12); `cantidad_pendiente = cantidad - cantidad_consumida` |
+| `estado` | `activa` (consumida < cantidad), `liberada` (vencimiento, AUD-11; puede conservar un consumo previo) o `consumida` (consumida = cantidad, AUD-12) |
 | `creada_en` | Timestamp de creación |
 
 ## Bitácora de movimientos (`MovimientoInventario`)
@@ -74,7 +77,7 @@ Todo cambio en `existencia_fisica` o `reservada` registra un `MovimientoInventar
 | `ajuste_negativo` | AUD-07 | $< 0$ | `(-|delta|, +0)` con `motivo` obligatorio; exige `existencia_fisica - |delta| >= reservada` |
 | `reserva` | AUD-07 | $> 0$ | `(+0, +cantidad)` vinculada a `pedido`, `linea_pedido` y `reserva` |
 | `liberacion` | AUD-11 | $> 0$ | `(+0, -cantidad)` vinculada a `pedido`, `linea_pedido` y `reserva`; `actor = NULL` en el vencimiento automático |
-| `consumo` | AUD-11 | $< 0$ | Preparado en el esquema para entrega completada |
+| `consumo` | AUD-12 | $> 0$ | `(-cantidad, -cantidad)` vinculada a `pedido`, `linea_pedido` y `reserva`; entrega de stock o inicio de transformación sobre unidad estándar |
 | `reincorporacion` | AUD-12/13 | $> 0$ | Preparado en el esquema para clasificación posterior |
 | `baja` | AUD-12/13 | $< 0$ | Preparado en el esquema para unidades dañadas o dadas de baja |
 
@@ -95,6 +98,23 @@ obligatorios; existencia sin cambio; reservada reducida exactamente en `cantidad
 `movimiento_liberacion_unica_por_reserva` (`UNIQUE` parcial). Una reserva `consumida` o
 `liberada` en un pedido sin pago confirmado es una inconsistencia: se aborta todo
 (`ReservaInconsistente`), sin reparación automática ([D-AUD11-11](../decisiones/v1.md#concreciones-de-aud-11)).
+
+## Consumo de reservas (AUD-12)
+
+`consumir_reserva` (servicio interno de `apps/inventario/services.py`, sin endpoint) solo lo
+invocan los servicios de cumplimiento, con `Pedido`, reserva e inventario ya bloqueados. Valida
+reserva `activa`, `0 < q <= cantidad_pendiente`, inventario del producto y saldos suficientes, y
+aplica `existencia_fisica -= q`, `reservada -= q`, `cantidad_consumida += q` (estado `consumida`
+al agotarla). La disponibilidad no cambia. Ejemplo de stock 5 con física 10: entrega 2 → física
+8, reservada 3; entrega 3 → física 5, reservada 0; disponible 5 en ambos casos. Una
+personalización sobre unidad estándar consume toda su reserva al iniciar la transformación;
+producción y personalización desde cero nunca consumen. CHECK `movimiento_consumo_coherente`;
+sin `UNIQUE` por reserva (varias entregas parciales). La liberación de AUD-11 libera solo
+`cantidad_pendiente`. Detalle en [cumplimiento](cumplimiento.md#inventario-por-modalidad).
+
+En la interfaz, el historial muestra `consumo` como «Consumo de unidad reservada» junto con su
+motivo («Consumo por entrega #N del pedido #X.» o «Consumo al iniciar transformación del
+pedido #X.»).
 
 ## Endpoints del artesano
 

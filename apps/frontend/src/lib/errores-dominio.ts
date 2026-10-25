@@ -27,6 +27,15 @@ const MENSAJES: Record<string, string> = {
   plazo_pago_vencido: "Venció el plazo de 48 horas para registrar el pago.",
   correccion_fuera_plazo: "Venció el plazo de 48 horas para corregir el pago observado.",
   nuevo_intento_fuera_plazo: "Venció el plazo de 48 horas para registrar un nuevo intento de pago.",
+  pedido_vencido: "El pedido venció por falta de pago y ya no admite cambios.",
+  pedido_entregado: "El pedido ya fue entregado por completo. Actualiza para ver el resultado.",
+  pago_no_confirmado:
+    "El trabajo y las entregas solo pueden registrarse cuando el pago está confirmado.",
+  linea_ya_iniciada: "Este producto ya fue iniciado. Actualiza para ver su avance.",
+  linea_no_iniciada: "Inicia el trabajo de cada producto antes de registrar su entrega.",
+  cantidad_entrega_excede_pendiente:
+    "La cantidad supera lo que falta por entregar. Actualiza para ver las cantidades pendientes.",
+  recepcion_ya_registrada: "Ya registraste tu respuesta sobre esta entrega.",
   resultado_pendiente:
     "No pudimos confirmar el resultado anterior. Reintenta con los mismos datos antes de iniciar otra operación.",
 };

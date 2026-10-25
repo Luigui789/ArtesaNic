@@ -132,7 +132,11 @@ class ReservaInventario(models.Model):
         related_name="reservas_inventario",
         db_index=False,
     )
+    # Cantidad original reservada al confirmar: dato histórico que nunca se reescribe.
     cantidad = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    # Unidades ya consumidas físicamente (entregas parciales de stock o inicio de
+    # transformación); el remanente es ``cantidad_pendiente`` (D-AUD12-08).
+    cantidad_consumida = models.PositiveIntegerField(default=0)
     estado = models.CharField(
         max_length=20,
         choices=EstadoReserva.choices,
@@ -154,6 +158,17 @@ class ReservaInventario(models.Model):
                 condition=Q(estado__in=EstadoReserva.values),
                 name="reserva_estado_valido",
             ),
+            models.CheckConstraint(
+                condition=Q(cantidad_consumida__gte=0) & Q(cantidad_consumida__lte=F("cantidad")),
+                name="reserva_consumida_no_supera_cantidad",
+            ),
+            # «liberada» puede conservar un consumo previo: AUD-13 liberará solo el remanente.
+            models.CheckConstraint(
+                condition=Q(estado=EstadoReserva.ACTIVA, cantidad_consumida__lt=F("cantidad"))
+                | Q(estado=EstadoReserva.CONSUMIDA, cantidad_consumida=F("cantidad"))
+                | Q(estado=EstadoReserva.LIBERADA),
+                name="reserva_estado_consumo_coherente",
+            ),
         ]
         indexes = [
             models.Index(
@@ -164,6 +179,11 @@ class ReservaInventario(models.Model):
 
     def __str__(self):
         return f"Reserva #{self.pk} (pedido #{self.pedido_id}, producto #{self.producto_id})"
+
+    @property
+    def cantidad_pendiente(self) -> int:
+        """Unidades todavía comprometidas por esta reserva (ni consumidas ni liberadas)."""
+        return self.cantidad - self.cantidad_consumida
 
 
 class MovimientoInventario(_Inmutable):
@@ -284,6 +304,22 @@ class MovimientoInventario(_Inmutable):
                     )
                 ),
                 name="movimiento_liberacion_coherente",
+            ),
+            # Consumir descuenta a la vez existencia física y reservada: la disponibilidad
+            # de terceros no cambia (D-AUD12-05/06). Sin UNIQUE por reserva: una reserva de
+            # stock se consume en varias entregas parciales legítimas.
+            models.CheckConstraint(
+                condition=(
+                    ~Q(tipo=TipoMovimientoInventario.CONSUMO)
+                    | (
+                        Q(pedido__isnull=False)
+                        & Q(linea_pedido__isnull=False)
+                        & Q(reserva__isnull=False)
+                        & Q(existencia_despues=F("existencia_antes") - F("cantidad"))
+                        & Q(reservada_despues=F("reservada_antes") - F("cantidad"))
+                    )
+                ),
+                name="movimiento_consumo_coherente",
             ),
             # Una reserva se libera una sola vez (D-AUD11-15).
             models.UniqueConstraint(
