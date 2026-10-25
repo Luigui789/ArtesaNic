@@ -1,6 +1,8 @@
 # Contrato de API — Artesanica
 
 > **Contrato propuesto anterior.** Para endpoints implementados, consultar [OpenAPI](openapi.yaml) y [autenticación](autenticacion.md). Las demás secciones son diseño pendiente y deben revisarse contra las 39 fichas actuales.
+>
+> **Nota AUD-14:** la tasa de cambio implementada está en [configuración](configuracion.md) (`GET /api/v1/configuracion/`, sin escritura por la API). La moderación de productos está en [catálogo §5.1](catalogo.md#51-moderación-administrativa-aud-14): se registra aparte de `publicado` y no consiste en ponerlo a `false`. Ambos documentos prevalecen sobre las secciones correspondientes de este borrador.
 
 **Estado:** Borrador para revisión. Define el contrato que expondrá el backend Django REST Framework y que consumirá el frontend React.
 
