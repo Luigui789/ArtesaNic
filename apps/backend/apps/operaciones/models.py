@@ -44,6 +44,17 @@ class TipoOperacion(models.TextChoices):
         "registrar_recepcion_entrega",
         "Registrar recepción o discrepancia de una entrega",
     )
+    CANCELAR_PEDIDO_ARTESANO = "cancelar_pedido_artesano", "Cancelar pedido por el taller"
+    PROPONER_CIERRE_PARCIAL = "proponer_cierre_parcial", "Proponer cierre parcial"
+    RESPONDER_CIERRE_PARCIAL = "responder_cierre_parcial", "Responder cierre parcial"
+    REGISTRAR_DEVOLUCION_REEMBOLSO = (
+        "registrar_devolucion_reembolso",
+        "Registrar devolución de reembolso",
+    )
+    CLASIFICAR_INVENTARIO_PEDIDO = (
+        "clasificar_inventario_pedido",
+        "Clasificar unidades manipuladas de un pedido",
+    )
 
 
 class EstadoOperacion(models.TextChoices):

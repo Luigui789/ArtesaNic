@@ -250,6 +250,10 @@ SPECTACULAR_SETTINGS = {
         "TipoOperacionEnum": "apps.operaciones.models.TipoOperacion",
         "EstadoOperacionEnum": "apps.operaciones.api.serializers.ESTADOS_VISIBLES",
         "CodigoConflictoIdempotenciaEnum": "apps.operaciones.api.serializers.CODIGOS_CONFLICTO",
+        "ResultadoRecepcionEnum": "apps.pedidos.models.ResultadoRecepcion",
+        "ResultadoCierreParcialEnum": "apps.pedidos.models.ResultadoCierreParcial",
+        "ResultadoClasificacionEnum": "apps.inventario.models.ResultadoClasificacion",
+        "OrigenResolucionEnum": "apps.pedidos.api.serializers.ORIGENES",
     },
 }
 

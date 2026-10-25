@@ -9,7 +9,9 @@ número por pago, una revisión por intento, una corrección por intento) son la
 Ningún servicio toca inventario, reservas ni el estado del pedido: «Pago confirmado» solo
 deja disponible la autoridad para las fases siguientes (RN-015). El vencimiento automático y
 la liberación de reservas viven en ``apps.pedidos.vencimiento`` (AUD-11), que toma los mismos
-locks en el mismo orden; un pedido vencido rechaza toda mutación de pago (``pedido_vencido``).
+locks en el mismo orden; un pedido vencido rechaza toda mutación de pago (``pedido_vencido``) y
+uno entregado, cancelado por el taller o cerrado parcialmente, también (``pedido_finalizado``,
+AUD-13). El historial y los comprobantes siguen legibles.
 """
 
 import logging
@@ -23,7 +25,7 @@ from django.utils import timezone
 
 from apps.operaciones import services as operaciones
 from apps.operaciones.models import TipoOperacion
-from apps.pedidos.models import EstadoOperativoPedido, EstadoPedido, Pedido
+from apps.pedidos.models import ESTADOS_TERMINALES, EstadoOperativoPedido, EstadoPedido, Pedido
 from apps.solicitudes.services import verificar_artesano_habilitado, verificar_comprador_activo
 
 from .comprobantes import ComprobanteValidado
@@ -70,6 +72,7 @@ class CodigoConflictoPago:
     CORRECCION_FUERA_PLAZO = "correccion_fuera_plazo"
     NUEVO_INTENTO_FUERA_PLAZO = "nuevo_intento_fuera_plazo"
     PEDIDO_VENCIDO = "pedido_vencido"
+    PEDIDO_FINALIZADO = "pedido_finalizado"
 
     MENSAJES = {
         PAGO_YA_CONFIRMADO: "El pago de este pedido ya fue confirmado y no admite cambios.",
@@ -85,6 +88,7 @@ class CodigoConflictoPago:
             "Venció el plazo de 48 horas para registrar un nuevo intento de pago."
         ),
         PEDIDO_VENCIDO: "El pedido venció por falta de pago y ya no admite cambios en el pago.",
+        PEDIDO_FINALIZADO: "El pedido ya finalizó y no admite cambios en el pago.",
     }
 
 
@@ -165,16 +169,20 @@ def _bloquear_pago(pedido: Pedido) -> Pago | None:
     return Pago.objects.select_for_update().filter(pedido=pedido).first()
 
 
-def _verificar_pedido_no_vencido(pedido: Pedido) -> None:
-    """Defensa explícita de AUD-11 (D-AUD11-17), además de los plazos.
+def _verificar_pedido_no_finalizado(pedido: Pedido) -> None:
+    """Defensa explícita de AUD-11 (D-AUD11-17) y AUD-13, además de los plazos.
 
-    Se consulta con el ``Pedido`` ya bloqueado: el vencimiento toma el mismo lock antes de
-    cambiar el estado operativo, así que esta lectura ve siempre el resultado confirmado.
+    Se consulta con el ``Pedido`` ya bloqueado: el vencimiento, la cancelación y el cierre
+    parcial toman el mismo lock antes de cambiar el estado operativo, así que esta lectura ve
+    siempre el resultado confirmado.
     """
-    if EstadoOperativoPedido.objects.filter(
-        pedido=pedido, estado=EstadoPedido.VENCIDO_FALTA_PAGO
-    ).exists():
+    estado = (
+        EstadoOperativoPedido.objects.filter(pedido=pedido).values_list("estado", flat=True).first()
+    )
+    if estado == EstadoPedido.VENCIDO_FALTA_PAGO:
         raise ConflictoPago(CodigoConflictoPago.PEDIDO_VENCIDO)
+    if estado in ESTADOS_TERMINALES:
+        raise ConflictoPago(CodigoConflictoPago.PEDIDO_FINALIZADO)
 
 
 # --- Validación de entrada (defensa además del serializer) ---
@@ -280,7 +288,7 @@ def registrar_intento(
     metodo, referencia = _datos_intento(metodo, referencia)
     pedido = _bloquear_pedido_del_comprador(comprador, pedido_id)
     pago = _bloquear_pago(pedido)
-    _verificar_pedido_no_vencido(pedido)
+    _verificar_pedido_no_finalizado(pedido)
     momento = ahora()
     if pago is None:
         if vencido(limite_inicial(pedido), momento):
@@ -331,7 +339,7 @@ def corregir_intento(
     metodo, referencia = _datos_intento(metodo, referencia)
     pedido = _bloquear_pedido_del_comprador(comprador, pedido_id)
     pago = _bloquear_pago(pedido)
-    _verificar_pedido_no_vencido(pedido)
+    _verificar_pedido_no_finalizado(pedido)
     previo = pago.intentos.filter(pk=intento_id).first() if pago else None
     if previo is None:
         raise IntentoNoEncontrado
@@ -366,7 +374,7 @@ def resolver_intento(
     resultado, motivo = _datos_revision(resultado, motivo)
     pedido = _bloquear_pedido_del_taller(artesano, pedido_id)
     pago = _bloquear_pago(pedido)
-    _verificar_pedido_no_vencido(pedido)
+    _verificar_pedido_no_finalizado(pedido)
     intento = pago.intentos.filter(pk=intento_id).first() if pago else None
     if intento is None:
         raise IntentoNoEncontrado

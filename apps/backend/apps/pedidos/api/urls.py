@@ -1,17 +1,24 @@
-"""Rutas bajo /api/v1/pedidos/ (lecturas AUD-07 y cumplimiento AUD-12)."""
+"""Rutas bajo /api/v1/pedidos/ (lecturas AUD-07, cumplimiento AUD-12 y resolución AUD-13)."""
 
 from django.urls import path
 
 from .views import (
+    CancelacionView,
+    CierresParcialesView,
+    ClasificacionesView,
     CumplimientoRecibidoView,
     EntregasView,
     IniciarLineaView,
     MiCumplimientoView,
     MiPedidoView,
+    MiResolucionView,
     MisPedidosView,
     PedidoRecibidoView,
     PedidosRecibidosView,
+    RealizacionReembolsoView,
     RecepcionEntregaView,
+    ResolucionRecibidaView,
+    RespuestaCierreView,
 )
 
 urlpatterns = [
@@ -43,5 +50,37 @@ urlpatterns = [
         "recibidos/<int:pedido_id>/entregas/",
         EntregasView.as_view(),
         name="registrar-entrega",
+    ),
+    # --- Resolución (AUD-13) ---
+    path("mios/<int:pedido_id>/resolucion/", MiResolucionView.as_view(), name="mi-resolucion"),
+    path(
+        "mios/<int:pedido_id>/cierres-parciales/<int:cierre_id>/respuesta/",
+        RespuestaCierreView.as_view(),
+        name="responder-cierre-parcial",
+    ),
+    path(
+        "recibidos/<int:pedido_id>/resolucion/",
+        ResolucionRecibidaView.as_view(),
+        name="resolucion-recibida",
+    ),
+    path(
+        "recibidos/<int:pedido_id>/cancelacion/",
+        CancelacionView.as_view(),
+        name="cancelar-pedido",
+    ),
+    path(
+        "recibidos/<int:pedido_id>/cierres-parciales/",
+        CierresParcialesView.as_view(),
+        name="proponer-cierre-parcial",
+    ),
+    path(
+        "recibidos/<int:pedido_id>/reembolso/realizacion/",
+        RealizacionReembolsoView.as_view(),
+        name="registrar-devolucion-reembolso",
+    ),
+    path(
+        "recibidos/<int:pedido_id>/clasificaciones/",
+        ClasificacionesView.as_view(),
+        name="clasificaciones-pedido",
     ),
 ]

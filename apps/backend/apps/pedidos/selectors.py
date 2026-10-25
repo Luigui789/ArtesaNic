@@ -2,7 +2,17 @@
 
 from django.db.models import Prefetch
 
-from .models import CargoPedido, EntregaPedido, LineaEntrega, LineaPedido, Pedido
+from apps.inventario.models import ClasificacionInventario, ObligacionClasificacionInventario
+
+from .models import (
+    CargoPedido,
+    CierreParcialPedido,
+    EntregaPedido,
+    LineaCierreParcial,
+    LineaEntrega,
+    LineaPedido,
+    Pedido,
+)
 
 
 def pedidos_con_detalle():
@@ -62,3 +72,59 @@ def cumplimiento_del_comprador(comprador, pedido_id: int) -> Pedido | None:
 
 def cumplimiento_del_taller(artesano, pedido_id: int) -> Pedido | None:
     return pedido_con_cumplimiento().filter(pk=pedido_id, taller__propietario=artesano).first()
+
+
+# --- Resolución y clasificación (AUD-13) ---
+
+
+def pedido_con_resolucion():
+    """Pedido con estado, pago, cancelación, reembolso y devolución (un JOIN), líneas con
+    su distribución y propuestas de cierre con decisión y líneas: consultas fijas."""
+    return Pedido.objects.select_related(
+        "estado_operativo", "pago", "cancelacion", "reembolso__devolucion"
+    ).prefetch_related(
+        Prefetch(
+            "lineas",
+            queryset=LineaPedido.objects.select_related("distribucion").order_by("posicion", "id"),
+        ),
+        Prefetch(
+            "cierres_parciales",
+            queryset=CierreParcialPedido.objects.select_related("decision")
+            .prefetch_related(
+                Prefetch(
+                    "lineas",
+                    queryset=LineaCierreParcial.objects.select_related("linea_pedido").order_by(
+                        "linea_pedido__posicion", "id"
+                    ),
+                )
+            )
+            .order_by("numero", "id"),
+        ),
+    )
+
+
+def resolucion_del_comprador(comprador, pedido_id: int) -> Pedido | None:
+    return pedido_con_resolucion().del_comprador(comprador).filter(pk=pedido_id).first()
+
+
+def resolucion_del_taller(artesano, pedido_id: int) -> Pedido | None:
+    return pedido_con_resolucion().filter(pk=pedido_id, taller__propietario=artesano).first()
+
+
+def clasificaciones_del_taller(artesano, pedido_id: int):
+    """``(pedido, obligaciones)`` del taller propio; ``(None, [])`` si no existe o es ajeno."""
+    pedido = Pedido.objects.filter(pk=pedido_id, taller__propietario=artesano).first()
+    if pedido is None:
+        return None, []
+    obligaciones = (
+        ObligacionClasificacionInventario.objects.filter(pedido=pedido)
+        .select_related("linea_pedido")
+        .prefetch_related(
+            Prefetch(
+                "clasificaciones",
+                queryset=ClasificacionInventario.objects.order_by("registrado_en", "id"),
+            )
+        )
+        .order_by("id")
+    )
+    return pedido, list(obligaciones)

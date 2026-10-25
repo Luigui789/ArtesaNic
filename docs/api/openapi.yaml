@@ -786,18 +786,23 @@ paths:
           type: string
           enum:
           - ajustar_inventario
+          - cancelar_pedido_artesano
+          - clasificar_inventario_pedido
           - corregir_intento_pago
           - crear_solicitud
           - decidir_propuesta
           - establecer_inventario_inicial
           - finalizar_propuesta
           - iniciar_cumplimiento_linea
+          - proponer_cierre_parcial
+          - registrar_devolucion_reembolso
           - registrar_entrada_inventario
           - registrar_entrega_pedido
           - registrar_intento_pago
           - registrar_recepcion_entrega
           - resolver_intento_pago
           - resolver_renglon
+          - responder_cierre_parcial
         required: true
       tags:
       - Operaciones
@@ -907,6 +912,101 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/mios/{pedido_id}/cierres-parciales/{cierre_id}/respuesta/:
+    post:
+      operationId: responder_cierre_parcial
+      description: 'Una sola respuesta por propuesta (`409 cierre_ya_resuelto`). `aceptado`
+        (sin motivo) finaliza el pedido como `cerrado_parcial` en una transacción:
+        libera el remanente no manipulado de las reservas, crea las obligaciones de
+        clasificación y el reembolso parcial congelado. `objetado` (motivo obligatorio,
+        1–1000 caracteres) no tiene efectos laterales: el pedido sigue `en_cumplimiento`
+        y el artesano puede seguir entregando o proponer otro cierre. Protegida por
+        `Idempotency-Key`: huella con `pedido_id`, `cierre_id`, `decision` y `motivo`
+        recortado. `Idempotency-Key` ausente o con formato inválido responde `{"Idempotency-Key":
+        ["..."]}`, antes de validar el cuerpo.'
+      summary: Aceptar u objetar la propuesta de cierre parcial
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: cierre_id
+        schema:
+          type: integer
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Resolución de pedidos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RespuestaCierreEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolucionPedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoResolucion'
+          description: 'Conflicto sin efectos (nada se escribe); `codigo` estable:
+            `cierre_ya_resuelto`, `pedido_vencido`, `pedido_finalizado`, `clave_idempotencia_reutilizada`.'
   /api/v1/pedidos/mios/{pedido_id}/cumplimiento/:
     get:
       operationId: consultar_cumplimiento_de_mi_pedido
@@ -1179,9 +1279,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConflictoPago'
           description: 'Conflicto sin efectos; `codigo` estable: `pedido_vencido`,
-            `pago_ya_confirmado`, `pago_en_revision`, `correccion_pendiente`, `plazo_pago_vencido`,
-            `nuevo_intento_fuera_plazo`, `clave_idempotencia_reutilizada`. Nunca modifica
-            ni elimina intentos, revisiones o comprobantes anteriores.'
+            `pedido_finalizado`, `pago_ya_confirmado`, `pago_en_revision`, `correccion_pendiente`,
+            `plazo_pago_vencido`, `nuevo_intento_fuera_plazo`, `clave_idempotencia_reutilizada`.
+            Nunca modifica ni elimina intentos, revisiones o comprobantes anteriores.'
   /api/v1/pedidos/mios/{pedido_id}/pago/intentos/{intento_id}/comprobante/:
     get:
       operationId: descargar_comprobante_de_mi_pedido
@@ -1341,9 +1441,54 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConflictoPago'
           description: 'Conflicto sin efectos; `codigo` estable: `pedido_vencido`,
-            `pago_ya_confirmado`, `pago_en_revision`, `correccion_no_permitida`, `correccion_fuera_plazo`,
-            `clave_idempotencia_reutilizada`. Nunca modifica ni elimina intentos,
-            revisiones o comprobantes anteriores.'
+            `pedido_finalizado`, `pago_ya_confirmado`, `pago_en_revision`, `correccion_no_permitida`,
+            `correccion_fuera_plazo`, `clave_idempotencia_reutilizada`. Nunca modifica
+            ni elimina intentos, revisiones o comprobantes anteriores.'
+  /api/v1/pedidos/mios/{pedido_id}/resolucion/:
+    get:
+      operationId: consultar_resolucion_de_mi_pedido
+      description: Cancelación del taller, propuestas de cierre parcial con su snapshot
+        congelado (cantidades e importes calculados por el servidor) y la obligación
+        de reembolso con su estado derivado (`pendiente` o `realizado`). Comprador
+        y artesano reciben la misma información comercial, sin datos internos de inventario.
+        `acciones` y `estimacion_cierre` anuncian lo que el artesano puede hacer ahora
+        con las mismas reglas del servidor. 404 si el pedido no existe o es ajeno.
+      summary: Consultar cancelación, cierres parciales y reembolso de un pedido propio
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Resolución de pedidos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolucionPedido'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
   /api/v1/pedidos/recibidos/:
     get:
       operationId: listar_pedidos_recibidos
@@ -1427,6 +1572,319 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe o no pertenece a esta parte.
+  /api/v1/pedidos/recibidos/{pedido_id}/cancelacion/:
+    post:
+      operationId: cancelar_pedido_recibido
+      description: 'Solo desde `confirmado` o `en_cumplimiento` y sin ninguna entrega
+        (`409 cancelacion_requiere_sin_entregas`; la vía es el cierre parcial). Con
+        un pago `registrado` u `observado` sin resolver responde `409 pago_pendiente_de_resolucion`.
+        En una transacción: cancelación, liberación del remanente no manipulado de
+        las reservas, obligaciones de clasificación por las unidades estándar consumidas,
+        reembolso total (`Pedido.total`) si el pago está confirmado y estado `cancelado_artesano`.
+        Protegida por `Idempotency-Key`: huella con `pedido_id` y `motivo` recortado.
+        `Idempotency-Key` ausente o con formato inválido responde `{"Idempotency-Key":
+        ["..."]}`, antes de validar el cuerpo.'
+      summary: Cancelar el pedido por imposibilidad justificada (antes de cualquier
+        entrega)
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Resolución de pedidos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelacionEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolucionPedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoResolucion'
+          description: 'Conflicto sin efectos (nada se escribe); `codigo` estable:
+            `pedido_vencido`, `pedido_finalizado`, `cancelacion_requiere_sin_entregas`,
+            `pago_pendiente_de_resolucion`, `clave_idempotencia_reutilizada`.'
+  /api/v1/pedidos/recibidos/{pedido_id}/cierres-parciales/:
+    post:
+      operationId: proponer_cierre_parcial
+      description: 'Requiere al menos una unidad entregada y otra pendiente (`409
+        cierre_requiere_entrega_parcial`) y ninguna propuesta pendiente (`409 cierre_parcial_pendiente`).
+        El servidor congela, por renglón, las cantidades del ledger de entregas y
+        el importe a reembolsar; el cliente solo envía el motivo. No toca inventario
+        ni el estado del pedido: mientras espera la respuesta del comprador, iniciar
+        y entregar responden `409 cierre_parcial_pendiente`. Protegida por `Idempotency-Key`:
+        huella con `pedido_id` y `motivo` recortado. `Idempotency-Key` ausente o con
+        formato inválido responde `{"Idempotency-Key": ["..."]}`, antes de validar
+        el cuerpo.'
+      summary: Proponer el cierre parcial de un pedido con entregas parciales
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Resolución de pedidos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CierreEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolucionPedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoResolucion'
+          description: 'Conflicto sin efectos (nada se escribe); `codigo` estable:
+            `pedido_vencido`, `pedido_finalizado`, `cierre_parcial_pendiente`, `cierre_requiere_entrega_parcial`,
+            `clave_idempotencia_reutilizada`.'
+  /api/v1/pedidos/recibidos/{pedido_id}/clasificaciones/:
+    get:
+      operationId: consultar_clasificaciones_de_pedido
+      description: 'Obligaciones creadas al cancelar o cerrar parcialmente: unidades
+        estándar consumidas y no entregadas, con lo ya clasificado y su historial.
+        Solo para el taller propietario; el comprador no ve la clasificación interna.'
+      summary: Consultar las unidades por clasificar de un pedido finalizado
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Resolución de pedidos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClasificacionesPedido'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+    post:
+      operationId: clasificar_inventario_de_pedido
+      description: 'Todo o nada. `reutilizable` reincorpora a la existencia física
+        (movimiento `reincorporacion`); `baja` registra la disposición final sin volver
+        a descontar existencia (movimiento `baja`). Motivo obligatorio en ambos. La
+        suma clasificada nunca supera la obligación (`409 clasificacion_excede_pendiente`,
+        con `obligaciones`); obligación ajena o repetida en la petición: `400`. Protegida
+        por `Idempotency-Key`: huella con `pedido_id` y `clasificaciones` ordenadas
+        por `obligacion` y `resultado`. `Idempotency-Key` ausente o con formato inválido
+        responde `{"Idempotency-Key": ["..."]}`, antes de validar el cuerpo.'
+      summary: Clasificar unidades manipuladas como reutilizables o baja
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Resolución de pedidos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClasificacionesEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClasificacionesPedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoResolucion'
+          description: 'Conflicto sin efectos (nada se escribe); `codigo` estable:
+            `clasificacion_excede_pendiente`, `clave_idempotencia_reutilizada`.'
   /api/v1/pedidos/recibidos/{pedido_id}/cumplimiento/:
     get:
       operationId: consultar_cumplimiento_de_pedido_recibido
@@ -1562,8 +2020,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConflictoCumplimiento'
           description: 'Conflicto sin efectos (nada se escribe); `codigo` estable:
-            `pedido_vencido`, `pedido_entregado`, `pago_no_confirmado`, `linea_no_iniciada`,
-            `cantidad_entrega_excede_pendiente`, `clave_idempotencia_reutilizada`.'
+            `pedido_vencido`, `pedido_entregado`, `pedido_finalizado`, `pago_no_confirmado`,
+            `cierre_parcial_pendiente`, `linea_no_iniciada`, `cantidad_entrega_excede_pendiente`,
+            `clave_idempotencia_reutilizada`.'
   /api/v1/pedidos/recibidos/{pedido_id}/lineas/{linea_id}/iniciar/:
     post:
       operationId: iniciar_cumplimiento_de_linea
@@ -1652,8 +2111,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConflictoCumplimiento'
           description: 'Conflicto sin efectos (nada se escribe); `codigo` estable:
-            `pedido_vencido`, `pedido_entregado`, `pago_no_confirmado`, `linea_ya_iniciada`,
-            `clave_idempotencia_reutilizada`.'
+            `pedido_vencido`, `pedido_entregado`, `pedido_finalizado`, `pago_no_confirmado`,
+            `cierre_parcial_pendiente`, `linea_ya_iniciada`, `clave_idempotencia_reutilizada`.'
   /api/v1/pedidos/recibidos/{pedido_id}/pago/:
     get:
       operationId: consultar_pago_de_pedido_recibido
@@ -1856,8 +2315,143 @@ paths:
               schema:
                 $ref: '#/components/schemas/ConflictoPago'
           description: 'Conflicto sin efectos; `codigo` estable: `pedido_vencido`,
-            `pago_ya_confirmado`, `intento_ya_resuelto`, `clave_idempotencia_reutilizada`.
+            `pedido_finalizado`, `pago_ya_confirmado`, `intento_ya_resuelto`, `clave_idempotencia_reutilizada`.
             Nunca modifica ni elimina intentos, revisiones o comprobantes anteriores.'
+  /api/v1/pedidos/recibidos/{pedido_id}/reembolso/realizacion/:
+    post:
+      operationId: registrar_devolucion_de_reembolso
+      description: 'El taller declara fecha (no futura) y referencia de la devolución
+        hecha fuera de la plataforma; el importe se copia de la obligación (`monto`,
+        `moneda` y `estado` en el cuerpo responden `400`). El reembolso pasa a `realizado`;
+        no se edita ni se vuelve a registrar (`409 reembolso_ya_realizado`). 404 si
+        el pedido no tiene reembolso. Protegida por `Idempotency-Key`: huella con
+        `pedido_id`, `reembolso_id`, `fecha` y `referencia` recortada. `Idempotency-Key`
+        ausente o con formato inválido responde `{"Idempotency-Key": ["..."]}`, antes
+        de validar el cuerpo.'
+      summary: Registrar la devolución externa del reembolso
+      parameters:
+      - in: header
+        name: Idempotency-Key
+        schema:
+          type: string
+          pattern: ^[A-Za-z0-9._:~-]{16,128}$
+        description: 'Clave generada por el cliente para este intento lógico (se recomienda
+          un UUID v4). Reenviar la misma clave con la misma petición devuelve el mismo
+          recurso sin repetir la operación; con otra petición responde 409. Claves
+          distintas son operaciones distintas aunque el contenido coincida. Ámbito:
+          actor autenticado y tipo de operación. 16–128 caracteres.'
+        required: true
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Resolución de pedidos
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DevolucionEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+                enum:
+                - 'true'
+              description: 'Presente con «true» cuando la respuesta repite una ejecución
+                anterior. Informativo: mismo recurso y código registrado; el cuerpo
+                refleja el estado actual del recurso, no un snapshot de la primera
+                respuesta.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolucionPedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: Errores por campo; renglones contiene errores por posición,
+            en orden. La solicitud completa se rechaza sin persistencia parcial.
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoResolucion'
+          description: 'Conflicto sin efectos (nada se escribe); `codigo` estable:
+            `reembolso_ya_realizado`, `clave_idempotencia_reutilizada`.'
+  /api/v1/pedidos/recibidos/{pedido_id}/resolucion/:
+    get:
+      operationId: consultar_resolucion_de_pedido_recibido
+      description: Cancelación del taller, propuestas de cierre parcial con su snapshot
+        congelado (cantidades e importes calculados por el servidor) y la obligación
+        de reembolso con su estado derivado (`pendiente` o `realizado`). Comprador
+        y artesano reciben la misma información comercial, sin datos internos de inventario.
+        `acciones` y `estimacion_cierre` anuncian lo que el artesano puede hacer ahora
+        con las mismas reglas del servidor. 404 si el pedido no existe o es ajeno.
+      summary: Consultar cancelación, cierres parciales y reembolso de un pedido del
+        taller
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Resolución de pedidos
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResolucionPedido'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
   /api/v1/productos/:
     get:
       operationId: listar_catalogo
@@ -3059,6 +3653,18 @@ paths:
           description: Esta cuenta no tiene un taller registrado.
 components:
   schemas:
+    Accion:
+      type: object
+      properties:
+        disponible:
+          type: boolean
+        codigo:
+          type: string
+          nullable: true
+          description: Código `409` que respondería la acción ahora, si no procede.
+      required:
+      - codigo
+      - disponible
     AccionDecisionPropuestaEnum:
       enum:
       - aceptar
@@ -3067,6 +3673,16 @@ components:
       description: |-
         * `aceptar` - Aceptar propuesta
         * `rechazar` - Rechazar propuesta
+    AccionesResolucion:
+      type: object
+      properties:
+        cancelar:
+          $ref: '#/components/schemas/Accion'
+        proponer_cierre:
+          $ref: '#/components/schemas/Accion'
+      required:
+      - cancelar
+      - proponer_cierre
     AjusteInventarioRequest:
       type: object
       description: |-
@@ -3093,6 +3709,32 @@ components:
     BlankEnum:
       enum:
       - ''
+    Cancelacion:
+      type: object
+      properties:
+        motivo:
+          type: string
+        registrado_en:
+          type: string
+          format: date-time
+      required:
+      - motivo
+      - registrado_en
+    CancelacionEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        motivo:
+          type: string
+          description: Imposibilidad justificada; obligatorio, 1–1000 caracteres tras
+            recortar.
+          maxLength: 1000
+      required:
+      - motivo
     CantidadEntregada:
       type: object
       properties:
@@ -3211,6 +3853,143 @@ components:
       - codigo
       - id
       - nombre
+    CierreEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        motivo:
+          type: string
+          description: 'Obligatorio, 1–1000 caracteres tras recortar. Cantidades e
+            importes no se envían: los deriva el servidor del ledger de entregas.'
+          maxLength: 1000
+      required:
+      - motivo
+    CierreParcial:
+      type: object
+      properties:
+        id:
+          type: integer
+        numero:
+          type: integer
+        estado:
+          $ref: '#/components/schemas/CierreParcialEstadoEnum'
+        motivo:
+          type: string
+        propuesto_en:
+          type: string
+          format: date-time
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaCierre'
+          description: Snapshot congelado al proponer.
+        monto_reembolso:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          description: Σ `importe_reembolso`, calculado por el servidor.
+        decision:
+          allOf:
+          - $ref: '#/components/schemas/DecisionCierre'
+          nullable: true
+          description: Respuesta del comprador; null mientras esté pendiente.
+      required:
+      - decision
+      - estado
+      - id
+      - lineas
+      - monto_reembolso
+      - motivo
+      - numero
+      - propuesto_en
+    CierreParcialEstadoEnum:
+      enum:
+      - pendiente
+      - aceptado
+      - objetado
+      type: string
+      description: |-
+        * `pendiente` - Pendiente de respuesta
+        * `aceptado` - Cierre aceptado
+        * `objetado` - Cierre objetado
+    Clasificacion:
+      type: object
+      properties:
+        id:
+          type: integer
+        cantidad:
+          type: integer
+        resultado:
+          $ref: '#/components/schemas/ResultadoClasificacionEnum'
+        motivo:
+          type: string
+        registrado_en:
+          type: string
+          format: date-time
+      required:
+      - cantidad
+      - id
+      - motivo
+      - registrado_en
+      - resultado
+    ClasificacionEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        obligacion:
+          type: integer
+          minimum: 1
+          description: Id de la obligación.
+        cantidad:
+          type: integer
+          maximum: 2147483647
+          minimum: 1
+        resultado:
+          $ref: '#/components/schemas/ResultadoClasificacionEnum'
+        motivo:
+          type: string
+          description: Obligatorio en ambos resultados, 1–500 caracteres.
+          maxLength: 500
+      required:
+      - cantidad
+      - motivo
+      - obligacion
+      - resultado
+    ClasificacionesEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        clasificaciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClasificacionEntradaRequest'
+          description: Cada obligación una sola vez por petición; el orden no importa.
+      required:
+      - clasificaciones
+    ClasificacionesPedido:
+      type: object
+      properties:
+        pedido:
+          type: integer
+        obligaciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/ObligacionClasificacion'
+      required:
+      - obligaciones
+      - pedido
     CodigoConflictoIdempotenciaEnum:
       enum:
       - clave_idempotencia_reutilizada
@@ -3240,6 +4019,7 @@ components:
       - correccion_fuera_plazo
       - nuevo_intento_fuera_plazo
       - pedido_vencido
+      - pedido_finalizado
       - clave_idempotencia_reutilizada
       type: string
       description: |-
@@ -3252,6 +4032,7 @@ components:
         * `correccion_fuera_plazo` - Venció el plazo de 48 horas para corregir el pago observado.
         * `nuevo_intento_fuera_plazo` - Venció el plazo de 48 horas para registrar un nuevo intento de pago.
         * `pedido_vencido` - El pedido venció por falta de pago y ya no admite cambios en el pago.
+        * `pedido_finalizado` - El pedido ya finalizó y no admite cambios en el pago.
         * `clave_idempotencia_reutilizada` - Clave reutilizada con otra petición
     CodigoConflictoSolicitudEnum:
       enum:
@@ -3350,6 +4131,8 @@ components:
       - linea_no_iniciada
       - cantidad_entrega_excede_pendiente
       - recepcion_ya_registrada
+      - pedido_finalizado
+      - cierre_parcial_pendiente
       - clave_idempotencia_reutilizada
       type: string
       description: |-
@@ -3360,6 +4143,8 @@ components:
         * `linea_no_iniciada` - Inicia el trabajo de cada producto antes de registrar su entrega.
         * `cantidad_entrega_excede_pendiente` - La cantidad indicada supera lo que falta por entregar de ese producto.
         * `recepcion_ya_registrada` - Ya registraste tu respuesta sobre esta entrega.
+        * `pedido_finalizado` - El pedido ya finalizó y no admite esta acción.
+        * `cierre_parcial_pendiente` - Hay una propuesta de cierre parcial esperando la respuesta del comprador.
         * `clave_idempotencia_reutilizada` - Clave reutilizada con otra petición
     ConflictoIdempotencia:
       type: object
@@ -3391,6 +4176,45 @@ components:
       required:
       - codigo
       - detail
+    ConflictoResolucion:
+      type: object
+      properties:
+        detail:
+          type: string
+        codigo:
+          $ref: '#/components/schemas/ConflictoResolucionCodigoEnum'
+        obligaciones:
+          type: array
+          items:
+            type: integer
+          description: Obligaciones afectadas, cuando el conflicto se refiere a ellas.
+      required:
+      - codigo
+      - detail
+    ConflictoResolucionCodigoEnum:
+      enum:
+      - pedido_finalizado
+      - pedido_vencido
+      - cancelacion_requiere_sin_entregas
+      - pago_pendiente_de_resolucion
+      - cierre_requiere_entrega_parcial
+      - cierre_parcial_pendiente
+      - cierre_ya_resuelto
+      - reembolso_ya_realizado
+      - clasificacion_excede_pendiente
+      - clave_idempotencia_reutilizada
+      type: string
+      description: |-
+        * `pedido_finalizado` - El pedido ya finalizó y no admite esta acción.
+        * `pedido_vencido` - El pedido venció por falta de pago y no admite esta acción.
+        * `cancelacion_requiere_sin_entregas` - El pedido ya tiene entregas: en lugar de cancelarlo, propón un cierre parcial.
+        * `pago_pendiente_de_resolucion` - Hay un pago registrado u observado sin resolver. Resuélvelo antes de cancelar.
+        * `cierre_requiere_entrega_parcial` - El cierre parcial requiere al menos una unidad entregada y otra pendiente.
+        * `cierre_parcial_pendiente` - Hay una propuesta de cierre parcial esperando la respuesta del comprador.
+        * `cierre_ya_resuelto` - Esta propuesta de cierre ya fue respondida.
+        * `reembolso_ya_realizado` - La devolución de este reembolso ya fue registrada.
+        * `clasificacion_excede_pendiente` - La cantidad indicada supera las unidades pendientes de clasificar.
+        * `clave_idempotencia_reutilizada` - Clave reutilizada con otra petición
     ConflictoSolicitud:
       type: object
       properties:
@@ -3473,6 +4297,20 @@ components:
       - estado
       - lineas
       - pedido
+    DecisionCierre:
+      type: object
+      properties:
+        decision:
+          $ref: '#/components/schemas/ResultadoCierreParcialEnum'
+        motivo:
+          type: string
+        registrado_en:
+          type: string
+          format: date-time
+      required:
+      - decision
+      - motivo
+      - registrado_en
     DecisionPropuesta:
       type: object
       description: Resultado de la decisión final del comprador sobre la propuesta
@@ -3524,6 +4362,43 @@ components:
             * `rechazar` - Rechazar propuesta
       required:
       - decision
+    Devolucion:
+      type: object
+      properties:
+        fecha:
+          type: string
+          format: date
+        monto:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+        referencia:
+          type: string
+        registrado_en:
+          type: string
+          format: date-time
+      required:
+      - fecha
+      - monto
+      - referencia
+      - registrado_en
+    DevolucionEntradaRequest:
+      type: object
+      description: 'Solo fecha y referencia: monto, moneda y estado proceden del servidor
+        (`400`).'
+      properties:
+        fecha:
+          type: string
+          format: date
+          description: Fecha de la devolución externa (`AAAA-MM-DD`); no posterior
+            a la fecha actual de America/Managua según el servidor.
+        referencia:
+          type: string
+          description: Obligatoria, 1–120 caracteres tras recortar.
+          maxLength: 120
+      required:
+      - fecha
+      - referencia
     EntradaInventarioRequest:
       type: object
       description: |-
@@ -3634,12 +4509,16 @@ components:
       - en_cumplimiento
       - entregado
       - vencido_falta_pago
+      - cancelado_artesano
+      - cerrado_parcial
       type: string
       description: |-
         * `confirmado` - Pedido confirmado
         * `en_cumplimiento` - En cumplimiento
         * `entregado` - Entregado
         * `vencido_falta_pago` - Vencido por falta de pago
+        * `cancelado_artesano` - Cancelado por el taller
+        * `cerrado_parcial` - Cerrado parcialmente
     EstadoSolicitudEnum:
       enum:
       - pendiente_revision
@@ -3662,6 +4541,20 @@ components:
         * `pendiente` - Pendiente de aprobación
         * `aprobado` - Aprobado
         * `rechazado` - Rechazado
+    EstimacionCierre:
+      type: object
+      properties:
+        lineas:
+          type: array
+          items:
+            $ref: '#/components/schemas/LineaCierre'
+        monto_reembolso:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+      required:
+      - lineas
+      - monto_reembolso
     ExistenciaInicialEntradaRequest:
       type: object
       description: |-
@@ -3776,6 +4669,31 @@ components:
       - inicializado_en
       - producto
       - reservada
+    LineaCierre:
+      type: object
+      properties:
+        linea:
+          type: integer
+          description: Id de la `LineaPedido`.
+        posicion:
+          type: integer
+        cantidad_acordada:
+          type: integer
+        cantidad_entregada:
+          type: integer
+        cantidad_no_entregada:
+          type: integer
+        importe_reembolso:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+      required:
+      - cantidad_acordada
+      - cantidad_entregada
+      - cantidad_no_entregada
+      - importe_reembolso
+      - linea
+      - posicion
     LineaEntregaEntradaRequest:
       type: object
       description: |-
@@ -3918,13 +4836,28 @@ components:
           format: date
           readOnly: true
           nullable: true
+        otros_compartidos_asignados:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+          description: Parte de los cargos globales atribuida a esta línea (mayor
+            residuo).
+        entrega_asignada:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+          readOnly: true
+          description: Parte del costo de entrega atribuida a esta línea (mayor residuo).
       required:
       - cantidad
       - cargo_personalizacion
+      - entrega_asignada
       - fecha_comprometida
       - fecha_solicitada
       - id
       - modalidad
+      - otros_compartidos_asignados
       - posicion
       - precio_unitario
       - producto
@@ -4067,6 +5000,45 @@ components:
       - reservada_antes
       - reservada_despues
       - tipo
+    ObligacionClasificacion:
+      type: object
+      properties:
+        id:
+          type: integer
+        linea:
+          type: integer
+          description: Id de la `LineaPedido`.
+        posicion:
+          type: integer
+        producto:
+          $ref: '#/components/schemas/ProductoSnapshot'
+        origen:
+          $ref: '#/components/schemas/OrigenResolucionEnum'
+        cantidad:
+          type: integer
+          description: Unidades consumidas y no entregadas.
+        cantidad_clasificada:
+          type: integer
+        cantidad_pendiente:
+          type: integer
+        creado_en:
+          type: string
+          format: date-time
+        clasificaciones:
+          type: array
+          items:
+            $ref: '#/components/schemas/Clasificacion'
+      required:
+      - cantidad
+      - cantidad_clasificada
+      - cantidad_pendiente
+      - clasificaciones
+      - creado_en
+      - id
+      - linea
+      - origen
+      - posicion
+      - producto
     OperacionIdempotente:
       type: object
       description: Resultado propio. Nunca expone la huella, la petición original
@@ -4122,6 +5094,14 @@ components:
       description: |-
         * `desde_cero` - Fabricación desde cero
         * `unidad_estandar` - Unidad estándar como base
+    OrigenResolucionEnum:
+      enum:
+      - cancelacion
+      - cierre_parcial
+      type: string
+      description: |-
+        * `cancelacion` - Cancelación del taller
+        * `cierre_parcial` - Cierre parcial
     PaginatedInventarioProductoList:
       type: object
       required:
@@ -4501,6 +5481,8 @@ components:
             * `en_cumplimiento` - En cumplimiento
             * `entregado` - Entregado
             * `vencido_falta_pago` - Vencido por falta de pago
+            * `cancelado_artesano` - Cancelado por el taller
+            * `cerrado_parcial` - Cerrado parcialmente
         vencido_en:
           type: string
           format: date-time
@@ -4607,6 +5589,8 @@ components:
             * `en_cumplimiento` - En cumplimiento
             * `entregado` - Entregado
             * `vencido_falta_pago` - Vencido por falta de pago
+            * `cancelado_artesano` - Cancelado por el taller
+            * `cerrado_parcial` - Cerrado parcialmente
         vencido_en:
           type: string
           format: date-time
@@ -5099,7 +6083,7 @@ components:
       type: object
       properties:
         resultado:
-          $ref: '#/components/schemas/ResultadoEnum'
+          $ref: '#/components/schemas/ResultadoRecepcionEnum'
         motivo:
           type: string
         registrado_en:
@@ -5118,7 +6102,7 @@ components:
         ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
       properties:
         resultado:
-          $ref: '#/components/schemas/ResultadoEnum'
+          $ref: '#/components/schemas/ResultadoRecepcionEnum'
         motivo:
           type: string
           description: Obligatorio y no vacío (tras recortar) en `discrepancia`, hasta
@@ -5139,6 +6123,66 @@ components:
       required:
       - id
       - tipo
+    Reembolso:
+      type: object
+      properties:
+        id:
+          type: integer
+        tipo:
+          $ref: '#/components/schemas/ReembolsoTipoEnum'
+        monto:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,16}(?:\.\d{0,2})?$
+        moneda:
+          type: string
+        estado:
+          allOf:
+          - $ref: '#/components/schemas/ReembolsoEstadoEnum'
+          description: |-
+            Derivado: `realizado` cuando existe la devolución registrada.
+
+            * `pendiente` - Pendiente
+            * `realizado` - Realizado
+        origen:
+          $ref: '#/components/schemas/OrigenResolucionEnum'
+        cierre:
+          type: integer
+          nullable: true
+          description: Id de la propuesta de cierre aceptada (si es parcial).
+        creado_en:
+          type: string
+          format: date-time
+        devolucion:
+          allOf:
+          - $ref: '#/components/schemas/Devolucion'
+          nullable: true
+      required:
+      - cierre
+      - creado_en
+      - devolucion
+      - estado
+      - id
+      - moneda
+      - monto
+      - origen
+      - tipo
+    ReembolsoEstadoEnum:
+      enum:
+      - pendiente
+      - realizado
+      type: string
+      description: |-
+        * `pendiente` - Pendiente
+        * `realizado` - Realizado
+    ReembolsoTipoEnum:
+      enum:
+      - total
+      - parcial
+      type: string
+      description: |-
+        * `total` - Reembolso total
+        * `parcial` - Reembolso parcial
     RegistroArtesanoRequest:
       type: object
       description: Cuenta del artesano más los datos iniciales de su taller.
@@ -5419,6 +6463,46 @@ components:
           maxLength: 1000
       required:
       - estado
+    ResolucionPedido:
+      type: object
+      description: Misma información comercial para comprador y artesano (sin datos
+        de inventario).
+      properties:
+        pedido:
+          type: integer
+        estado:
+          $ref: '#/components/schemas/EstadoPedidoEnum'
+        cancelacion:
+          allOf:
+          - $ref: '#/components/schemas/Cancelacion'
+          nullable: true
+        cierres_parciales:
+          type: array
+          items:
+            $ref: '#/components/schemas/CierreParcial'
+        reembolso:
+          allOf:
+          - $ref: '#/components/schemas/Reembolso'
+          nullable: true
+        acciones:
+          allOf:
+          - $ref: '#/components/schemas/AccionesResolucion'
+          description: Acciones del artesano según las mismas reglas del servidor;
+            orientativo, la mutación vuelve a validar dentro de su transacción.
+        estimacion_cierre:
+          allOf:
+          - $ref: '#/components/schemas/EstimacionCierre'
+          nullable: true
+          description: Cantidades e importe que congelaría un cierre propuesto ahora;
+            null si no procede.
+      required:
+      - acciones
+      - cancelacion
+      - cierres_parciales
+      - estado
+      - estimacion_cierre
+      - pedido
+      - reembolso
     ResolucionRenglonEnum:
       enum:
       - pendiente
@@ -5429,6 +6513,39 @@ components:
         * `pendiente` - Pendiente
         * `aceptado` - Aceptado
         * `rechazado` - Rechazado
+    RespuestaCierreEntradaRequest:
+      type: object
+      description: |-
+        Rechaza los campos no declarados en lugar de ignorarlos.
+
+        Así una petición no puede colar ``rol``, ``is_staff``, ``is_superuser``,
+        ``groups`` ni ``user_permissions``: el intento falla con 400 y no pasa inadvertido.
+      properties:
+        decision:
+          $ref: '#/components/schemas/ResultadoCierreParcialEnum'
+        motivo:
+          type: string
+          description: Obligatorio y no vacío (tras recortar) en `objetado`, hasta
+            1000 caracteres; no se admite en `aceptado`.
+          maxLength: 1000
+      required:
+      - decision
+    ResultadoCierreParcialEnum:
+      enum:
+      - aceptado
+      - objetado
+      type: string
+      description: |-
+        * `aceptado` - Cierre aceptado
+        * `objetado` - Cierre objetado
+    ResultadoClasificacionEnum:
+      enum:
+      - reutilizable
+      - baja
+      type: string
+      description: |-
+        * `reutilizable` - Reutilizable
+        * `baja` - Baja
     ResultadoDecisionPropuestaEnum:
       enum:
       - aceptada
@@ -5437,7 +6554,7 @@ components:
       description: |-
         * `aceptada` - Aceptada
         * `rechazada` - Rechazada
-    ResultadoEnum:
+    ResultadoRecepcionEnum:
       enum:
       - confirmada
       - discrepancia
@@ -5855,6 +6972,11 @@ components:
       - iniciar_cumplimiento_linea
       - registrar_entrega_pedido
       - registrar_recepcion_entrega
+      - cancelar_pedido_artesano
+      - proponer_cierre_parcial
+      - responder_cierre_parcial
+      - registrar_devolucion_reembolso
+      - clasificar_inventario_pedido
       type: string
       description: |-
         * `crear_solicitud` - Crear solicitud
@@ -5870,6 +6992,11 @@ components:
         * `iniciar_cumplimiento_linea` - Iniciar el cumplimiento de un renglón
         * `registrar_entrega_pedido` - Registrar entrega de pedido
         * `registrar_recepcion_entrega` - Registrar recepción o discrepancia de una entrega
+        * `cancelar_pedido_artesano` - Cancelar pedido por el taller
+        * `proponer_cierre_parcial` - Proponer cierre parcial
+        * `responder_cierre_parcial` - Responder cierre parcial
+        * `registrar_devolucion_reembolso` - Registrar devolución de reembolso
+        * `clasificar_inventario_pedido` - Clasificar unidades manipuladas de un pedido
     TokenAcceso:
       type: object
       properties:

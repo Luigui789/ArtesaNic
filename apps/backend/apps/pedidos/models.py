@@ -308,19 +308,32 @@ class LineaPedido(_Inmutable):
 
 
 class EstadoPedido(models.TextChoices):
-    """Estado operativo global del pedido (AUD-11/12). Solo resume el avance general: la
-    modalidad y el cumplimiento se conservan por renglón (D-AUD12-01/03). AUD-13 añadirá
-    los suyos por migración."""
+    """Estado operativo global del pedido (AUD-11/12/13). Solo resume el avance general: la
+    modalidad y el cumplimiento se conservan por renglón (D-AUD12-01/03)."""
 
     CONFIRMADO = "confirmado", "Pedido confirmado"
     EN_CUMPLIMIENTO = "en_cumplimiento", "En cumplimiento"
     ENTREGADO = "entregado", "Entregado"
     VENCIDO_FALTA_PAGO = "vencido_falta_pago", "Vencido por falta de pago"
+    CANCELADO_ARTESANO = "cancelado_artesano", "Cancelado por el taller"
+    CERRADO_PARCIAL = "cerrado_parcial", "Cerrado parcialmente"
+
+
+# Sin nuevas acciones de cumplimiento ni de pago; el historial sigue legible (D-AUD13-01).
+ESTADOS_TERMINALES = frozenset(
+    {
+        EstadoPedido.ENTREGADO,
+        EstadoPedido.VENCIDO_FALTA_PAGO,
+        EstadoPedido.CANCELADO_ARTESANO,
+        EstadoPedido.CERRADO_PARCIAL,
+    }
+)
 
 
 class TipoEventoPedido(models.TextChoices):
     AUTOMATICO = "automatico", "Automático del sistema"
     ARTESANO = "artesano", "Acción del artesano"
+    COMPRADOR = "comprador", "Acción del comprador"
 
 
 class EstadoOperativoPedido(models.Model):
@@ -416,6 +429,11 @@ class EventoEstadoPedido(models.Model):
                 condition=~Q(tipo=TipoEventoPedido.ARTESANO) | Q(actor__isnull=False),
                 name="evento_pedido_artesano_con_actor",
             ),
+            # La aceptación del cierre parcial identifica al comprador real (AUD-13).
+            models.CheckConstraint(
+                condition=~Q(tipo=TipoEventoPedido.COMPRADOR) | Q(actor__isnull=False),
+                name="evento_pedido_comprador_con_actor",
+            ),
             # El vencimiento es terminal: como mucho un evento por pedido (D-AUD11-15).
             models.UniqueConstraint(
                 fields=["pedido"],
@@ -432,6 +450,17 @@ class EventoEstadoPedido(models.Model):
                 fields=["pedido"],
                 condition=Q(estado_nuevo=EstadoPedido.ENTREGADO),
                 name="evento_pedido_entregado_unico",
+            ),
+            # Cancelación y cierre parcial son finalizaciones únicas (D-AUD13-01).
+            models.UniqueConstraint(
+                fields=["pedido"],
+                condition=Q(estado_nuevo=EstadoPedido.CANCELADO_ARTESANO),
+                name="evento_pedido_cancelacion_unica",
+            ),
+            models.UniqueConstraint(
+                fields=["pedido"],
+                condition=Q(estado_nuevo=EstadoPedido.CERRADO_PARCIAL),
+                name="evento_pedido_cierre_parcial_unico",
             ),
         ]
         indexes = [
@@ -499,6 +528,35 @@ class CargoPedido(_Inmutable):
 
     def __str__(self):
         return f"Cargo {self.posicion} del pedido #{self.pedido_id}"
+
+
+class DistribucionEconomicaLineaPedido(_Inmutable):
+    """Copia exacta de ``DistribucionEconomicaLineaPropuesta`` congelada al confirmar.
+
+    Completa el desglose por renglón (RF-006.4): con ella, la base reembolsable de cada
+    línea suma exactamente ``Pedido.total`` (D-AUD13-08/09). Nunca se recalcula.
+    """
+
+    linea_pedido = models.OneToOneField(
+        LineaPedido,
+        on_delete=models.PROTECT,
+        related_name="distribucion",
+    )
+    otros_compartidos_asignados = _importe(DIGITOS_IMPORTE)
+    entrega_asignada = _importe(DIGITOS_CARGO)
+
+    class Meta:
+        verbose_name = "distribución económica de línea de pedido"
+        verbose_name_plural = "distribuciones económicas de líneas de pedido"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(otros_compartidos_asignados__gte=0) & Q(entrega_asignada__gte=0),
+                name="distribucion_pedido_no_negativa",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Distribución de la línea de pedido #{self.linea_pedido_id}"
 
 
 # --- Cumplimiento por renglón y ledger de entregas (AUD-12; RF-010, RN-015/018/022/023) ---
@@ -690,3 +748,300 @@ class RecepcionEntrega(_AppendOnly):
 
     def __str__(self):
         return f"Recepción de la entrega #{self.entrega_id}: {self.resultado}"
+
+
+# --- Resolución: cancelación, cierre parcial y reembolsos (AUD-13; RF-015, RF-021) ---
+
+# Límites técnicos de los motivos y la referencia (D-AUD13-21), como los de pagos.
+MAX_MOTIVO_CANCELACION = 1000
+MAX_MOTIVO_CIERRE = 1000
+MAX_MOTIVO_OBJECION = 1000
+MAX_REFERENCIA_DEVOLUCION = 120
+
+
+class _HistorialResolucion(models.Model):
+    """Evidencia de resolución del pedido: se inserta una vez; no se edita ni se elimina."""
+
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("El historial de resolución del pedido no se modifica.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("El historial de resolución del pedido no se elimina.")
+
+
+class CancelacionPedido(_HistorialResolucion):
+    """Cancelación justificada del artesano antes de cualquier entrega (RN-017, D-AUD13-02)."""
+
+    pedido = models.OneToOneField(Pedido, on_delete=models.PROTECT, related_name="cancelacion")
+    motivo = models.TextField(
+        max_length=MAX_MOTIVO_CANCELACION,
+        validators=[MaxLengthValidator(MAX_MOTIVO_CANCELACION)],
+    )
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="cancelaciones_registradas",
+    )
+    registrado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "cancelación de pedido"
+        verbose_name_plural = "cancelaciones de pedidos"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(motivo__regex=PATRON_NO_EN_BLANCO),
+                name="cancelacion_con_motivo",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Cancelación del pedido #{self.pedido_id}"
+
+
+class CierreParcialPedido(_HistorialResolucion):
+    """Propuesta de cierre parcial del artesano tras una entrega parcial (RN-019).
+
+    Histórica: si el comprador objeta, el artesano puede proponer otra con ``numero``
+    siguiente; las anteriores no se modifican (D-AUD13-04/06).
+    """
+
+    pedido = models.ForeignKey(
+        Pedido,
+        on_delete=models.PROTECT,
+        related_name="cierres_parciales",
+        db_index=False,  # cubierto por UNIQUE (pedido, numero)
+    )
+    numero = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    motivo = models.TextField(
+        max_length=MAX_MOTIVO_CIERRE,
+        validators=[MaxLengthValidator(MAX_MOTIVO_CIERRE)],
+    )
+    propuesto_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="cierres_parciales_propuestos",
+    )
+    propuesto_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "cierre parcial de pedido"
+        verbose_name_plural = "cierres parciales de pedidos"
+        ordering = ["numero", "id"]
+        constraints = [
+            models.CheckConstraint(condition=Q(numero__gt=0), name="cierre_numero_positivo"),
+            models.UniqueConstraint(
+                fields=["pedido", "numero"], name="cierre_numero_unico_por_pedido"
+            ),
+            models.CheckConstraint(
+                condition=Q(motivo__regex=PATRON_NO_EN_BLANCO), name="cierre_con_motivo"
+            ),
+        ]
+
+    def __str__(self):
+        return f"Cierre parcial #{self.numero} del pedido #{self.pedido_id}"
+
+
+class LineaCierreParcial(_HistorialResolucion):
+    """Snapshot por renglón congelado al proponer el cierre (D-AUD13-04/10).
+
+    Cantidades del ledger AUD-12 y el importe a reembolsar por lo no entregado; no se
+    recalculan después.
+    """
+
+    cierre = models.ForeignKey(
+        CierreParcialPedido,
+        on_delete=models.PROTECT,
+        related_name="lineas",
+        db_index=False,  # cubierto por UNIQUE (cierre, linea_pedido)
+    )
+    linea_pedido = models.ForeignKey(
+        LineaPedido,
+        on_delete=models.PROTECT,
+        related_name="lineas_cierre",
+    )
+    cantidad_acordada = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    cantidad_entregada = models.PositiveIntegerField()
+    cantidad_no_entregada = models.PositiveIntegerField()
+    importe_reembolso = _importe(DIGITOS_IMPORTE)
+
+    class Meta:
+        verbose_name = "línea de cierre parcial"
+        verbose_name_plural = "líneas de cierre parcial"
+        ordering = ["id"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["cierre", "linea_pedido"], name="linea_cierre_unica_por_cierre"
+            ),
+            models.CheckConstraint(
+                condition=Q(cantidad_acordada__gt=0)
+                & Q(cantidad_acordada=F("cantidad_entregada") + F("cantidad_no_entregada"))
+                & Q(importe_reembolso__gte=0)
+                & (~Q(cantidad_no_entregada=0) | Q(importe_reembolso=CERO)),
+                name="linea_cierre_cantidades_coherentes",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Línea #{self.linea_pedido_id} del cierre #{self.cierre_id}"
+
+
+class ResultadoCierreParcial(models.TextChoices):
+    ACEPTADO = "aceptado", "Cierre aceptado"
+    OBJETADO = "objetado", "Cierre objetado"
+
+
+class EstadoCierreParcial(models.TextChoices):
+    """Estado visible de una propuesta de cierre; se deriva de su decisión."""
+
+    PENDIENTE = "pendiente", "Pendiente de respuesta"
+    ACEPTADO = "aceptado", "Cierre aceptado"
+    OBJETADO = "objetado", "Cierre objetado"
+
+
+class DecisionCierreParcial(_HistorialResolucion):
+    """Respuesta única del comprador a una propuesta de cierre (D-AUD13-06/07)."""
+
+    cierre = models.OneToOneField(
+        CierreParcialPedido, on_delete=models.PROTECT, related_name="decision"
+    )
+    decision = models.CharField(max_length=20, choices=ResultadoCierreParcial.choices)
+    motivo = models.TextField(
+        blank=True,
+        default="",
+        max_length=MAX_MOTIVO_OBJECION,
+        validators=[MaxLengthValidator(MAX_MOTIVO_OBJECION)],
+    )
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="decisiones_cierre_parcial",
+    )
+    registrado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "decisión de cierre parcial"
+        verbose_name_plural = "decisiones de cierres parciales"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(decision__in=ResultadoCierreParcial.values),
+                name="decision_cierre_valida",
+            ),
+            models.CheckConstraint(
+                condition=(Q(decision=ResultadoCierreParcial.ACEPTADO) & Q(motivo=""))
+                | (
+                    Q(decision=ResultadoCierreParcial.OBJETADO)
+                    & Q(motivo__regex=PATRON_NO_EN_BLANCO)
+                ),
+                name="decision_cierre_motivo_coherente",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Decisión {self.decision} del cierre #{self.cierre_id}"
+
+
+class TipoReembolso(models.TextChoices):
+    TOTAL = "total", "Reembolso total"
+    PARCIAL = "parcial", "Reembolso parcial"
+
+
+class EstadoReembolso(models.TextChoices):
+    """Derivado de la existencia de ``DevolucionReembolso`` (D-AUD13-13); no se persiste."""
+
+    PENDIENTE = "pendiente", "Pendiente"
+    REALIZADO = "realizado", "Realizado"
+
+
+class ReembolsoPedido(_HistorialResolucion):
+    """Obligación de devolver fondos confirmados (RF-021). Una por pedido (D-AUD13-11/12).
+
+    El importe lo calcula el servidor desde el snapshot: ``Pedido.total`` en la cancelación
+    pagada; la suma de ``LineaCierreParcial.importe_reembolso`` en el cierre aceptado.
+    La plataforma no mueve dinero: solo registra la obligación y su devolución externa.
+    """
+
+    pedido = models.OneToOneField(Pedido, on_delete=models.PROTECT, related_name="reembolso")
+    tipo = models.CharField(max_length=10, choices=TipoReembolso.choices)
+    monto = _importe(DIGITOS_IMPORTE)
+    moneda = models.CharField(max_length=3, default=MONEDA, editable=False)
+    cancelacion = models.OneToOneField(
+        CancelacionPedido,
+        on_delete=models.PROTECT,
+        related_name="reembolso",
+        null=True,
+        blank=True,
+    )
+    cierre_parcial = models.OneToOneField(
+        CierreParcialPedido,
+        on_delete=models.PROTECT,
+        related_name="reembolso",
+        null=True,
+        blank=True,
+    )
+    creado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "reembolso de pedido"
+        verbose_name_plural = "reembolsos de pedidos"
+        constraints = [
+            models.CheckConstraint(condition=Q(moneda=MONEDA), name="reembolso_moneda_nio"),
+            models.CheckConstraint(condition=Q(monto__gt=0), name="reembolso_monto_positivo"),
+            # Exactamente un origen, coherente con el tipo.
+            models.CheckConstraint(
+                condition=Q(
+                    tipo=TipoReembolso.TOTAL,
+                    cancelacion__isnull=False,
+                    cierre_parcial__isnull=True,
+                )
+                | Q(
+                    tipo=TipoReembolso.PARCIAL,
+                    cancelacion__isnull=True,
+                    cierre_parcial__isnull=False,
+                ),
+                name="reembolso_origen_unico",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Reembolso {self.tipo} del pedido #{self.pedido_id}"
+
+
+class DevolucionReembolso(_HistorialResolucion):
+    """Devolución externa registrada por el artesano: el reembolso pasa a «Realizado».
+
+    ``monto`` es copia de ``ReembolsoPedido.monto`` como evidencia; nunca lo aporta el
+    cliente (D-AUD13-12).
+    """
+
+    reembolso = models.OneToOneField(
+        ReembolsoPedido, on_delete=models.PROTECT, related_name="devolucion"
+    )
+    # Fecha declarada de la devolución; nunca futura en America/Managua.
+    fecha = models.DateField()
+    monto = _importe(DIGITOS_IMPORTE)
+    referencia = models.CharField(max_length=MAX_REFERENCIA_DEVOLUCION)
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="devoluciones_registradas",
+    )
+    registrado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "devolución de reembolso"
+        verbose_name_plural = "devoluciones de reembolsos"
+        constraints = [
+            models.CheckConstraint(condition=Q(monto__gt=0), name="devolucion_monto_positivo"),
+            models.CheckConstraint(
+                condition=Q(referencia__regex=PATRON_NO_EN_BLANCO),
+                name="devolucion_con_referencia",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Devolución del reembolso #{self.reembolso_id}"

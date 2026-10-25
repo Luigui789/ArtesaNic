@@ -3,18 +3,30 @@ from rest_framework import serializers
 from apps.accounts.api.serializers import SinCamposDesconocidosMixin
 from apps.catalogo.api.serializers import TallerResumenSerializer
 from apps.catalogo.models import Modalidad
+from apps.inventario.models import MAX_MOTIVO_MOVIMIENTO, ResultadoClasificacion
+from apps.propuestas.models import DECIMALES, DIGITOS_IMPORTE
 from apps.solicitudes.api.serializers import CompradorSolicitudSerializer
 from apps.solicitudes.models import OrigenPersonalizacion
 
+from .. import cumplimiento, reembolsos, resolucion
+from ..clasificacion import MAX_CLASIFICACIONES
 from ..cumplimiento import MAX_CANTIDAD
 from ..models import (
+    MAX_MOTIVO_CANCELACION,
+    MAX_MOTIVO_CIERRE,
     MAX_MOTIVO_DISCREPANCIA,
+    MAX_MOTIVO_OBJECION,
+    MAX_REFERENCIA_DEVOLUCION,
     CargoPedido,
+    EstadoCierreParcial,
     EstadoLineaCumplimiento,
     EstadoPedido,
+    EstadoReembolso,
     LineaPedido,
     Pedido,
+    ResultadoCierreParcial,
     ResultadoRecepcion,
+    TipoReembolso,
 )
 
 
@@ -290,3 +302,344 @@ def vista_cumplimiento(pedido: Pedido) -> dict:
         "lineas": lineas,
         "entregas": entregas,
     }
+
+
+# --- Resolución: cancelación, cierre parcial y reembolso (AUD-13) ---
+
+# Origen de un reembolso o de una obligación de clasificación.
+ORIGENES = [("cancelacion", "Cancelación del taller"), ("cierre_parcial", "Cierre parcial")]
+
+
+class CancelacionEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
+    motivo = serializers.CharField(
+        allow_blank=True,
+        max_length=MAX_MOTIVO_CANCELACION,
+        help_text="Imposibilidad justificada; obligatorio, 1–"
+        f"{MAX_MOTIVO_CANCELACION} caracteres tras recortar.",
+    )
+
+
+class CierreEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
+    motivo = serializers.CharField(
+        allow_blank=True,
+        max_length=MAX_MOTIVO_CIERRE,
+        help_text=f"Obligatorio, 1–{MAX_MOTIVO_CIERRE} caracteres tras recortar. Cantidades e "
+        "importes no se envían: los deriva el servidor del ledger de entregas.",
+    )
+
+
+class RespuestaCierreEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
+    decision = serializers.ChoiceField(choices=ResultadoCierreParcial.choices)
+    motivo = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        max_length=MAX_MOTIVO_OBJECION,
+        help_text="Obligatorio y no vacío (tras recortar) en `objetado`, hasta "
+        f"{MAX_MOTIVO_OBJECION} caracteres; no se admite en `aceptado`.",
+    )
+
+
+class DevolucionEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
+    """Solo fecha y referencia: monto, moneda y estado proceden del servidor (`400`)."""
+
+    fecha = serializers.DateField(
+        help_text="Fecha de la devolución externa (`AAAA-MM-DD`); no posterior a la fecha "
+        "actual de America/Managua según el servidor."
+    )
+    referencia = serializers.CharField(
+        allow_blank=True,
+        max_length=MAX_REFERENCIA_DEVOLUCION,
+        help_text=f"Obligatoria, 1–{MAX_REFERENCIA_DEVOLUCION} caracteres tras recortar.",
+    )
+
+
+class LineaCierreSerializer(serializers.Serializer):
+    linea = serializers.IntegerField(help_text="Id de la `LineaPedido`.")
+    posicion = serializers.IntegerField()
+    cantidad_acordada = serializers.IntegerField()
+    cantidad_entregada = serializers.IntegerField()
+    cantidad_no_entregada = serializers.IntegerField()
+    importe_reembolso = serializers.DecimalField(
+        max_digits=DIGITOS_IMPORTE, decimal_places=DECIMALES
+    )
+
+
+class DecisionCierreSerializer(serializers.Serializer):
+    decision = serializers.ChoiceField(choices=ResultadoCierreParcial.choices)
+    motivo = serializers.CharField(allow_blank=True)
+    registrado_en = serializers.DateTimeField()
+
+
+class CierreParcialSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    numero = serializers.IntegerField()
+    estado = serializers.ChoiceField(choices=EstadoCierreParcial.choices)
+    motivo = serializers.CharField()
+    propuesto_en = serializers.DateTimeField()
+    lineas = LineaCierreSerializer(many=True, help_text="Snapshot congelado al proponer.")
+    monto_reembolso = serializers.DecimalField(
+        max_digits=DIGITOS_IMPORTE,
+        decimal_places=DECIMALES,
+        help_text="Σ `importe_reembolso`, calculado por el servidor.",
+    )
+    decision = DecisionCierreSerializer(
+        allow_null=True, help_text="Respuesta del comprador; null mientras esté pendiente."
+    )
+
+
+class EstimacionCierreSerializer(serializers.Serializer):
+    lineas = LineaCierreSerializer(many=True)
+    monto_reembolso = serializers.DecimalField(max_digits=DIGITOS_IMPORTE, decimal_places=DECIMALES)
+
+
+class CancelacionSerializer(serializers.Serializer):
+    motivo = serializers.CharField()
+    registrado_en = serializers.DateTimeField()
+
+
+class DevolucionSerializer(serializers.Serializer):
+    fecha = serializers.DateField()
+    monto = serializers.DecimalField(max_digits=DIGITOS_IMPORTE, decimal_places=DECIMALES)
+    referencia = serializers.CharField()
+    registrado_en = serializers.DateTimeField()
+
+
+class ReembolsoSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    tipo = serializers.ChoiceField(choices=TipoReembolso.choices)
+    monto = serializers.DecimalField(max_digits=DIGITOS_IMPORTE, decimal_places=DECIMALES)
+    moneda = serializers.CharField()
+    estado = serializers.ChoiceField(
+        choices=EstadoReembolso.choices,
+        help_text="Derivado: `realizado` cuando existe la devolución registrada.",
+    )
+    origen = serializers.ChoiceField(choices=ORIGENES)
+    cierre = serializers.IntegerField(
+        allow_null=True, help_text="Id de la propuesta de cierre aceptada (si es parcial)."
+    )
+    creado_en = serializers.DateTimeField()
+    devolucion = DevolucionSerializer(allow_null=True)
+
+
+class AccionSerializer(serializers.Serializer):
+    disponible = serializers.BooleanField()
+    codigo = serializers.CharField(
+        allow_null=True, help_text="Código `409` que respondería la acción ahora, si no procede."
+    )
+
+
+class AccionesResolucionSerializer(serializers.Serializer):
+    cancelar = AccionSerializer()
+    proponer_cierre = AccionSerializer()
+
+
+class ResolucionPedidoSerializer(serializers.Serializer):
+    """Misma información comercial para comprador y artesano (sin datos de inventario)."""
+
+    pedido = serializers.IntegerField()
+    estado = serializers.ChoiceField(choices=EstadoPedido.choices)
+    cancelacion = CancelacionSerializer(allow_null=True)
+    cierres_parciales = CierreParcialSerializer(many=True)
+    reembolso = ReembolsoSerializer(allow_null=True)
+    acciones = AccionesResolucionSerializer(
+        help_text="Acciones del artesano según las mismas reglas del servidor; orientativo, "
+        "la mutación vuelve a validar dentro de su transacción."
+    )
+    estimacion_cierre = EstimacionCierreSerializer(
+        allow_null=True,
+        help_text="Cantidades e importe que congelaría un cierre propuesto ahora; null si "
+        "no procede.",
+    )
+
+
+def _lineas_cierre(lineas) -> list[dict]:
+    return [
+        {
+            "linea": c.linea_pedido_id,
+            "posicion": c.posicion,
+            "cantidad_acordada": c.cantidad_acordada,
+            "cantidad_entregada": c.cantidad_entregada,
+            "cantidad_no_entregada": c.cantidad_no_entregada,
+            "importe_reembolso": c.importe_reembolso,
+        }
+        for c in lineas
+    ]
+
+
+def vista_resolucion(pedido: Pedido) -> dict:
+    """Lectura desde un pedido cargado con ``selectors.pedido_con_resolucion``."""
+    estado = pedido.estado_operativo.estado
+    pago = getattr(pedido, "pago", None)
+    lineas = list(pedido.lineas.all())
+    entregadas = cumplimiento.cantidades_entregadas(pedido)
+    cierres = []
+    for cierre in pedido.cierres_parciales.all():
+        decision = getattr(cierre, "decision", None)
+        filas = [
+            reembolsos.LineaCalculada(
+                linea_pedido_id=lc.linea_pedido_id,
+                posicion=lc.linea_pedido.posicion,
+                cantidad_acordada=lc.cantidad_acordada,
+                cantidad_entregada=lc.cantidad_entregada,
+                cantidad_no_entregada=lc.cantidad_no_entregada,
+                importe_reembolso=lc.importe_reembolso,
+            )
+            for lc in cierre.lineas.all()
+        ]
+        cierres.append(
+            {
+                "id": cierre.pk,
+                "numero": cierre.numero,
+                "estado": decision.decision if decision else EstadoCierreParcial.PENDIENTE,
+                "motivo": cierre.motivo,
+                "propuesto_en": cierre.propuesto_en,
+                "lineas": _lineas_cierre(filas),
+                "monto_reembolso": reembolsos.monto_total(filas),
+                "decision": None
+                if decision is None
+                else {
+                    "decision": decision.decision,
+                    "motivo": decision.motivo,
+                    "registrado_en": decision.registrado_en,
+                },
+            }
+        )
+    pendiente = any(c["estado"] == EstadoCierreParcial.PENDIENTE for c in cierres)
+    hay_entregas = sum(entregadas.values()) > 0
+    cancelar = resolucion.conflicto_cancelacion(estado, pago, hay_entregas)
+    acordadas = {linea.pk: linea.cantidad for linea in lineas}
+    proponer = resolucion.conflicto_cierre(estado, pendiente, acordadas, entregadas)
+    estimacion = None
+    if proponer is None:
+        calculadas = reembolsos.calcular_cierre(pedido, lineas, entregadas)
+        estimacion = {
+            "lineas": _lineas_cierre(calculadas),
+            "monto_reembolso": reembolsos.monto_total(calculadas),
+        }
+    reembolso = getattr(pedido, "reembolso", None)
+    cancelacion = getattr(pedido, "cancelacion", None)
+    return {
+        "pedido": pedido.pk,
+        "estado": estado,
+        "cancelacion": None
+        if cancelacion is None
+        else {"motivo": cancelacion.motivo, "registrado_en": cancelacion.registrado_en},
+        "cierres_parciales": cierres,
+        "reembolso": None if reembolso is None else _reembolso(reembolso),
+        "acciones": {
+            "cancelar": {"disponible": cancelar is None, "codigo": cancelar},
+            "proponer_cierre": {"disponible": proponer is None, "codigo": proponer},
+        },
+        "estimacion_cierre": estimacion,
+    }
+
+
+def _reembolso(reembolso) -> dict:
+    devolucion = getattr(reembolso, "devolucion", None)
+    return {
+        "id": reembolso.pk,
+        "tipo": reembolso.tipo,
+        "monto": reembolso.monto,
+        "moneda": reembolso.moneda,
+        "estado": reembolsos.estado_reembolso(reembolso),
+        "origen": "cancelacion" if reembolso.cancelacion_id else "cierre_parcial",
+        "cierre": reembolso.cierre_parcial_id,
+        "creado_en": reembolso.creado_en,
+        "devolucion": None
+        if devolucion is None
+        else {
+            "fecha": devolucion.fecha,
+            "monto": devolucion.monto,
+            "referencia": devolucion.referencia,
+            "registrado_en": devolucion.registrado_en,
+        },
+    }
+
+
+# --- Clasificación de unidades manipuladas (AUD-13, solo artesano) ---
+
+
+class ClasificacionEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
+    obligacion = serializers.IntegerField(min_value=1, help_text="Id de la obligación.")
+    cantidad = serializers.IntegerField(min_value=1, max_value=MAX_CANTIDAD)
+    resultado = serializers.ChoiceField(choices=ResultadoClasificacion.choices)
+    motivo = serializers.CharField(
+        allow_blank=True,
+        max_length=MAX_MOTIVO_MOVIMIENTO,
+        help_text=f"Obligatorio en ambos resultados, 1–{MAX_MOTIVO_MOVIMIENTO} caracteres.",
+    )
+
+
+class ClasificacionesEntradaSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
+    clasificaciones = ClasificacionEntradaSerializer(
+        many=True,
+        allow_empty=False,
+        max_length=MAX_CLASIFICACIONES,
+        help_text="Cada obligación una sola vez por petición; el orden no importa.",
+    )
+
+
+class ClasificacionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    cantidad = serializers.IntegerField()
+    resultado = serializers.ChoiceField(choices=ResultadoClasificacion.choices)
+    motivo = serializers.CharField()
+    registrado_en = serializers.DateTimeField()
+
+
+class ObligacionClasificacionSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    linea = serializers.IntegerField(help_text="Id de la `LineaPedido`.")
+    posicion = serializers.IntegerField()
+    producto = ProductoSnapshotSerializer()
+    origen = serializers.ChoiceField(choices=ORIGENES)
+    cantidad = serializers.IntegerField(help_text="Unidades consumidas y no entregadas.")
+    cantidad_clasificada = serializers.IntegerField()
+    cantidad_pendiente = serializers.IntegerField()
+    creado_en = serializers.DateTimeField()
+    clasificaciones = ClasificacionSerializer(many=True)
+
+
+class ClasificacionesPedidoSerializer(serializers.Serializer):
+    pedido = serializers.IntegerField()
+    obligaciones = ObligacionClasificacionSerializer(many=True)
+
+
+def vista_clasificaciones(pedido: Pedido, obligaciones) -> dict:
+    filas = []
+    for o in obligaciones:
+        clasificaciones = list(o.clasificaciones.all())
+        clasificada = sum(c.cantidad for c in clasificaciones)
+        linea = o.linea_pedido
+        filas.append(
+            {
+                "id": o.pk,
+                "linea": linea.pk,
+                "posicion": linea.posicion,
+                "producto": {
+                    "id": linea.producto_id,
+                    "nombre": linea.producto_nombre,
+                    "categoria": {
+                        "id": linea.categoria_id_historico,
+                        "codigo": linea.categoria_codigo,
+                        "nombre": linea.categoria_nombre,
+                    },
+                },
+                "origen": "cancelacion" if o.cancelacion_id else "cierre_parcial",
+                "cantidad": o.cantidad,
+                "cantidad_clasificada": clasificada,
+                "cantidad_pendiente": o.cantidad - clasificada,
+                "creado_en": o.creado_en,
+                "clasificaciones": [
+                    {
+                        "id": c.pk,
+                        "cantidad": c.cantidad,
+                        "resultado": c.resultado,
+                        "motivo": c.motivo,
+                        "registrado_en": c.registrado_en,
+                    }
+                    for c in clasificaciones
+                ],
+            }
+        )
+    return {"pedido": pedido.pk, "obligaciones": filas}

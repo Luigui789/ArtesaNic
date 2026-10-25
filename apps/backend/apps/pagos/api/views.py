@@ -157,6 +157,7 @@ class IntentosPagoView(APIView):
             404: NO_ENCONTRADO,
             409: respuesta_conflicto(
                 C.PEDIDO_VENCIDO,
+                C.PEDIDO_FINALIZADO,
                 C.PAGO_YA_CONFIRMADO,
                 C.PAGO_EN_REVISION,
                 C.CORRECCION_PENDIENTE,
@@ -203,6 +204,7 @@ class CorregirIntentoPagoView(APIView):
             404: NO_ENCONTRADO,
             409: respuesta_conflicto(
                 C.PEDIDO_VENCIDO,
+                C.PEDIDO_FINALIZADO,
                 C.PAGO_YA_CONFIRMADO,
                 C.PAGO_EN_REVISION,
                 C.CORRECCION_NO_PERMITIDA,
@@ -292,7 +294,12 @@ class ResolverIntentoPagoView(APIView):
             400: ERROR_ENTRADA,
             **ERRORES,
             404: NO_ENCONTRADO,
-            409: respuesta_conflicto(C.PEDIDO_VENCIDO, C.PAGO_YA_CONFIRMADO, C.INTENTO_YA_RESUELTO),
+            409: respuesta_conflicto(
+                C.PEDIDO_VENCIDO,
+                C.PEDIDO_FINALIZADO,
+                C.PAGO_YA_CONFIRMADO,
+                C.INTENTO_YA_RESUELTO,
+            ),
         },
     )
     def post(self, request, pedido_id: int, intento_id: int):
