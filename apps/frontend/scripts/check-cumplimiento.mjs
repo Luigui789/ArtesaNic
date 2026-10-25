@@ -14,6 +14,8 @@ const m = await cargarModulos(
   {
     http: "@/lib/http",
     cumplimiento: "@/features/pedidos/cumplimiento",
+    progreso: "@/features/pedidos/progreso",
+    progresoVista: "@/features/pedidos/components/progreso-pedido",
     vista: "@/features/pedidos/components/cumplimiento-pedido",
     pedidos: "@/features/pedidos/confirmados",
     pagina: "@/features/pedidos/pages/confirmados",
@@ -493,6 +495,244 @@ await verificar("responsive: sin anchos fijos, ajuste de texto largo y objetivos
   const botones = [...html.matchAll(/<button[^>]*class="([^"]*)"/g)].map((x) => x[1]);
   assert.ok(botones.length > 0);
   for (const clase of botones) assert.match(clase, /min-h-11|size-11/, "objetivo táctil de 44 px");
+});
+
+// --- Progreso del pedido (línea de tiempo visual, AUD-12) ---
+const pasos = (estadoPedido, estadoPago, dto) =>
+  m.progreso.pasosProgreso({
+    estadoPedido,
+    estadoPago,
+    cumplimiento: dto === undefined ? undefined : m.cumplimiento.aCumplimiento(dto),
+  });
+const resumen = (lista) => lista.map((p) => `${p.clave}:${p.estado}`).join(" ");
+const timeline = (lista) => render(h(m.progresoVista.LineaTiempoPedido, { pasos: lista }));
+const sinActividad = cumplimientoDTO({
+  estado: "confirmado",
+  lineas: [
+    lineaC(14, 1, "stock", "pendiente", 0, false),
+    lineaC(15, 2, "produccion", "pendiente", 0, false),
+  ],
+  entregas: [],
+});
+const iniciadoSinEntregas = cumplimientoDTO({
+  lineas: [
+    lineaC(14, 1, "stock", "en_cumplimiento", 0),
+    lineaC(15, 2, "produccion", "pendiente", 0, false),
+  ],
+  entregas: [],
+});
+const NORMAL = ["confirmado", "pago", "cumplimiento", "entregas", "entregado"];
+
+await verificar("progreso: pedido confirmado con pago pendiente", () => {
+  const lista = pasos("confirmado", "pendiente", sinActividad);
+  assert.deepEqual(
+    lista.map((p) => p.clave),
+    NORMAL,
+  );
+  assert.equal(
+    resumen(lista),
+    "confirmado:completado pago:actual cumplimiento:pendiente entregas:pendiente entregado:pendiente",
+  );
+  assert.equal(lista[0].detalle, "Contrato y condiciones congeladas.");
+  assert.equal(lista[1].label, "Pago pendiente");
+  assert.equal(lista[1].detalle, "Esperando que el pago quede confirmado.");
+  assert.equal(lista[2].detalle, "El trabajo comenzará después del pago confirmado.");
+  assert.equal(lista[3].detalle, "Todavía no hay entregas registradas.");
+  assert.equal(lista[4].detalle, "Pendiente.");
+});
+
+await verificar(
+  "progreso: pago registrado, observado y no recibido siguen como paso actual",
+  () => {
+    const casos = {
+      registrado: ["Pago registrado", "Comprobante pendiente de revisión."],
+      observado: ["Pago observado", "El comprador debe corregir el comprobante."],
+      no_recibido: [
+        "Pago no recibido",
+        "El comprador puede registrar un nuevo intento dentro del plazo.",
+      ],
+    };
+    for (const [estadoPago, [label, detalle]] of Object.entries(casos)) {
+      const lista = pasos("confirmado", estadoPago, sinActividad);
+      assert.equal(lista.length, 5, estadoPago);
+      assert.deepEqual(
+        [lista[1].label, lista[1].detalle, lista[1].estado],
+        [label, detalle, "actual"],
+      );
+      assert.ok(
+        lista.slice(2).every((p) => p.estado === "pendiente"),
+        estadoPago,
+      );
+    }
+    const html = timeline(pasos("confirmado", "observado", sinActividad));
+    assert.match(html, /Pago observado/);
+    assert.match(html, /aria-current="step"/);
+  },
+);
+
+await verificar("progreso: pago confirmado sin trabajo iniciado → listo para comenzar", () => {
+  const lista = pasos("confirmado", "confirmado", sinActividad);
+  assert.equal(
+    resumen(lista),
+    "confirmado:completado pago:completado cumplimiento:actual entregas:pendiente entregado:pendiente",
+  );
+  assert.equal(lista[1].label, "Pago confirmado");
+  assert.equal(lista[2].detalle, "Listo para comenzar.");
+});
+
+await verificar("progreso: en cumplimiento sin entregas", () => {
+  const lista = pasos("en_cumplimiento", "confirmado", iniciadoSinEntregas);
+  assert.equal(
+    resumen(lista),
+    "confirmado:completado pago:completado cumplimiento:actual entregas:pendiente entregado:pendiente",
+  );
+  assert.equal(lista[2].detalle, "1 de 2 productos iniciados.");
+  // Sin lectura del pago todavía: un pedido en cumplimiento ya tiene el pago confirmado.
+  assert.equal(pasos("en_cumplimiento", undefined, iniciadoSinEntregas)[1].estado, "completado");
+});
+
+await verificar("progreso: entrega parcial → entregas en curso desde el ledger", () => {
+  const lista = pasos("en_cumplimiento", "confirmado", cumplimientoDTO());
+  assert.equal(
+    resumen(lista),
+    "confirmado:completado pago:completado cumplimiento:completado entregas:actual entregado:pendiente",
+  );
+  assert.equal(lista[3].label, "Entregas en curso");
+  assert.equal(lista[3].detalle, "Se han registrado entregas parciales. 2 entregas registradas.");
+});
+
+await verificar("progreso: pedido entregado con todos los pasos completados", () => {
+  const entregado = cumplimientoDTO({
+    estado: "entregado",
+    lineas: [lineaC(14, 1, "stock", "entregado", 5)],
+  });
+  const lista = pasos("entregado", "confirmado", entregado);
+  assert.deepEqual(
+    lista.map((p) => p.clave),
+    NORMAL,
+  );
+  assert.ok(lista.every((p) => p.estado === "completado"));
+  assert.deepEqual(
+    lista.map((p) => p.label),
+    [
+      "Pedido confirmado",
+      "Pago confirmado",
+      "En cumplimiento",
+      "Entregas completadas",
+      "Pedido entregado",
+    ],
+  );
+  // La recepción del comprador no condiciona el paso final.
+  const sinRespuesta = cumplimientoDTO({
+    estado: "entregado",
+    entregas: [{ ...cumplimientoDTO().entregas[0], recepcion: null }],
+  });
+  assert.ok(pasos("entregado", "confirmado", sinRespuesta).every((p) => p.estado === "completado"));
+  const html = timeline(lista);
+  assert.equal(html.match(/>Completado</g).length, 5);
+  assert.doesNotMatch(html, /Paso actual|Pendiente</);
+});
+
+await verificar("progreso: pedido vencido es terminal y sin pasos futuros", () => {
+  const lista = pasos("vencido_falta_pago", "observado", sinActividad);
+  assert.deepEqual(
+    lista.map((p) => p.clave),
+    ["confirmado", "vencido"],
+  );
+  assert.equal(lista[1].estado, "final_negativo");
+  assert.equal(
+    lista[1].detalle,
+    "El plazo terminó y las reservas no manipuladas fueron liberadas.",
+  );
+  const html = timeline(lista);
+  assert.match(html, /Vencido por falta de pago/);
+  assert.match(html, /Estado final/);
+  assert.match(html, /lucide-calendar-x/);
+  assert.match(html, /text-destructive/);
+  assert.doesNotMatch(html, /En cumplimiento|Entregas|Pedido entregado/);
+});
+
+await verificar("progreso: accesible sin depender del color", () => {
+  const html = timeline(pasos("en_cumplimiento", "confirmado", cumplimientoDTO()));
+  assert.match(html, /^<section[\s\S]*<h2[^>]*>Progreso del pedido<\/h2>/);
+  assert.match(html, /<ol class="min-w-0" aria-label="Etapas del pedido">/);
+  assert.equal(html.match(/<li /g).length, 5);
+  assert.equal(html.match(/aria-current="step"/g).length, 1);
+  for (const texto of ["Completado", "Paso actual", "Pendiente"])
+    assert.match(html, new RegExp(`>${texto}<`));
+  const iconos = [...html.matchAll(/<span class="grid size-7[^"]*" aria-hidden="true">/g)];
+  assert.equal(iconos.length, 5, "círculos decorativos ocultos a lectores de pantalla");
+  assert.match(html, /lucide-check/);
+  assert.match(html, /break-words/);
+  assert.doesNotMatch(html, /\bw-\[\d+px\]/);
+  for (const e of ["aceptado", "en_produccion", "listo_para_entrega", "cancelado", "rechazado"])
+    assert.doesNotMatch(html, new RegExp(e));
+});
+
+await verificar("progreso: integrado en el detalle sin consultas nuevas", () => {
+  const html = render(
+    h(m.pagina.ContenidoPedidoConfirmado, {
+      pedido: m.pedidos.aPedido(pedidoDTO()),
+      pago: h("p", null, "SECCION-PAGO"),
+      cumplimiento: h("p", null, "SECCION-CUMPLIMIENTO"),
+      progreso: h("p", null, "SECCION-PROGRESO"),
+    }),
+  );
+  const orden = [
+    "SECCION-PROGRESO",
+    "SECCION-PAGO",
+    "SECCION-CUMPLIMIENTO",
+    "Productos acordados",
+    "Resumen del acuerdo",
+  ];
+  const posiciones = orden.map((t) => html.indexOf(t));
+  assert.ok(
+    posiciones.every((p) => p >= 0),
+    "todas las secciones presentes",
+  );
+  assert.deepEqual(
+    [...posiciones].sort((a, b) => a - b),
+    posiciones,
+    "orden móvil: progreso arriba",
+  );
+  assert.match(html, /xl:col-start-2 xl:row-start-1">.*SECCION-PROGRESO/s);
+  assert.match(html, /xl:col-start-2 xl:row-start-2/);
+  const fuente = (ruta) => readFileSync(new URL(`../src/${ruta}`, import.meta.url), "utf8");
+  const componente = fuente("features/pedidos/components/progreso-pedido.tsx");
+  assert.match(componente, /queryKey: claves\.pago\(usuario\?\.id, recibido, pedido\.id\)/);
+  assert.match(componente, /queryKey: claves\.cumplimiento\(usuario\?\.id, recibido, pedido\.id\)/);
+  assert.doesNotMatch(componente, /solicitar|fetch\(/, "sin peticiones propias");
+  assert.match(
+    fuente("features/pagos/components/pago-pedido.tsx"),
+    /queryKey: claves\.pago\(usuario\?\.id, recibido, pedido\)/,
+  );
+  assert.match(
+    fuente("features/pedidos/components/cumplimiento-pedido.tsx"),
+    /queryKey: claves\.cumplimiento\(usuario\?\.id, recibido, pedido\.id\)/,
+  );
+  assert.match(
+    fuente("features/pedidos/pages/confirmados.tsx"),
+    /progreso=\{<ProgresoPedido pedido=\{query\.data\} recibido=\{recibido\} \/>\}/,
+  );
+  const derivacion = fuente("features/pedidos/progreso.ts");
+  assert.doesNotMatch(derivacion, /OrderStatus|OrderOption|orderFlow|@\/lib\/order-state/);
+});
+
+await verificar("progreso: comparte la caché con pago y seguimiento (sin peticiones)", () => {
+  const qc = new m.rq.QueryClient();
+  qc.setQueryData(m.keys.claves.pago(undefined, true, 9), { estado: "confirmado" });
+  qc.setQueryData(
+    m.keys.claves.cumplimiento(undefined, true, 9),
+    m.cumplimiento.aCumplimiento(cumplimientoDTO()),
+  );
+  const antes = peticiones.length;
+  const html = render(
+    h(m.progresoVista.ProgresoPedido, { pedido: m.pedidos.aPedido(pedidoDTO()), recibido: true }),
+    qc,
+  );
+  assert.equal(peticiones.length, antes, "lee la caché existente");
+  assert.match(html, /Entregas en curso/);
+  assert.match(html, /Pago confirmado/);
 });
 
 console.log(`OK: ${grupos} grupos de cumplimiento AUD-12.`);

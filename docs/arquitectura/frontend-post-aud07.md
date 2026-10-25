@@ -138,6 +138,9 @@ respuesta del comprador (confirmar o registrar discrepancia). Cliente en
 `features/pedidos/cumplimiento.ts`, sin rutas nuevas ni actualizaciones optimistas
 ([contrato](../api/cumplimiento.md)). Los estados globales `en_cumplimiento` y `entregado` tienen
 texto e icono propios.
+La tarjeta «Progreso del pedido» (`progreso-pedido.tsx`) muestra la etapa general en una
+línea de tiempo vertical (arriba en móvil, columna derecha en escritorio), derivada de pedido,
+pago y cumplimiento sin estados ni consultas nuevas.
 
 Los endpoints pendientes de cancelación y cierre parcial, mensajes/notificaciones reales y
 perfil personal permanecen fuera de alcance. No se inventaron llamadas ni estados para

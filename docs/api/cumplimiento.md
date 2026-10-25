@@ -212,6 +212,13 @@ cada respuesta, la representación del servidor reemplaza la caché e invalida p
 si hubo consumo, inventario y movimientos de los productos afectados. Sin actualizaciones
 optimistas.
 
+La tarjeta «Progreso del pedido» (`components/progreso-pedido.tsx`, derivación en
+`progreso.ts`) resume la etapa general en una línea de tiempo vertical: pedido confirmado →
+pago → en cumplimiento → entregas → pedido entregado, o confirmado → vencido por falta de
+pago. Los hitos son solo visuales (no hay estados nuevos en el backend) y se derivan del
+estado del pedido, del estado del pago y del cumplimiento, leídos de las mismas `queryKey`
+que las secciones de pago y seguimiento, sin peticiones adicionales.
+
 ## Fuera de alcance (AUD-13 / AUD-20)
 
 Cancelación del artesano, cierre parcial y su objeción, reembolsos, reincorporación, baja y

@@ -16,6 +16,7 @@ import { formatCalendarDate, formatDate, formatDateTime } from "@/lib/format";
 import { parseRouteId } from "@/lib/route-id";
 import { reintentarSalvoErrorDelCliente } from "@/lib/http";
 import { MODALIDAD_LABELS } from "@/lib/labels";
+import { cn } from "@/lib/utils";
 import { CalendarX2, CheckCircle2, Hammer, PackageCheck, type LucideIcon } from "lucide-react";
 import {
   ESTADO_PEDIDO_LABELS,
@@ -27,6 +28,7 @@ import {
 import { ResumenContractual } from "../components/resumen-contractual";
 import { PagoPedido } from "@/features/pagos/components/pago-pedido";
 import { CumplimientoPedido } from "../components/cumplimiento-pedido";
+import { ProgresoPedido } from "../components/progreso-pedido";
 const ESTILO_ESTADO: Record<
   EstadoPedidoOperativo,
   { tone: "success" | "pending" | "danger"; icon: LucideIcon }
@@ -136,6 +138,7 @@ export function ContenidoPedidoConfirmado({
   recibido = false,
   pago,
   cumplimiento,
+  progreso,
 }: {
   pedido: PedidoConfirmado;
   recibido?: boolean;
@@ -143,6 +146,8 @@ export function ContenidoPedidoConfirmado({
   pago?: ReactNode;
   /** Seguimiento por renglón y entregas (AUD-12); también lo inyecta la página. */
   cumplimiento?: ReactNode;
+  /** Línea de tiempo «Progreso del pedido» (AUD-12): arriba en móvil, columna derecha en xl. */
+  progreso?: ReactNode;
 }) {
   const solicitud = recibido ? "/panel/solicitudes" : "/solicitudes";
   const vencido = p.estado === "vencido_falta_pago";
@@ -178,7 +183,15 @@ export function ContenidoPedidoConfirmado({
           : `Taller: ${p.taller.nombre}`}
       </p>
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <div className="min-w-0 space-y-6">
+        {/* Orden del DOM = orden móvil (progreso, contenido, resumen); en xl el progreso
+            ocupa la primera fila de la columna derecha y el contenido abarca ambas filas. */}
+        {progreso ? <div className="min-w-0 xl:col-start-2 xl:row-start-1">{progreso}</div> : null}
+        <div
+          className={cn(
+            "min-w-0 space-y-6",
+            progreso && "xl:col-start-1 xl:row-span-2 xl:row-start-1",
+          )}
+        >
           {pago}
           {cumplimiento}
           <Section
@@ -240,7 +253,7 @@ export function ContenidoPedidoConfirmado({
             ) : null}
           </Section>
         </div>
-        <div className="space-y-6">
+        <div className={cn("min-w-0 space-y-6", progreso && "xl:col-start-2 xl:row-start-2")}>
           <Section title="Resumen del acuerdo">
             <ResumenContractual datos={p} />
             {p.otrosCargos.length ? (
@@ -297,6 +310,7 @@ export function DetallePedidoConfirmado({ recibido = false }: { recibido?: boole
               />
             }
             cumplimiento={<CumplimientoPedido pedido={query.data} recibido={recibido} />}
+            progreso={<ProgresoPedido pedido={query.data} recibido={recibido} />}
           />
         )}
       </PageContainer>
