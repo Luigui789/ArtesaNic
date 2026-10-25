@@ -11,7 +11,9 @@ def propuestas_con_detalle():
     return Propuesta.objects.select_related("solicitud", "decision", "pedido").prefetch_related(
         Prefetch(
             "lineas",
-            queryset=LineaPropuesta.objects.select_related("renglon__producto__categoria"),
+            queryset=LineaPropuesta.objects.select_related(
+                "renglon__producto__categoria", "distribucion"
+            ),
         ),
         Prefetch("cargos", queryset=CargoPropuesta.objects.select_related("linea")),
     )

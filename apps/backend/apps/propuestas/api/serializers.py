@@ -13,6 +13,7 @@ from ..models import (
     CERO,
     DECIMALES,
     DIGITOS_CARGO,
+    DIGITOS_IMPORTE,
     MAX_DESCRIPCION_CARGO,
     MAX_OTROS_CARGOS,
     MONEDA,
@@ -117,6 +118,21 @@ class LineaPropuestaSerializer(serializers.ModelSerializer):
     fecha_solicitada = serializers.DateField(
         source="renglon.fecha_solicitada", read_only=True, allow_null=True
     )
+    # Reparto congelado al emitir (AUD-13, D-AUD13-08/09); base de reembolsos parciales.
+    otros_compartidos_asignados = serializers.DecimalField(
+        source="distribucion.otros_compartidos_asignados",
+        max_digits=DIGITOS_IMPORTE,
+        decimal_places=DECIMALES,
+        read_only=True,
+        help_text="Parte de los cargos globales atribuida a esta línea (mayor residuo).",
+    )
+    entrega_asignada = serializers.DecimalField(
+        source="distribucion.entrega_asignada",
+        max_digits=DIGITOS_IMPORTE,
+        decimal_places=DECIMALES,
+        read_only=True,
+        help_text="Parte del costo de entrega atribuida a esta línea (mayor residuo).",
+    )
 
     class Meta:
         model = LineaPropuesta
@@ -132,6 +148,8 @@ class LineaPropuestaSerializer(serializers.ModelSerializer):
             "cargo_personalizacion",
             "fecha_solicitada",
             "fecha_comprometida",
+            "otros_compartidos_asignados",
+            "entrega_asignada",
         ]
         read_only_fields = fields
 
