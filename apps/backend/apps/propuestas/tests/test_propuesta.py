@@ -417,7 +417,14 @@ class EmisionTests(PropuestaAPITestCase):
         self.assertEqual(antes, {m._meta.label: m.objects.count() for m in modelos})
         self.assertEqual(
             {m.__name__ for m in apps.get_app_config("propuestas").get_models()},
-            {"Propuesta", "LineaPropuesta", "CargoPropuesta", "DecisionPropuesta"},
+            {
+                "Propuesta",
+                "LineaPropuesta",
+                "CargoPropuesta",
+                "DecisionPropuesta",
+                # AUD-13: reparto congelado de cargos globales y entrega por línea.
+                "DistribucionEconomicaLineaPropuesta",
+            },
         )
 
 
