@@ -17,7 +17,15 @@ import { parseRouteId } from "@/lib/route-id";
 import { reintentarSalvoErrorDelCliente } from "@/lib/http";
 import { MODALIDAD_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import { CalendarX2, CheckCircle2, Hammer, PackageCheck, type LucideIcon } from "lucide-react";
+import {
+  CalendarX2,
+  CheckCircle2,
+  CircleSlash,
+  Hammer,
+  PackageCheck,
+  PackageMinus,
+  type LucideIcon,
+} from "lucide-react";
 import {
   ESTADO_PEDIDO_LABELS,
   listarPedidosConfirmados,
@@ -29,6 +37,7 @@ import { ResumenContractual } from "../components/resumen-contractual";
 import { PagoPedido } from "@/features/pagos/components/pago-pedido";
 import { CumplimientoPedido } from "../components/cumplimiento-pedido";
 import { ProgresoPedido } from "../components/progreso-pedido";
+import { ResolucionPedido } from "../components/resolucion-pedido";
 const ESTILO_ESTADO: Record<
   EstadoPedidoOperativo,
   { tone: "success" | "pending" | "danger"; icon: LucideIcon }
@@ -37,8 +46,10 @@ const ESTILO_ESTADO: Record<
   en_cumplimiento: { tone: "pending", icon: Hammer },
   entregado: { tone: "success", icon: PackageCheck },
   vencido_falta_pago: { tone: "danger", icon: CalendarX2 },
+  cancelado_artesano: { tone: "danger", icon: CircleSlash },
+  cerrado_parcial: { tone: "pending", icon: PackageMinus },
 };
-/** Estado operativo con texto e icono propios: no se comunica solo por color (AUD-11/12). */
+/** Estado operativo con texto e icono propios: no se comunica solo por color (AUD-11/12/13). */
 export function EstadoPedidoBadge({ estado }: { estado: EstadoPedidoOperativo }) {
   const { tone, icon } = ESTILO_ESTADO[estado];
   return (
@@ -139,6 +150,7 @@ export function ContenidoPedidoConfirmado({
   pago,
   cumplimiento,
   progreso,
+  resolucion,
 }: {
   pedido: PedidoConfirmado;
   recibido?: boolean;
@@ -148,6 +160,8 @@ export function ContenidoPedidoConfirmado({
   cumplimiento?: ReactNode;
   /** Línea de tiempo «Progreso del pedido» (AUD-12): arriba en móvil, columna derecha en xl. */
   progreso?: ReactNode;
+  /** Cancelación, cierre parcial, reembolso y clasificación (AUD-13); la inyecta la página. */
+  resolucion?: ReactNode;
 }) {
   const solicitud = recibido ? "/panel/solicitudes" : "/solicitudes";
   const vencido = p.estado === "vencido_falta_pago";
@@ -193,6 +207,7 @@ export function ContenidoPedidoConfirmado({
           )}
         >
           {pago}
+          {resolucion}
           {cumplimiento}
           <Section
             title="Productos acordados"
@@ -307,8 +322,13 @@ export function DetallePedidoConfirmado({ recibido = false }: { recibido?: boole
                 pedido={query.data.id}
                 recibido={recibido}
                 pedidoVencido={query.data.estado === "vencido_falta_pago"}
+                pedidoFinalizado={
+                  query.data.estado === "cancelado_artesano" ||
+                  query.data.estado === "cerrado_parcial"
+                }
               />
             }
+            resolucion={<ResolucionPedido pedido={query.data} recibido={recibido} />}
             cumplimiento={<CumplimientoPedido pedido={query.data} recibido={recibido} />}
             progreso={<ProgresoPedido pedido={query.data} recibido={recibido} />}
           />

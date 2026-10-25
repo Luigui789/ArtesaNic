@@ -56,11 +56,14 @@ export function PagoPedido({
   pedido,
   recibido = false,
   pedidoVencido = false,
+  pedidoFinalizado = false,
 }: {
   pedido: number;
   recibido?: boolean;
   /** Estado operativo del pedido (AUD-11): bloquea toda acción, conserva el historial. */
   pedidoVencido?: boolean;
+  /** Cancelado por el taller o cerrado parcialmente (AUD-13): igual, sin acciones. */
+  pedidoFinalizado?: boolean;
 }) {
   const { usuario } = useSession();
   const query = useQuery({
@@ -78,7 +81,12 @@ export function PagoPedido({
       ) : query.isError ? (
         <ErrorState mensaje={mensajeDominio(query.error)} onRetry={() => void query.refetch()} />
       ) : (
-        <VistaPago pago={query.data} recibido={recibido} pedidoVencido={pedidoVencido} />
+        <VistaPago
+          pago={query.data}
+          recibido={recibido}
+          pedidoVencido={pedidoVencido}
+          pedidoFinalizado={pedidoFinalizado}
+        />
       )}
     </Section>
   );
@@ -88,10 +96,12 @@ export function VistaPago({
   pago,
   recibido,
   pedidoVencido = false,
+  pedidoFinalizado = false,
 }: {
   pago: PagoPedido;
   recibido: boolean;
   pedidoVencido?: boolean;
+  pedidoFinalizado?: boolean;
 }) {
   const vigente = pago.intentos.at(-1);
   return (
@@ -111,6 +121,10 @@ export function VistaPago({
       </div>
       {pedidoVencido ? (
         <Nota>El pedido venció por falta de pago. El historial del pago se conserva.</Nota>
+      ) : pedidoFinalizado ? (
+        <Nota>
+          El pedido finalizó y el pago ya no admite cambios. El historial del pago se conserva.
+        </Nota>
       ) : recibido ? (
         <EstadoParaArtesano pago={pago} vigente={vigente} />
       ) : (
