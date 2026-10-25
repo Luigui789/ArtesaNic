@@ -367,6 +367,23 @@ paths:
                 items:
                   $ref: '#/components/schemas/Categoria'
           description: ''
+  /api/v1/configuracion/:
+    get:
+      operationId: consultar_configuracion
+      description: 'Tasa de cambio informativa C$ por US$ que configura la administración.
+        Sin tasa configurada responde 200 con `tasa_cambio` y `actualizada_en` en
+        null: no existe una tasa por defecto. Los importes contractuales se conservan
+        en córdobas.'
+      summary: Consultar la configuración pública de la plataforma
+      tags:
+      - Configuración
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfiguracionPublica'
+          description: ''
   /api/v1/inventario/:
     get:
       operationId: listar_mi_inventario
@@ -2579,8 +2596,8 @@ paths:
   /api/v1/productos/mios/:
     get:
       operationId: listar_mis_productos
-      description: Publicados y despublicados, del más reciente al más antiguo, paginados.
-        El taller se deriva del token.
+      description: Publicados, despublicados y moderados, del más reciente al más
+        antiguo, paginados. El taller se deriva del token.
       summary: Listar los productos del taller propio
       parameters:
       - name: page
@@ -2790,7 +2807,8 @@ paths:
     post:
       operationId: despublicar_mi_producto
       description: Lo retira del catálogo público y de nuevas solicitudes sin borrarlo
-        (RF-019). Idempotente. Sin cuerpo.
+        (RF-019). Idempotente; también permitido si el producto está moderado, sin
+        levantar la moderación. Sin cuerpo.
       summary: Despublicar un producto del taller propio
       parameters:
       - in: path
@@ -2808,7 +2826,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'producto_sin_fotografia: falta fotografía.'
+          description: 'producto_sin_fotografia: falta fotografía. producto_moderado:
+            retirado por moderación administrativa, no puede volver a publicarse.'
         '200':
           content:
             application/json:
@@ -2837,7 +2856,8 @@ paths:
     post:
       operationId: publicar_mi_producto
       description: 'Lo muestra en el catálogo público. Idempotente: publicar un producto
-        ya publicado responde 200 sin cambios. Sin cuerpo.'
+        ya publicado responde 200 sin cambios. Un producto retirado por moderación
+        responde 409 producto_moderado y no cambia. Sin cuerpo.'
       summary: Publicar un producto del taller propio
       parameters:
       - in: path
@@ -2855,7 +2875,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'producto_sin_fotografia: falta fotografía.'
+          description: 'producto_sin_fotografia: falta fotografía. producto_moderado:
+            retirado por moderación administrativa, no puede volver a publicarse.'
         '200':
           content:
             application/json:
@@ -4106,6 +4127,29 @@ components:
         * `image/png` - image/png
         * `image/webp` - image/webp
         * `application/pdf` - application/pdf
+    ConfiguracionPublica:
+      type: object
+      description: Configuración pública. Sin tasa configurada, ambos campos son null
+        (D-AUD14-06).
+      properties:
+        tasa_cambio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,4})?$
+          readOnly: true
+          nullable: true
+          description: 'Córdobas por un dólar, como texto decimal con cuatro decimales;
+            null si la administración no la ha configurado. Solo informativa: los
+            importes contractuales están en córdobas.'
+        actualizada_en:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Fecha de la última actualización de la tasa; null sin tasa.
+      required:
+      - actualizada_en
+      - tasa_cambio
     ConflictoCumplimiento:
       type: object
       properties:
@@ -4932,6 +4976,21 @@ components:
         * `stock` - Venta desde stock
         * `produccion` - Producción por cantidad
         * `personalizacion` - Personalización
+    ModeracionPropia:
+      type: object
+      description: 'Moderación vista por el artesano: motivo y fecha, sin la identidad
+        del actor.'
+      properties:
+        motivo:
+          type: string
+          readOnly: true
+        moderado_en:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - moderado_en
+      - motivo
     MovimientoInventario:
       type: object
       properties:
@@ -5773,8 +5832,11 @@ components:
       - precio
     ProductoPropio:
       type: object
-      description: 'Producto del taller propio: añade su estado de publicación y última
-        edición.'
+      description: |-
+        Producto del taller propio: añade su estado de publicación, moderación y última edición.
+
+        ``publicado`` es la decisión del artesano; ``moderacion`` (null si no existe) indica un
+        retiro administrativo que impide publicarlo (RF-019, D-AUD14-04).
       properties:
         id:
           type: integer
@@ -5812,6 +5874,14 @@ components:
         publicado:
           type: boolean
           readOnly: true
+        moderacion:
+          allOf:
+          - $ref: '#/components/schemas/ModeracionPropia'
+          nullable: true
+          readOnly: true
+          description: 'Retiro por moderación administrativa: motivo y fecha; null
+            si no existe. Un producto moderado no aparece en el catálogo ni puede
+            publicarse.'
         creado_en:
           type: string
           format: date-time
@@ -5833,6 +5903,7 @@ components:
       - fotografia_url
       - id
       - modalidades
+      - moderacion
       - nombre
       - precio
       - publicado
