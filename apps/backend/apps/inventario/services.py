@@ -25,6 +25,7 @@ from .models import (
     InventarioProducto,
     MovimientoInventario,
     ReservaInventario,
+    ResultadoClasificacion,
     TipoMovimientoInventario,
 )
 
@@ -313,6 +314,129 @@ def consumir_reserva(
         existencia_despues=inventario.existencia_fisica,
         reservada_antes=reservada_antes,
         reservada_despues=inventario.reservada,
+        actor=actor,
+        pedido_id=reserva.pedido_id,
+        linea_pedido_id=reserva.linea_pedido_id,
+        reserva=reserva,
+        motivo=motivo,
+    )
+
+
+# --- Finalización comercial del pedido y clasificación (AUD-13; RN-024, D-AUD13-14..17) ---
+
+
+def motivo_liberacion_cancelacion(pedido_id: int) -> str:
+    return f"Liberación por cancelación del taller del pedido #{pedido_id}."
+
+
+def motivo_liberacion_cierre(pedido_id: int) -> str:
+    return f"Liberación por cierre parcial del pedido #{pedido_id}."
+
+
+def liberar_remanentes_por_finalizacion(*, pedido, motivo: str, actor) -> list[ReservaInventario]:
+    """Libera solo el remanente no manipulado de cada reserva al cancelar o cerrar.
+
+    A diferencia de ``liberar_reservas_de_pedido`` (AUD-11), admite reservas ya
+    ``consumida`` por el cumplimiento previo (D-AUD13-14):
+
+    - ``activa`` → libera ``cantidad_pendiente`` (``reservada -=``, existencia igual) y pasa
+      a ``liberada`` conservando ``cantidad_consumida``;
+    - ``consumida`` → sin cambios (lo consumido no vuelve automáticamente al stock);
+    - ``liberada`` → inconsistencia: el pedido aún no estaba finalizado
+      (``ReservaInconsistente``, sin escribir nada).
+
+    Se ejecuta dentro de la transacción del llamador con el ``Pedido`` ya bloqueado; bloquea
+    las reservas por ``id`` y después los inventarios por ``producto_id`` ascendente.
+    Devuelve todas las reservas del pedido (bloqueadas) para derivar las obligaciones de
+    clasificación.
+    """
+    reservas = list(
+        ReservaInventario.objects.select_for_update(of=("self",))
+        .filter(pedido=pedido)
+        .order_by("id")
+    )
+    for reserva in reservas:
+        if reserva.estado == EstadoReserva.LIBERADA:
+            raise ReservaInconsistente(reserva)
+    activas = [r for r in reservas if r.estado == EstadoReserva.ACTIVA]
+    if not activas:
+        return reservas
+    inventarios = bloquear_inventarios(r.producto_id for r in activas)
+    for reserva in activas:
+        pendiente = reserva.cantidad_pendiente
+        inv = inventarios.get(reserva.producto_id)
+        if inv is None or inv.reservada < pendiente:
+            raise ReservaInconsistente(reserva)
+        reservada_antes = inv.reservada
+        inv.reservada = reservada_antes - pendiente
+        inv.save(update_fields=["reservada", "actualizado_en"])
+        reserva.estado = EstadoReserva.LIBERADA
+        reserva.save(update_fields=["estado", "actualizada_en"])
+        MovimientoInventario.objects.create(
+            producto_id=reserva.producto_id,
+            tipo=TipoMovimientoInventario.LIBERACION,
+            cantidad=pendiente,
+            existencia_antes=inv.existencia_fisica,
+            existencia_despues=inv.existencia_fisica,
+            reservada_antes=reservada_antes,
+            reservada_despues=inv.reservada,
+            actor=actor,
+            pedido=pedido,
+            linea_pedido_id=reserva.linea_pedido_id,
+            reserva=reserva,
+            motivo=motivo,
+        )
+    return reservas
+
+
+def bloquear_inventarios(productos_ids) -> dict[int, InventarioProducto]:
+    """``SELECT … FOR UPDATE`` de los inventarios en orden ascendente de ``producto_id``."""
+    return {
+        inv.producto_id: inv
+        for inv in InventarioProducto.objects.select_for_update(of=("self",))
+        .filter(producto_id__in=sorted(set(productos_ids)))
+        .order_by("producto_id")
+    }
+
+
+def registrar_movimiento_clasificacion(
+    *,
+    reserva: ReservaInventario,
+    inventario: InventarioProducto | None,
+    resultado: str,
+    cantidad: int,
+    actor,
+    motivo: str,
+) -> MovimientoInventario:
+    """Efecto de una clasificación sobre el inventario estándar (D-AUD13-16/17).
+
+    - ``reutilizable`` → ``reincorporacion``: ``existencia_fisica += cantidad``; ``reservada``
+      no cambia, así que la unidad queda disponible.
+    - ``baja`` → ``baja``: la unidad ya salió de la existencia al consumirse; el movimiento
+      registra su disposición final con existencia y reservada iguales (sin doble descuento).
+
+    El llamador tiene bloqueados el ``Pedido`` y el inventario, y ya validó la cantidad
+    contra lo pendiente de la obligación.
+    """
+    if inventario is None or inventario.producto_id != reserva.producto_id:
+        raise ConsumoInvalido(reserva, "sin inventario del producto reservado.")
+    existencia_antes, reservada = inventario.existencia_fisica, inventario.reservada
+    if resultado == ResultadoClasificacion.REUTILIZABLE:
+        if existencia_antes + cantidad > MAX_CANTIDAD:
+            raise ConsumoInvalido(reserva, "la existencia resultante supera el máximo técnico.")
+        inventario.existencia_fisica = existencia_antes + cantidad
+        inventario.save(update_fields=["existencia_fisica", "actualizado_en"])
+        tipo = TipoMovimientoInventario.REINCORPORACION
+    else:
+        tipo = TipoMovimientoInventario.BAJA
+    return MovimientoInventario.objects.create(
+        producto_id=reserva.producto_id,
+        tipo=tipo,
+        cantidad=cantidad,
+        existencia_antes=existencia_antes,
+        existencia_despues=inventario.existencia_fisica,
+        reservada_antes=reservada,
+        reservada_despues=reservada,
         actor=actor,
         pedido_id=reserva.pedido_id,
         linea_pedido_id=reserva.linea_pedido_id,

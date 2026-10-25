@@ -321,6 +321,36 @@ class MovimientoInventario(_Inmutable):
                 ),
                 name="movimiento_consumo_coherente",
             ),
+            # Reutilizable: la unidad manipulada vuelve a la existencia estándar sin tocar lo
+            # reservado (D-AUD13-16).
+            models.CheckConstraint(
+                condition=(
+                    ~Q(tipo=TipoMovimientoInventario.REINCORPORACION)
+                    | (
+                        Q(pedido__isnull=False)
+                        & Q(linea_pedido__isnull=False)
+                        & Q(reserva__isnull=False)
+                        & Q(existencia_despues=F("existencia_antes") + F("cantidad"))
+                        & Q(reservada_despues=F("reservada_antes"))
+                    )
+                ),
+                name="movimiento_reincorporacion_coherente",
+            ),
+            # Baja de una unidad ya consumida de un pedido: disposición final sin volver a
+            # descontar existencia (D-AUD13-17). Otras bajas futuras sin reserva no se limitan.
+            models.CheckConstraint(
+                condition=(
+                    ~Q(tipo=TipoMovimientoInventario.BAJA)
+                    | Q(reserva__isnull=True)
+                    | (
+                        Q(pedido__isnull=False)
+                        & Q(linea_pedido__isnull=False)
+                        & Q(existencia_despues=F("existencia_antes"))
+                        & Q(reservada_despues=F("reservada_antes"))
+                    )
+                ),
+                name="movimiento_baja_clasificada_coherente",
+            ),
             # Una reserva se libera una sola vez (D-AUD11-15).
             models.UniqueConstraint(
                 fields=["reserva"],
@@ -337,3 +367,136 @@ class MovimientoInventario(_Inmutable):
 
     def __str__(self):
         return f"Movimiento {self.tipo} ({self.cantidad}) en producto #{self.producto_id}"
+
+
+# --- Clasificación de unidades estándar manipuladas no entregadas (AUD-13; RN-024) ---
+
+
+class _HistorialClasificacion(models.Model):
+    class Meta:
+        abstract = True
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise ValidationError("El historial de clasificación de inventario no se modifica.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValidationError("El historial de clasificación de inventario no se elimina.")
+
+
+class ObligacionClasificacionInventario(_HistorialClasificacion):
+    """Unidades estándar consumidas y no entregadas al finalizar un pedido (D-AUD13-15).
+
+    Nace en la transacción de la cancelación o de la aceptación del cierre parcial; el
+    artesano las clasifica después como Reutilizable o Baja (D-AUD13-19). Una por reserva:
+    una reserva solo se finaliza una vez.
+    """
+
+    pedido = models.ForeignKey(
+        "pedidos.Pedido",
+        on_delete=models.PROTECT,
+        related_name="obligaciones_clasificacion",
+    )
+    linea_pedido = models.ForeignKey(
+        "pedidos.LineaPedido",
+        on_delete=models.PROTECT,
+        related_name="obligaciones_clasificacion",
+    )
+    reserva = models.OneToOneField(
+        ReservaInventario,
+        on_delete=models.PROTECT,
+        related_name="obligacion_clasificacion",
+    )
+    cantidad = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    cancelacion = models.ForeignKey(
+        "pedidos.CancelacionPedido",
+        on_delete=models.PROTECT,
+        related_name="obligaciones_clasificacion",
+        null=True,
+        blank=True,
+    )
+    cierre_parcial = models.ForeignKey(
+        "pedidos.CierreParcialPedido",
+        on_delete=models.PROTECT,
+        related_name="obligaciones_clasificacion",
+        null=True,
+        blank=True,
+    )
+    creado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "obligación de clasificación de inventario"
+        verbose_name_plural = "obligaciones de clasificación de inventario"
+        ordering = ["id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(cantidad__gt=0), name="obligacion_cantidad_positiva"
+            ),
+            models.CheckConstraint(
+                condition=Q(cancelacion__isnull=False, cierre_parcial__isnull=True)
+                | Q(cancelacion__isnull=True, cierre_parcial__isnull=False),
+                name="obligacion_causa_unica",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Obligación de clasificar {self.cantidad} (reserva #{self.reserva_id})"
+
+
+class ResultadoClasificacion(models.TextChoices):
+    REUTILIZABLE = "reutilizable", "Reutilizable"
+    BAJA = "baja", "Baja"
+
+
+class ClasificacionInventario(_HistorialClasificacion):
+    """Decisión del artesano sobre parte de una obligación (D-AUD13-16/17).
+
+    ``Σ cantidad`` por obligación nunca supera ``obligacion.cantidad`` (servicio bajo el
+    lock del pedido). Cada clasificación deja exactamente un movimiento: ``reincorporacion``
+    (existencia += cantidad) o ``baja`` (existencia igual: la unidad ya había salido).
+    """
+
+    obligacion = models.ForeignKey(
+        ObligacionClasificacionInventario,
+        on_delete=models.PROTECT,
+        related_name="clasificaciones",
+    )
+    cantidad = models.PositiveIntegerField(validators=[MinValueValidator(1)])
+    resultado = models.CharField(max_length=20, choices=ResultadoClasificacion.choices)
+    motivo = models.CharField(
+        max_length=MAX_MOTIVO_MOVIMIENTO,
+        validators=[MaxLengthValidator(MAX_MOTIVO_MOVIMIENTO)],
+    )
+    movimiento = models.OneToOneField(
+        MovimientoInventario,
+        on_delete=models.PROTECT,
+        related_name="clasificacion",
+    )
+    registrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.PROTECT,
+        related_name="clasificaciones_inventario",
+    )
+    registrado_en = models.DateTimeField(default=timezone.now, editable=False)
+
+    class Meta:
+        verbose_name = "clasificación de inventario"
+        verbose_name_plural = "clasificaciones de inventario"
+        ordering = ["registrado_en", "id"]
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(cantidad__gt=0), name="clasificacion_cantidad_positiva"
+            ),
+            models.CheckConstraint(
+                condition=Q(resultado__in=ResultadoClasificacion.values),
+                name="clasificacion_resultado_valido",
+            ),
+            models.CheckConstraint(
+                condition=Q(motivo__regex=PATRON_NO_EN_BLANCO),
+                name="clasificacion_con_motivo",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.resultado} ({self.cantidad}) de la obligación #{self.obligacion_id}"
