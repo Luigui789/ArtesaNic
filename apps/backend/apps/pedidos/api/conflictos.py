@@ -1,4 +1,4 @@
-"""Traducción HTTP de las excepciones de cumplimiento (AUD-12).
+"""Traducción HTTP de las excepciones de cumplimiento (AUD-12) y resolución (AUD-13).
 
 400 entrada mal formada · 403 rol o taller no habilitado · 404 pedido, línea o entrega
 inexistente o ajeno · 409 acción incompatible (código de negocio) o clave reutilizada.
@@ -14,8 +14,9 @@ from apps.operaciones.api import contrato as idempotencia
 from apps.operaciones.services import CODIGO_CLAVE_REUTILIZADA
 from apps.solicitudes import services as solicitudes
 
-from .. import cumplimiento
+from .. import cumplimiento, errores
 from ..cumplimiento import CodigoConflictoCumplimiento
+from ..errores import CodigoConflictoResolucion
 
 CODIGOS_CONFLICTO = [
     *CodigoConflictoCumplimiento.MENSAJES.items(),
@@ -68,5 +69,61 @@ def errores_de_cumplimiento():
         raise exceptions.PermissionDenied() from None
     except cumplimiento.ConflictoCumplimiento as exc:
         raise Conflicto(exc) from None
+    except operaciones.ClaveIdempotenciaReutilizada:
+        raise idempotencia.ClaveReutilizada() from None
+
+
+# --- Resolución, reembolsos y clasificación (AUD-13) ---
+
+CODIGOS_CONFLICTO_RESOLUCION = [
+    *CodigoConflictoResolucion.MENSAJES.items(),
+    (CODIGO_CLAVE_REUTILIZADA, "Clave reutilizada con otra petición"),
+]
+
+
+class ConflictoResolucionSerializer(serializers.Serializer):
+    detail = serializers.CharField()
+    codigo = serializers.ChoiceField(choices=CODIGOS_CONFLICTO_RESOLUCION)
+    obligaciones = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        help_text="Obligaciones afectadas, cuando el conflicto se refiere a ellas.",
+    )
+
+
+class ConflictoDeResolucion(exceptions.APIException):
+    status_code = status.HTTP_409_CONFLICT
+    default_code = "conflicto"
+
+    def __init__(self, error: errores.ConflictoResolucion):
+        super().__init__({"detail": error.mensaje, "codigo": error.codigo})
+        if error.obligaciones:
+            self.detail = {**self.detail, "obligaciones": list(error.obligaciones)}
+
+
+def respuesta_conflicto_resolucion(*codigos: str) -> OpenApiResponse:
+    lista = ", ".join(f"`{c}`" for c in (*codigos, CODIGO_CLAVE_REUTILIZADA))
+    return OpenApiResponse(
+        ConflictoResolucionSerializer,
+        description=f"Conflicto sin efectos (nada se escribe); `codigo` estable: {lista}.",
+    )
+
+
+@contextmanager
+def errores_de_resolucion():
+    try:
+        yield
+    except cumplimiento.EntradaInvalida as exc:
+        raise exceptions.ValidationError(exc.errores) from None
+    except (
+        cumplimiento.PedidoNoEncontrado,
+        errores.CierreNoEncontrado,
+        errores.ReembolsoNoEncontrado,
+    ):
+        raise exceptions.NotFound() from None
+    except (solicitudes.ArtesanoNoHabilitado, solicitudes.CompradorNoValido):
+        raise exceptions.PermissionDenied() from None
+    except errores.ConflictoResolucion as exc:
+        raise ConflictoDeResolucion(exc) from None
     except operaciones.ClaveIdempotenciaReutilizada:
         raise idempotencia.ClaveReutilizada() from None

@@ -6,7 +6,7 @@
  * No hace peticiones propias: usa las mismas `queryKey` que la sección de pago y el
  * seguimiento, de modo que TanStack Query comparte la caché y la petición en vuelo.
  */
-import { CalendarX2, Check, Circle } from "lucide-react";
+import { CalendarX2, Check, Circle, X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { Section } from "@/components/common/page";
 import { useSession } from "@/features/auth/use-session";
@@ -66,6 +66,7 @@ function PasoLinea({ paso, ultimo }: { paso: PasoProgreso; ultimo: boolean }) {
   const completado = estado === "completado";
   const actual = estado === "actual";
   const negativo = estado === "final_negativo";
+  const parcial = estado === "final_parcial";
   return (
     <li className="flex min-w-0 gap-3" aria-current={actual ? "step" : undefined}>
       <div className="flex shrink-0 flex-col items-center">
@@ -75,6 +76,7 @@ function PasoLinea({ paso, ultimo }: { paso: PasoProgreso; ultimo: boolean }) {
             completado && "border-success bg-success text-success-foreground",
             actual && "border-primary bg-primary text-primary-foreground",
             negativo && "border-destructive bg-destructive text-destructive-foreground",
+            parcial && "border-warning bg-warning/20 text-foreground",
             estado === "pendiente" && "border-border bg-card text-muted-foreground",
           )}
           aria-hidden="true"
@@ -82,9 +84,13 @@ function PasoLinea({ paso, ultimo }: { paso: PasoProgreso; ultimo: boolean }) {
           {completado ? (
             <Check className="size-4" />
           ) : negativo ? (
-            <CalendarX2 className="size-4" />
+            paso.clave === "cancelado" ? (
+              <X className="size-4" />
+            ) : (
+              <CalendarX2 className="size-4" />
+            )
           ) : (
-            <Circle className={cn("size-2.5", actual && "fill-current")} />
+            <Circle className={cn("size-2.5", (actual || parcial) && "fill-current")} />
           )}
         </span>
         {ultimo ? null : (

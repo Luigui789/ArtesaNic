@@ -36,6 +36,20 @@ const MENSAJES: Record<string, string> = {
   cantidad_entrega_excede_pendiente:
     "La cantidad supera lo que falta por entregar. Actualiza para ver las cantidades pendientes.",
   recepcion_ya_registrada: "Ya registraste tu respuesta sobre esta entrega.",
+  pedido_finalizado: "El pedido ya finalizó y no admite esta acción. Actualiza para ver su estado.",
+  cancelacion_requiere_sin_entregas:
+    "El pedido ya tiene entregas: en lugar de cancelarlo, propón un cierre parcial.",
+  pago_pendiente_de_resolucion:
+    "Hay un pago registrado u observado sin resolver. Resuélvelo antes de cancelar el pedido.",
+  cierre_requiere_entrega_parcial:
+    "El cierre parcial requiere al menos una unidad entregada y otra pendiente.",
+  cierre_parcial_pendiente:
+    "Hay una propuesta de cierre parcial esperando la respuesta del comprador.",
+  cierre_ya_resuelto:
+    "Esta propuesta de cierre ya fue respondida. Actualiza para ver el resultado.",
+  reembolso_ya_realizado: "La devolución de este reembolso ya fue registrada.",
+  clasificacion_excede_pendiente:
+    "La cantidad supera las unidades pendientes de clasificar. Actualiza para ver lo pendiente.",
   resultado_pendiente:
     "No pudimos confirmar el resultado anterior. Reintenta con los mismos datos antes de iniciar otra operación.",
 };

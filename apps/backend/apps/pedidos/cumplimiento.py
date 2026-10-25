@@ -37,8 +37,10 @@ from apps.pagos.models import EstadoPago, Pago
 from apps.solicitudes.models import OrigenPersonalizacion
 from apps.solicitudes.services import verificar_artesano_habilitado, verificar_comprador_activo
 
+from .errores import CodigoConflictoResolucion
 from .models import (
     MAX_MOTIVO_DISCREPANCIA,
+    CierreParcialPedido,
     CumplimientoLineaPedido,
     EntregaPedido,
     EstadoOperativoPedido,
@@ -88,6 +90,9 @@ class CodigoConflictoCumplimiento:
 
     PEDIDO_VENCIDO = "pedido_vencido"
     PEDIDO_ENTREGADO = "pedido_entregado"
+    # AUD-13: mismos códigos y mensajes que la resolución del pedido.
+    PEDIDO_FINALIZADO = CodigoConflictoResolucion.PEDIDO_FINALIZADO
+    CIERRE_PARCIAL_PENDIENTE = CodigoConflictoResolucion.CIERRE_PARCIAL_PENDIENTE
     PAGO_NO_CONFIRMADO = "pago_no_confirmado"
     LINEA_YA_INICIADA = "linea_ya_iniciada"
     LINEA_NO_INICIADA = "linea_no_iniciada"
@@ -106,6 +111,8 @@ class CodigoConflictoCumplimiento:
             "La cantidad indicada supera lo que falta por entregar de ese producto."
         ),
         RECEPCION_YA_REGISTRADA: "Ya registraste tu respuesta sobre esta entrega.",
+        PEDIDO_FINALIZADO: CodigoConflictoResolucion.MENSAJES[PEDIDO_FINALIZADO],
+        CIERRE_PARCIAL_PENDIENTE: CodigoConflictoResolucion.MENSAJES[CIERRE_PARCIAL_PENDIENTE],
     }
 
 
@@ -169,12 +176,28 @@ def _verificar_pago_confirmado(pago: Pago | None) -> None:
 
 
 def _verificar_operable(pago: Pago | None, estado: EstadoOperativoPedido) -> None:
-    """Iniciar y entregar: pedido vivo, no entregado y con Pago confirmado (RN-015)."""
+    """Iniciar y entregar: pedido vivo, no entregado ni finalizado (AUD-13), con Pago
+    confirmado (RN-015) y sin una propuesta de cierre parcial pendiente (D-AUD13-05)."""
     if estado.estado == EstadoPedido.VENCIDO_FALTA_PAGO:
         raise ConflictoCumplimiento(CodigoConflictoCumplimiento.PEDIDO_VENCIDO)
     if estado.estado == EstadoPedido.ENTREGADO:
         raise ConflictoCumplimiento(CodigoConflictoCumplimiento.PEDIDO_ENTREGADO)
+    if estado.estado in (EstadoPedido.CANCELADO_ARTESANO, EstadoPedido.CERRADO_PARCIAL):
+        raise ConflictoCumplimiento(CodigoConflictoCumplimiento.PEDIDO_FINALIZADO)
     _verificar_pago_confirmado(pago)
+    # Con el Pedido bloqueado: el cierre y la entrega se serializan; el snapshot económico
+    # de un cierre pendiente nunca queda desactualizado.
+    if cierre_pendiente(estado.pedido_id) is not None:
+        raise ConflictoCumplimiento(CodigoConflictoCumplimiento.CIERRE_PARCIAL_PENDIENTE)
+
+
+def cierre_pendiente(pedido_id: int) -> CierreParcialPedido | None:
+    """Propuesta de cierre parcial sin respuesta del comprador (como mucho una)."""
+    return (
+        CierreParcialPedido.objects.filter(pedido_id=pedido_id, decision__isnull=True)
+        .order_by("-numero")
+        .first()
+    )
 
 
 def _transicion(estado: EstadoOperativoPedido, nuevo: str, actor, momento) -> None:

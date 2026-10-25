@@ -142,8 +142,19 @@ La tarjeta «Progreso del pedido» (`progreso-pedido.tsx`) muestra la etapa gene
 línea de tiempo vertical (arriba en móvil, columna derecha en escritorio), derivada de pedido,
 pago y cumplimiento sin estados ni consultas nuevas.
 
-Los endpoints pendientes de cancelación y cierre parcial, mensajes/notificaciones reales y
-perfil personal permanecen fuera de alcance. No se inventaron llamadas ni estados para
+**Actualización AUD-13:** el mismo detalle integra `components/resolucion-pedido.tsx` (cliente
+`features/pedidos/resolucion.ts`, query keys `resolucion` y `clasificacionesPedido` con usuario,
+parte y pedido): el artesano cancela con motivo antes de cualquier entrega (o ve por qué no
+puede), propone un cierre parcial viendo entregado, pendiente y el reembolso estimado por el
+servidor, y registra la devolución del reembolso (fecha y referencia, sin campo de monto); el
+comprador acepta u objeta la propuesta pendiente. Ambas partes ven el reembolso (tipo, monto,
+estado Pendiente/Realizado, origen, fecha y referencia). Solo el artesano ve «Unidades por
+clasificar» (Reutilizable/Baja con cantidad y motivo). Tras finalizar, «Seguimiento y
+entregas» y el pago quedan en modo histórico, y la línea de tiempo termina en «Cancelado por el
+taller» o «Cerrado parcialmente». Sin rutas nuevas ni montos calculados en React
+([contrato](../api/resolucion-pedidos.md), [reembolsos](../api/reembolsos.md)).
+
+Los mensajes/notificaciones reales y el perfil personal permanecen fuera de alcance. No se inventaron llamadas ni estados para
 ocultar esa ausencia. El taller rechazado aún no tiene acción backend de volver a solicitar
 revisión. El dashboard aclara que sus tareas se basan en solicitudes recientes, porque la API
 no ofrece un contador global filtrado. La disponibilidad del catálogo sigue sin endpoint público.

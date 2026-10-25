@@ -1,5 +1,5 @@
 /**
- * Hitos visuales del progreso del pedido (AUD-12). Se derivan solo de datos reales del
+ * Hitos visuales del progreso del pedido (AUD-12/13). Se derivan solo de datos reales del
  * servidor —estado del pedido, estado del pago y cumplimiento por renglón— y no son estados
  * del backend: «pago confirmado» o «entregas en curso» nunca se persisten. No reutiliza la
  * máquina de estados ni los tipos del prototipo simulado.
@@ -8,9 +8,16 @@ import type { EstadoPago } from "@/features/pagos/types";
 import type { EstadoPedidoOperativo } from "./confirmados";
 import type { Cumplimiento } from "./cumplimiento";
 
-export type EstadoPaso = "completado" | "actual" | "pendiente" | "final_negativo";
+export type EstadoPaso = "completado" | "actual" | "pendiente" | "final_negativo" | "final_parcial";
 export type ClavePaso =
-  "confirmado" | "pago" | "cumplimiento" | "entregas" | "entregado" | "vencido";
+  | "confirmado"
+  | "pago"
+  | "cumplimiento"
+  | "entregas"
+  | "entregado"
+  | "vencido"
+  | "cancelado"
+  | "cerrado_parcial";
 
 export interface PasoProgreso {
   clave: ClavePaso;
@@ -25,6 +32,7 @@ export const TEXTO_ESTADO_PASO: Record<EstadoPaso, string> = {
   actual: "Paso actual",
   pendiente: "Pendiente",
   final_negativo: "Estado final",
+  final_parcial: "Estado final",
 };
 
 const PAGO_NO_CONFIRMADO: Record<Exclude<EstadoPago, "confirmado">, [string, string]> = {
@@ -75,6 +83,64 @@ export function pasosProgreso({
   const registradas = entregas
     ? plural(entregas, "entrega registrada", "entregas registradas")
     : "";
+
+  // Cancelación del taller (AUD-13): terminal, sin «Pedido entregado» como paso futuro.
+  if (estadoPedido === "cancelado_artesano") {
+    const pasos: PasoProgreso[] = [CONFIRMADO];
+    if (estadoPago === "confirmado")
+      pasos.push({
+        clave: "pago",
+        label: "Pago confirmado",
+        detalle: "Fondos verificados; corresponde un reembolso total.",
+        estado: "completado",
+      });
+    const iniciadas = cumplimiento?.lineas.filter((l) => l.iniciadoEn !== null).length ?? 0;
+    if (iniciadas)
+      pasos.push({
+        clave: "cumplimiento",
+        label: "En cumplimiento",
+        detalle: `${plural(iniciadas, "producto iniciado", "productos iniciados")} antes de cancelar.`,
+        estado: "completado",
+      });
+    pasos.push({
+      clave: "cancelado",
+      label: "Cancelado por el taller",
+      detalle: "El taller canceló antes de cualquier entrega.",
+      estado: "final_negativo",
+    });
+    return pasos;
+  }
+
+  // Cierre parcial aceptado (AUD-13): no se entregó todo, así que no es «Pedido entregado».
+  if (estadoPedido === "cerrado_parcial")
+    return [
+      CONFIRMADO,
+      {
+        clave: "pago",
+        label: "Pago confirmado",
+        detalle: "Fondos verificados por el taller.",
+        estado: "completado",
+      },
+      {
+        clave: "cumplimiento",
+        label: "En cumplimiento",
+        detalle: "El trabajo comenzó según cada producto.",
+        estado: "completado",
+      },
+      {
+        clave: "entregas",
+        label: "Entrega parcial",
+        detalle: registradas ? `${registradas}.` : "Se entregó una parte de lo acordado.",
+        estado: "completado",
+      },
+      {
+        clave: "cerrado_parcial",
+        label: "Cerrado parcialmente",
+        detalle:
+          "El comprador aceptó cerrar sin las cantidades restantes; corresponde un reembolso parcial.",
+        estado: "final_parcial",
+      },
+    ];
 
   // Entregado depende solo del estado del pedido, nunca de la respuesta del comprador.
   if (estadoPedido === "entregado")

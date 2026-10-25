@@ -3,13 +3,15 @@
 **Fecha:** 22 de octubre de 2026 (America/Managua).
 **Estado:** inventario de unidades estándar, reservas transaccionales al confirmar pedido y
 bitácora append-only de movimientos (`apps/inventario/`). Liberación por vencimiento en
-AUD-11; consumo por entrega y por inicio de transformación en AUD-12; clasificación,
-reincorporación y baja por cancelación/devolución pertenecen a AUD-13.
+AUD-11; consumo por entrega y por inicio de transformación en AUD-12; liberación del
+remanente al cancelar o cerrar parcialmente, clasificación, reincorporación y baja de unidades
+manipuladas en AUD-13.
 **Fuentes:** RF-001, RF-005, RF-017, RF-018, RF-022, RF-023; RN-009, RN-011, RN-021,
 RN-022, RN-023; RNF-008, RNF-011, RNF-014, RNF-015.
 **Esquema:** [OpenAPI generado](openapi.yaml), etiqueta `Inventario`.
 **Decisiones:** [D-AUD07-04 a D-AUD07-12](../decisiones/v1.md#concreciones-de-aud-07),
-[D-AUD11](../decisiones/v1.md#concreciones-de-aud-11) y [D-AUD12](../decisiones/v1.md#concreciones-de-aud-12).
+[D-AUD11](../decisiones/v1.md#concreciones-de-aud-11), [D-AUD12](../decisiones/v1.md#concreciones-de-aud-12)
+y [D-AUD13](../decisiones/v1.md#concreciones-de-aud-13).
 **Relacionados:** [pedidos confirmados](pedidos.md), [revisión y propuesta](propuestas.md),
 [idempotencia](idempotencia.md).
 
@@ -76,10 +78,10 @@ Todo cambio en `existencia_fisica` o `reservada` registra un `MovimientoInventar
 | `ajuste_positivo` | AUD-07 | $> 0$ | `(+cantidad, +0)` con `motivo` obligatorio |
 | `ajuste_negativo` | AUD-07 | $< 0$ | `(-|delta|, +0)` con `motivo` obligatorio; exige `existencia_fisica - |delta| >= reservada` |
 | `reserva` | AUD-07 | $> 0$ | `(+0, +cantidad)` vinculada a `pedido`, `linea_pedido` y `reserva` |
-| `liberacion` | AUD-11 | $> 0$ | `(+0, -cantidad)` vinculada a `pedido`, `linea_pedido` y `reserva`; `actor = NULL` en el vencimiento automático |
+| `liberacion` | AUD-11/13 | $> 0$ | `(+0, -cantidad)` vinculada a `pedido`, `linea_pedido` y `reserva`; `actor = NULL` en el vencimiento automático; el artesano (cancelación) o el comprador (aceptación del cierre) en AUD-13 |
 | `consumo` | AUD-12 | $> 0$ | `(-cantidad, -cantidad)` vinculada a `pedido`, `linea_pedido` y `reserva`; entrega de stock o inicio de transformación sobre unidad estándar |
-| `reincorporacion` | AUD-12/13 | $> 0$ | Preparado en el esquema para clasificación posterior |
-| `baja` | AUD-12/13 | $< 0$ | Preparado en el esquema para unidades dañadas o dadas de baja |
+| `reincorporacion` | AUD-13 | $> 0$ | `(+cantidad, +0)` vinculada a `pedido`, `linea_pedido` y `reserva`: unidad manipulada clasificada «Reutilizable» (CHECK `movimiento_reincorporacion_coherente`) |
+| `baja` | AUD-13 | $> 0$ | Con reserva: `(+0, +0)` y motivo obligatorio, disposición final de una unidad ya consumida, sin doble descuento (CHECK `movimiento_baja_clasificada_coherente`); otros usos futuros sin reserva no se limitan |
 
 Cada movimiento almacena `existencia_posterior` y `reservada_posterior` (con `CHECK` `reservada_posterior <= existencia_posterior`), `actor`, `motivo`, referencias opcionales a `pedido`, `linea_pedido` y `reserva`, y `creado_en`.
 
@@ -115,6 +117,24 @@ sin `UNIQUE` por reserva (varias entregas parciales). La liberación de AUD-11 l
 En la interfaz, el historial muestra `consumo` como «Consumo de unidad reservada» junto con su
 motivo («Consumo por entrega #N del pedido #X.» o «Consumo al iniciar transformación del
 pedido #X.»).
+
+## Finalización del pedido y clasificación (AUD-13)
+
+Al cancelar el taller o aceptar el comprador un cierre parcial,
+`liberar_remanentes_por_finalizacion` libera solo `cantidad_pendiente` de cada reserva `activa`
+(`reservada -= q`, existencia igual, `activa → liberada` conservando `cantidad_consumida`); las
+`consumida` no cambian y una `liberada` previa aborta la transacción. A diferencia del liberador
+de AUD-11, admite reservas consumidas por el cumplimiento. Ejemplos: stock 5 con 2 entregadas →
+se liberan 3 y no queda nada por clasificar; personalización sobre unidad base de 4, consumida
+al iniciar y 1 entregada → nada que liberar y una obligación de clasificación por 3.
+
+Las unidades consumidas y no entregadas (`cantidad_consumida − entregada`) generan una
+`ObligacionClasificacionInventario` por reserva. El artesano las clasifica desde el detalle del
+pedido (`/api/v1/pedidos/recibidos/{id}/clasificaciones/`, ver
+[resolución de pedidos](resolucion-pedidos.md#clasificación-solo-artesano)): `reutilizable`
+reincorpora (`existencia_fisica += q`, disponible otra vez) y `baja` deja existencia y
+reservada iguales. Ejemplo: existencia 6 → 2 reutilizables → 8; 1 baja → 8. El historial
+muestra ambos movimientos con su motivo.
 
 ## Endpoints del artesano
 

@@ -23,26 +23,37 @@ Back-Artesanic/
 │   │   ├── services.py         ejecutar_idempotente: huella, registro y árbitro UNIQUE en la transacción
 │   │   └── api/               Contrato Idempotency-Key reutilizable y consulta de resultado propia
 │   ├── inventario/             Existencia física, reservada, reservas y bitácora append-only (AUD-07)
-│   │   ├── models.py           InventarioProducto, ReservaInventario y MovimientoInventario
+│   │   ├── models.py           InventarioProducto, ReservaInventario y MovimientoInventario;
+│   │   │                       ObligacionClasificacionInventario y ClasificacionInventario (AUD-13)
 │   │   ├── services.py         Existencia inicial, entradas, ajustes, reservas atómicas con FOR UPDATE,
-│   │   │                       liberación (AUD-11) y consumo parcial de reservas (AUD-12, uso interno)
+│   │   │                       liberación (AUD-11), consumo parcial de reservas (AUD-12, uso interno),
+│   │   │                       liberación de remanentes, reincorporación y baja clasificada (AUD-13)
 │   │   ├── selectors.py        Inventario y movimientos propios del taller
 │   │   ├── api/               Gestión de inventario del artesano y conflictos 409
 │   │   └── tests/             Reglas por modalidad, ajustes bajo comprometido y carreras en PostgreSQL
-│   ├── pedidos/                Pedido confirmado, snapshot inmutable (AUD-07), estado operativo (AUD-11)
-│   │                           y cumplimiento por renglón con entregas (AUD-12)
+│   ├── pedidos/                Pedido confirmado, snapshot inmutable (AUD-07), estado operativo (AUD-11),
+│   │                           cumplimiento por renglón con entregas (AUD-12) y resolución (AUD-13)
 │   │   ├── models.py           Pedido, LineaPedido y CargoPedido (snapshot); EstadoOperativoPedido y
 │   │   │                       EventoEstadoPedido (proyección mutable e historial append-only);
-│   │   │                       CumplimientoLineaPedido, EntregaPedido, LineaEntrega y RecepcionEntrega
-│   │   ├── services.py         Creación transaccional desde la propuesta aceptada (+ estado y cumplimiento)
+│   │   │                       CumplimientoLineaPedido, EntregaPedido, LineaEntrega y RecepcionEntrega;
+│   │   │                       DistribucionEconomicaLineaPedido, CancelacionPedido, CierreParcialPedido,
+│   │   │                       LineaCierreParcial, DecisionCierreParcial, ReembolsoPedido y
+│   │   │                       DevolucionReembolso (AUD-13, append-only)
+│   │   ├── services.py         Creación transaccional desde la propuesta aceptada (+ estado, cumplimiento
+│   │   │                       y copia de la distribución económica)
 │   │   ├── cumplimiento.py     Iniciar renglón, registrar entrega y recepción: Pago confirmado, locks,
 │   │   │                       consumo de reservas, transiciones y puntos de integración AUD-20
+│   │   ├── resolucion.py       Cancelación del taller, propuesta y respuesta de cierre parcial (AUD-13)
+│   │   ├── reembolsos.py       Base reembolsable, reembolso total/parcial y devolución externa (AUD-13)
+│   │   ├── clasificacion.py    Clasificación reutilizable/baja de unidades manipuladas (AUD-13)
+│   │   ├── errores.py          Códigos 409 de la resolución (AUD-13)
 │   │   ├── vencimiento.py      Vencimiento por falta de pago: candidatos por lote, lock y revalidación
 │   │   ├── management/commands/procesar_vencimientos_pago.py
 │   │   │                       Proceso automático (--once / --interval), servicio Compose «vencimientos»
 │   │   ├── selectors.py        Lectura en tres consultas sin JOIN al catálogo vivo; cumplimiento en cuatro
 │   │   ├── api/               Lecturas de comprador (/pedidos/mios/) y taller (/pedidos/recibidos/),
-│   │   │                       cumplimiento, inicio de renglón, entregas y recepción (AUD-12)
+│   │   │                       cumplimiento, inicio de renglón, entregas y recepción (AUD-12),
+│   │   │                       resolución, cancelación, cierres, devolución y clasificación (AUD-13)
 │   │   └── tests/             Snapshot, permisos, idempotencia, plazos, liberación, carreras y smoke
 │   ├── solicitudes/            Solicitud, RenglonSolicitud (AUD-05) y su revisión (AUD-06)
 │   │   ├── models.py           Modalidad por renglón, estados, preferencia de entrega e historial
@@ -51,7 +62,9 @@ Back-Artesanic/
 │   │   ├── api/               Creación, lecturas, resolución de renglón y conflictos 409
 │   │   └── tests/             Modalidades, revisión, DR-03, constraints, permisos, schema y consultas
 │   ├── propuestas/             Propuesta final del artesano (AUD-06) y decisión del comprador (AUD-07)
-│   │   ├── models.py           Propuesta, LineaPropuesta, CargoPropuesta y DecisionPropuesta inmutables
+│   │   ├── models.py           Propuesta, LineaPropuesta, CargoPropuesta, DecisionPropuesta y
+│   │   │                       DistribucionEconomicaLineaPropuesta (AUD-13) inmutables
+│   │   ├── distribucion.py     Reparto determinista de cargos globales y entrega (mayor residuo, AUD-13)
 │   │   ├── services.py         Emisión única y decisión transaccional (aceptar con pedido + reserva / rechazar)
 │   │   ├── selectors.py        Lectura por parte en tres consultas
 │   │   ├── api/               Emisión, lectura y decisión bajo /api/v1/solicitudes/{mias,recibidas}/{id}/propuesta/

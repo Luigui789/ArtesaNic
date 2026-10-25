@@ -12,6 +12,10 @@ export const claves = {
     ["pago-real", usuario, recibido, pedido] as const,
   cumplimiento: (usuario: number | undefined, recibido: boolean, pedido: number) =>
     ["cumplimiento-real", usuario, recibido, pedido] as const,
+  resolucion: (usuario: number | undefined, recibido: boolean, pedido: number) =>
+    ["resolucion-real", usuario, recibido, pedido] as const,
+  clasificacionesPedido: (usuario: number | undefined, recibido: boolean, pedido: number) =>
+    ["clasificaciones-pedido-real", usuario, recibido, pedido] as const,
   /** Binario privado: solo en memoria y con identidad; se descarta al desmontar. */
   comprobante: (usuario: number | undefined, url: string) =>
     ["comprobante-real", usuario, url] as const,

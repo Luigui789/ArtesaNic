@@ -217,6 +217,35 @@ class CargoPropuesta(_Inmutable):
         return f"Cargo {self.posicion} de la propuesta {self.propuesta_id}"
 
 
+class DistribucionEconomicaLineaPropuesta(_Inmutable):
+    """Parte de los cargos globales y del costo de entrega atribuida a una línea (AUD-13).
+
+    Se calcula y congela al emitir la propuesta (``distribucion.py``, D-AUD13-08/09), antes
+    de que el comprador decida; el pedido la copia sin recalcular. Por propuesta,
+    ``Σ otros_compartidos_asignados = Σ CargoPropuesta(linea IS NULL)`` y
+    ``Σ entrega_asignada = costo_entrega`` al centavo (garantía del servicio).
+    """
+
+    linea_propuesta = models.OneToOneField(
+        LineaPropuesta, on_delete=models.PROTECT, related_name="distribucion"
+    )
+    otros_compartidos_asignados = _importe(DIGITOS_IMPORTE)
+    entrega_asignada = _importe(DIGITOS_CARGO)
+
+    class Meta:
+        verbose_name = "distribución económica de línea de propuesta"
+        verbose_name_plural = "distribuciones económicas de líneas de propuesta"
+        constraints = [
+            models.CheckConstraint(
+                condition=Q(otros_compartidos_asignados__gte=0) & Q(entrega_asignada__gte=0),
+                name="distribucion_propuesta_no_negativa",
+            ),
+        ]
+
+    def __str__(self):
+        return f"Distribución de la línea de propuesta #{self.linea_propuesta_id}"
+
+
 class AccionDecisionPropuesta(models.TextChoices):
     """Acción enviada por el comprador al decidir sobre la propuesta emitida."""
 

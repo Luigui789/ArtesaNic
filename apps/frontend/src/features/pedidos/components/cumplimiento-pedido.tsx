@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/use-session";
 import { consultarPago } from "@/features/pagos/api";
+import { consultarResolucion } from "../resolucion";
 import { mensajeDominio } from "@/lib/errores-dominio";
 import { formatCalendarDate, formatDateTime } from "@/lib/format";
 import { ApiError, reintentarSalvoErrorDelCliente } from "@/lib/http";
@@ -72,6 +73,13 @@ export function CumplimientoPedido({
     retry: reintentarSalvoErrorDelCliente,
     enabled: recibido,
   });
+  // Misma clave que la sección de resolución (AUD-13): un cierre pendiente bloquea acciones.
+  const resolucion = useQuery({
+    queryKey: claves.resolucion(usuario?.id, recibido, pedido.id),
+    queryFn: ({ signal }) => consultarResolucion(recibido, pedido.id, signal),
+    retry: reintentarSalvoErrorDelCliente,
+    enabled: recibido,
+  });
   return (
     <Section
       title="Seguimiento y entregas"
@@ -87,6 +95,12 @@ export function CumplimientoPedido({
           cumplimiento={query.data}
           recibido={recibido}
           pagoConfirmado={pago.data ? pago.data.estado === "confirmado" : undefined}
+          // Mientras la resolución no se conoce, el artesano no ve acciones (como con el pago).
+          cierrePendiente={
+            resolucion.data
+              ? resolucion.data.cierresParciales.some((c) => c.estado === "pendiente")
+              : recibido
+          }
         />
       )}
     </Section>
@@ -98,6 +112,7 @@ export function VistaCumplimiento({
   cumplimiento: c,
   recibido,
   pagoConfirmado,
+  cierrePendiente = false,
 }: {
   pedido: PedidoConfirmado;
   cumplimiento: Cumplimiento;
@@ -105,10 +120,13 @@ export function VistaCumplimiento({
   /** Solo lo usa el artesano: sin pago confirmado no se ofrece iniciar ni entregar;
    * `undefined` mientras el pago no se conoce (sin acciones ni aviso). */
   pagoConfirmado?: boolean | undefined;
+  /** Solo artesano (AUD-13): con un cierre parcial pendiente no se ofrece iniciar ni
+   * entregar (la página pasa `true` mientras la resolución no se conoce). */
+  cierrePendiente?: boolean;
 }) {
   const snapshot = new Map(pedido.lineas.map((l) => [l.id, l]));
   const operable = c.estado === "confirmado" || c.estado === "en_cumplimiento";
-  const acciones = recibido && operable && pagoConfirmado === true;
+  const acciones = recibido && operable && pagoConfirmado === true && !cierrePendiente;
   const entregables = c.lineas.filter((l) => l.iniciadoEn !== null && l.cantidadPendiente > 0);
   return (
     <div className="min-w-0 space-y-5">
@@ -116,6 +134,18 @@ export function VistaCumplimiento({
         <Nota>El pedido venció por falta de pago: no admite trabajo ni entregas.</Nota>
       ) : c.estado === "entregado" ? (
         <Nota>Se entregaron todas las cantidades acordadas.</Nota>
+      ) : c.estado === "cancelado_artesano" ? (
+        <Nota>El taller canceló el pedido: el seguimiento queda como historial.</Nota>
+      ) : c.estado === "cerrado_parcial" ? (
+        <Nota>
+          El pedido se cerró parcialmente: no admite más trabajo ni entregas. El historial se
+          conserva.
+        </Nota>
+      ) : recibido && cierrePendiente ? (
+        <Nota>
+          Hay una propuesta de cierre parcial esperando la respuesta del comprador: no puedes
+          iniciar ni registrar entregas mientras tanto.
+        </Nota>
       ) : recibido && pagoConfirmado === false ? (
         <Nota>Podrás iniciar el trabajo y registrar entregas cuando confirmes el pago.</Nota>
       ) : null}

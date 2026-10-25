@@ -27,6 +27,7 @@ from apps.solicitudes.models import (
 )
 from apps.solicitudes.services import CodigoConflicto, ConflictoSolicitud, EntradaInvalida
 
+from . import distribucion
 from .models import (
     CERO,
     DECIMALES,
@@ -35,6 +36,7 @@ from .models import (
     AccionDecisionPropuesta,
     CargoPropuesta,
     DecisionPropuesta,
+    DistribucionEconomicaLineaPropuesta,
     LineaPropuesta,
     Propuesta,
     ResultadoDecisionPropuesta,
@@ -107,6 +109,25 @@ def _acotar(importe: Decimal) -> Decimal:
     if importe > IMPORTE_MAXIMO:
         raise EntradaInvalida({"non_field_errors": [MENSAJE_IMPORTE]})
     return importe
+
+
+def crear_distribucion(
+    propuesta: Propuesta, lineas: list[LineaPropuesta], cargos: list[CargoPropuesta]
+) -> list[DistribucionEconomicaLineaPropuesta]:
+    """Reparte cargos globales y entrega entre las líneas y lo congela (D-AUD13-08/09)."""
+    asignaciones = distribucion.distribuir(
+        distribucion.bases_de_lineas(lineas, cargos, posicion=lambda linea: linea.renglon.posicion),
+        pool_otros=distribucion.pool_otros(cargos),
+        pool_entrega=propuesta.costo_entrega,
+    )
+    return DistribucionEconomicaLineaPropuesta.objects.bulk_create(
+        DistribucionEconomicaLineaPropuesta(
+            linea_propuesta=linea,
+            otros_compartidos_asignados=asignaciones[linea.pk].otros_compartidos_asignados,
+            entrega_asignada=asignaciones[linea.pk].entrega_asignada,
+        )
+        for linea in lineas
+    )
 
 
 @transaction.atomic
@@ -215,7 +236,7 @@ def finalizar_propuesta(
     # PostgreSQL devuelve las claves: los cargos pueden referenciar sus líneas.
     LineaPropuesta.objects.bulk_create(filas)
     linea_de = {fila.renglon_id: fila for fila in filas}
-    CargoPropuesta.objects.bulk_create(
+    cargos = CargoPropuesta.objects.bulk_create(
         CargoPropuesta(
             propuesta=propuesta,
             linea=linea_de.get(datos.get("renglon")),
@@ -225,6 +246,8 @@ def finalizar_propuesta(
         )
         for posicion, datos in enumerate(otros_cargos, start=1)
     )
+    # Reparto congelado antes de la decisión del comprador (AUD-13, D-AUD13-08).
+    crear_distribucion(propuesta, filas, cargos)
 
     solicitud.estado = EstadoSolicitud.PROPUESTA_EMITIDA
     solicitud.save(update_fields=["estado", "actualizado_en"])
@@ -285,7 +308,7 @@ def decidir_propuesta(*, comprador, solicitud_id: int, decision: str) -> Decisio
         )
 
     lineas_propuesta = list(
-        propuesta.lineas.select_related("renglon__producto__categoria").order_by(
+        propuesta.lineas.select_related("renglon__producto__categoria", "distribucion").order_by(
             "renglon__posicion", "id"
         )
     )
