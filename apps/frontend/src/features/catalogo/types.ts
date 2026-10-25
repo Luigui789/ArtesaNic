@@ -52,9 +52,20 @@ export interface CatalogProduct {
   disponibleStock?: number | null | undefined;
 }
 
-/** Producto del taller propio: añade su estado de publicación (RF-019). */
+/** Retiro administrativo del producto (RF-019): motivo y fecha, sin el actor. */
+export interface ModeracionProducto {
+  motivo: string;
+  moderadoEn: string;
+}
+
+/**
+ * Producto del taller propio: añade su estado de publicación (RF-019). `publicado` es la
+ * decisión del artesano; `moderacion` (null si no existe) es un retiro administrativo que
+ * lo saca del catálogo e impide publicarlo, aunque sigue editable (D-AUD14-04).
+ */
 export interface OwnProduct extends CatalogProduct {
   publicado: boolean;
+  moderacion: ModeracionProducto | null;
   actualizadoEn: string;
 }
 

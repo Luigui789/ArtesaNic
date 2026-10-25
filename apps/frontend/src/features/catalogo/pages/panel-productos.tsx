@@ -15,7 +15,11 @@ import { FotografiaPrincipal } from "@/features/catalogo/components/fotografia-p
 import { ApiError } from "@/lib/http";
 import { ImageUploader } from "@/features/catalogo/components/image-uploader";
 import { ModalidadesTexto, ProductImage } from "@/features/catalogo/components/product-card";
-import { Badge } from "@/components/ui/badge";
+import {
+  AvisoModeracion,
+  EstadoProductoPropio,
+  MENSAJE_SIN_REPUBLICAR,
+} from "@/features/catalogo/components/estado-producto-propio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -307,13 +311,12 @@ export default function MisProductos() {
                     <div className="p-4">
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-xs text-muted-foreground">{p.categoria.nombre}</p>
-                        <Badge variant={p.publicado ? "default" : "outline"}>
-                          {p.publicado ? "Publicado" : "No publicado"}
-                        </Badge>
+                        <EstadoProductoPropio producto={p} />
                       </div>
                       <h2 className="mt-1 line-clamp-2 font-medium">{p.nombre}</h2>
                       <p className="mt-1 font-semibold text-primary">{format(p.precio)}</p>
                       <ModalidadesTexto modalidades={p.modalidades} className="mt-1 text-xs" />
+                      <AvisoModeracion producto={p} />
                       <div className="mt-3 grid grid-cols-2 gap-2">
                         <Button variant="outline" className="touch-target" onClick={() => abrir(p)}>
                           <Pencil className="size-4" aria-hidden="true" />
@@ -340,6 +343,11 @@ export default function MisProductos() {
                               }
                             }}
                           />
+                        ) : p.moderacion ? (
+                          // Backend es la autoridad (409 producto_moderado); aquí se explica.
+                          <p className="self-center text-xs text-muted-foreground">
+                            {MENSAJE_SIN_REPUBLICAR}
+                          </p>
                         ) : (
                           <Button
                             disabled={publicacion.isPending}
