@@ -1,12 +1,19 @@
 # Contribuir a ArtesaNic
 
-Trabajar desde `main` integrado y usar ramas `feature/*`, `fix/*` o `docs/*`; esta reorganización utiliza `chore/monorepo-migration`. Los PR de consolidación y migración se revisan por separado. No borrar ramas ni archivar repositorios sin confirmación del responsable.
+## Ramas
+
+- `develop` es la rama de integración. Cada trabajo sale de `develop` en una rama `feature/*`, `fix/*`, `refactor/*` o `docs/*`, y vuelve a `develop` mediante un PR revisado por otra persona del equipo.
+- `main` contiene solo versiones estables: se actualiza con un PR de `develop` a `main` cuando el equipo da por estable una versión.
+- No hacer commits directos en `develop` ni en `main`. Antes de abrir un PR, traer los últimos cambios de `develop` a la rama de trabajo.
+- No borrar ramas ni archivar repositorios sin confirmación del responsable.
+
+En el frontend, cada dominio tiene su carpeta en `apps/frontend/src/features/`; trabajar dentro del dominio propio reduce los conflictos. [Organización del frontend](apps/frontend/src/features/README.md).
 
 ## Dependencias y alcance
 
 Frontend: pnpm y `apps/frontend/pnpm-lock.yaml`. Backend: uv, `apps/backend/pyproject.toml` y `apps/backend/uv.lock`. Instalar con `--frozen-lockfile` y `--locked`; no generar locks paralelos ni actualizar versiones mayores por reorganizar carpetas.
 
-Los flujos del frontend siguen con mocks. En esta fase la única comunicación real añadida es la comprobación de salud mediante el proxy de Vite. Nuevos RF e integración de negocio requieren una fase posterior.
+La sesión del frontend sigue simulada (AUD-18 pendiente). Catálogo y solicitudes V1 comparten `VITE_CATALOGO_API`: demo por defecto, cliente HTTP real opcional. Los pedidos, pagos e inventario legacy siguen en la demo; no son contratos del nuevo flujo. Ver [solicitudes](docs/api/solicitudes.md) y [fronteras de fase](docs/decisiones/v1.md).
 
 ## Validación de un cambio
 

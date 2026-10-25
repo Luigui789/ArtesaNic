@@ -30,6 +30,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-artesanic}
       POSTGRES_USER: ${POSTGRES_USER:-artesanic}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copiar .env.example a .env}
+      DJANGO_MEDIA_ROOT: /workspace/media
+      DJANGO_PRIVATE_MEDIA_ROOT: /workspace/private_media
       POSTGRES_HOST: db
       POSTGRES_PORT: "5432"
     command: ["sh", "-c", "python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:8000 --noreload"]
@@ -38,6 +40,8 @@ services:
     volumes:
       - ./apps/backend:/workspace/apps/backend
       - ./docs:/workspace/docs:ro
+      - backend_media:/workspace/media
+      - backend_private_media:/workspace/private_media
     depends_on:
       db:
         condition: service_healthy
@@ -47,12 +51,44 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
+  # Proceso automático de vencimiento por falta de pago (AUD-11, D-AUD11-12/13): misma imagen
+  # y base de datos que backend, proceso propio, sin servidor HTTP ni comprobantes privados.
+  # Una iteración manual: docker compose run --rm vencimientos python manage.py procesar_vencimientos_pago --once
+  vencimientos:
+    build:
+      context: .
+      dockerfile: infra/docker/backend.Dockerfile
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?Copiar .env.example a .env}
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-true}
+      POSTGRES_DB: ${POSTGRES_DB:-artesanic}
+      POSTGRES_USER: ${POSTGRES_USER:-artesanic}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Copiar .env.example a .env}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: "5432"
+      VENCIMIENTOS_INTERVALO: ${VENCIMIENTOS_INTERVALO:-60}
+    command: ["sh", "-c", "exec python manage.py procesar_vencimientos_pago --interval $${VENCIMIENTOS_INTERVALO}"]
+    # SIGINT detiene el bucle entre iteraciones; una transacción interrumpida se revierte.
+    stop_signal: SIGINT
+    restart: unless-stopped
+    volumes:
+      - ./apps/backend:/workspace/apps/backend
+      - ./docs:/workspace/docs:ro
+    depends_on:
+      db:
+        condition: service_healthy
+      # backend aplica las migraciones al arrancar; el proceso espera a que terminen.
+      backend:
+        condition: service_healthy
   frontend:
     build:
       context: .
       dockerfile: infra/docker/frontend.Dockerfile
     environment:
       VITE_API_URL: ${VITE_API_URL:-/api/v1}
+      VITE_CATALOGO_API: ${VITE_CATALOGO_API:-mock}
+      VITE_AUTH_API: ${VITE_AUTH_API:-mock}
       API_PROXY_TARGET: http://backend:8000
     command: ["pnpm", "dev", "--host", "0.0.0.0", "--port", "5173"]
     ports:
@@ -74,3 +110,6 @@ volumes:
   postgres_data:
     name: ${POSTGRES_VOLUME:-artesanic_postgres_data}
   frontend_node_modules:
+  backend_media:
+  # Comprobantes de pago privados (D-AUD10-05): volumen separado, nunca servido por URL.
+  backend_private_media:

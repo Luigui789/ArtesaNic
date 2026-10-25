@@ -1,5 +1,7 @@
 import { AlertTriangle, Inbox, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
+import { mensajeSeguro } from "@/lib/errores-dominio";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
 export function EmptyState({
@@ -35,13 +37,24 @@ export function ErrorState({
     >
       <AlertTriangle className="size-8 text-destructive" aria-hidden="true" />
       <h3 className="mt-4 text-lg font-semibold">Ocurrió un problema</h3>
-      <p className="mt-2 max-w-md text-sm text-muted-foreground">{mensaje}</p>
+      <p className="mt-2 max-w-md text-sm text-muted-foreground">{mensajeSeguro(mensaje)}</p>
       {onRetry ? (
         <Button onClick={onRetry} className="mt-5 touch-target" variant="outline">
           <RefreshCw className="size-4" aria-hidden="true" />
           Reintentar
         </Button>
       ) : null}
+    </div>
+  );
+}
+
+export function LoadingState({ label = "Cargando información…" }: { label?: string }) {
+  return (
+    <div role="status" aria-label={label} className="space-y-4">
+      <span className="sr-only">{label}</span>
+      {[0, 1, 2].map((n) => (
+        <Skeleton key={n} className="h-28 w-full rounded-xl" />
+      ))}
     </div>
   );
 }

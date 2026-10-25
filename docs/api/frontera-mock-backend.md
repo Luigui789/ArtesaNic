@@ -4,6 +4,8 @@
 
 **Fecha:** 2026-08-15
 
+**Ubicación — 10-oct-2026:** `mock-api.ts` se dividió por dominio en `src/mocks/` y la interfaz lo consume desde `src/features/<dominio>/api.ts`, con las mismas funciones y firmas ([ADR-011](../adr/0011-frontend-por-dominio.md)). Las menciones a `mock-api.ts` de este documento se refieren a ese conjunto.
+
 **Ajuste de entrega — 1-oct-2026:** `setDeliveryQuote(id, costoEntrega, notasCotizacion, usuario)` deriva la modalidad de la solicitud del comprador, sin admitir que el artesano la cambie. `setDeliveryCoordination(id, input, usuario)` guarda `fechaRecogida` para recoger en taller o `detalle` para las otras modalidades. La dirección del taller se consulta con `getArtisan` desde su perfil; no se introduce en las notas ni se altera el total congelado. Simulación autorizada por Luis, pendiente de homologación y contrato real.
 
 **Extensión de demo — 30-sep-2026:** las tablas de agosto se conservan como línea base. El [plan funcional](../planes/2026-09-30-correcciones-funcionales-demo.md) autoriza nuevas simulaciones **sin contrato homologado todavía**. Dependen de homologación y ADR-006; no deben traducirse automáticamente a endpoints ni considerarse implementación Django. Contrato y ADR no se modifican.

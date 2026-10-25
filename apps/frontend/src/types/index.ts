@@ -46,6 +46,13 @@ export interface Artisan {
 export const UNIT_TYPES = ["pieza_unica", "existencias"] as const;
 export type UnitType = (typeof UNIT_TYPES)[number];
 
+/**
+ * Modalidades de venta que admite un producto, solas o combinadas (RF-017, RN-004).
+ * Códigos del contrato `GET /api/v1/productos/` (docs/api/catalogo.md).
+ */
+export const MODALIDADES = ["stock", "produccion", "personalizacion"] as const;
+export type Modalidad = (typeof MODALIDADES)[number];
+
 export interface Product {
   id: number;
   nombre: string;
@@ -56,6 +63,10 @@ export interface Product {
   artesanoId: number;
   disponible: boolean;
   creadoEn: string;
+  /** RF-017: modalidades de venta que admite; al menos una. */
+  modalidades: Modalidad[];
+  /** RF-019: solo los publicados aparecen en el catálogo. Despublicar no borra. */
+  publicado: boolean;
   tipoUnidades: UnitType;
   /** RF-017: el comprador puede pedir que se personalice una unidad existente. */
   admitePersonalizacion: boolean;
@@ -222,6 +233,7 @@ export interface Message {
   fecha: string;
 }
 
+/** LEGACY/DEMO: no representa Solicitud V1, Propuesta ni Pedido confirmado del backend. */
 export interface Order {
   id: number;
   /** Código de negocio visible ("PM-1009"), no un identificador. */

@@ -10,6 +10,7 @@ import os
 from datetime import timedelta
 from pathlib import Path
 
+from corsheaders.defaults import default_headers
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
 
@@ -62,6 +63,14 @@ INSTALLED_APPS = [
     "rest_framework_simplejwt.token_blacklist",
     "drf_spectacular",
     "apps.accounts",
+    "apps.talleres",
+    "apps.catalogo",
+    "apps.solicitudes",
+    "apps.propuestas",
+    "apps.pedidos",
+    "apps.inventario",
+    "apps.pagos",
+    "apps.operaciones",
 ]
 
 MIDDLEWARE = [
@@ -130,6 +139,13 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+MEDIA_ROOT = Path(env("DJANGO_MEDIA_ROOT", str(BASE_DIR / "media")))
+MEDIA_URL = "/media/"
+
+# Comprobantes de pago (D-AUD10-05): fuera de MEDIA_ROOT y sin URL pública. Solo se leen
+# por el endpoint autenticado que repite el control de ownership. Backup: BD + esta carpeta.
+PRIVATE_MEDIA_ROOT = Path(env("DJANGO_PRIVATE_MEDIA_ROOT", str(BASE_DIR / "private_media")))
+
 # --- Frontend (SPA), CORS, CSRF y cookies (ADR-003, ADR-007) ---
 
 # Orígenes exactos del frontend. Nunca se admite cualquier origen con credenciales.
@@ -137,6 +153,9 @@ FRONTEND_ORIGINS = env_list("DJANGO_FRONTEND_ORIGINS")
 CORS_ALLOWED_ORIGINS = FRONTEND_ORIGINS
 CORS_ALLOW_CREDENTIALS = True
 CORS_URLS_REGEX = r"^/api/.*$"
+# Contrato de idempotencia (docs/api/idempotencia.md): la SPA envía la clave y lee la repetición.
+CORS_ALLOW_HEADERS = (*default_headers, "idempotency-key")
+CORS_EXPOSE_HEADERS = ["Idempotency-Replayed"]
 CSRF_TRUSTED_ORIGINS = FRONTEND_ORIGINS
 
 # Secure exige HTTPS; solo el perfil local lo desactiva.
@@ -206,4 +225,47 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
     "SCHEMA_PATH_PREFIX": r"/api/v[0-9]+",
     "COMPONENT_SPLIT_REQUEST": True,
+    # Nombre estable: otros dominios tendrán también un campo «estado».
+    "ENUM_NAME_OVERRIDES": {
+        "EstadoTallerEnum": "apps.talleres.models.EstadoTaller",
+        "ModalidadEnum": "apps.catalogo.models.Modalidad",
+        "EstadoSolicitudEnum": "apps.solicitudes.models.EstadoSolicitud",
+        "ResolucionRenglonEnum": "apps.solicitudes.models.ResolucionRenglon",
+        "OrigenPersonalizacionEnum": "apps.solicitudes.models.OrigenPersonalizacion",
+        "ModalidadEntregaEnum": "apps.solicitudes.models.ModalidadEntrega",
+        "ResolucionFinalEnum": "apps.solicitudes.api.serializers.RESOLUCIONES_FINALES",
+        "CodigoConflictoSolicitudEnum": "apps.solicitudes.api.conflictos.CODIGOS_CONFLICTO",
+        "AccionDecisionPropuestaEnum": "apps.propuestas.models.AccionDecisionPropuesta",
+        "ResultadoDecisionPropuestaEnum": "apps.propuestas.models.ResultadoDecisionPropuesta",
+        "EstadoDecisionPropuestaEnum": "apps.propuestas.models.EstadoDecisionPropuesta",
+        "TipoMovimientoInventarioEnum": "apps.inventario.models.TipoMovimientoInventario",
+        "EstadoReservaEnum": "apps.inventario.models.EstadoReserva",
+        "CodigoConflictoInventarioEnum": "apps.inventario.api.conflictos.CODIGOS_CONFLICTO",
+        "EstadoPagoEnum": "apps.pagos.models.EstadoPago",
+        "EstadoPedidoEnum": "apps.pedidos.models.EstadoPedido",
+        "MetodoPagoEnum": "apps.pagos.models.MetodoPago",
+        "OrigenIntentoPagoEnum": "apps.pagos.models.OrigenIntento",
+        "ResultadoRevisionPagoEnum": "apps.pagos.models.ResultadoRevision",
+        "CodigoConflictoPagoEnum": "apps.pagos.api.conflictos.CODIGOS_CONFLICTO",
+        "TipoOperacionEnum": "apps.operaciones.models.TipoOperacion",
+        "EstadoOperacionEnum": "apps.operaciones.api.serializers.ESTADOS_VISIBLES",
+        "CodigoConflictoIdempotenciaEnum": "apps.operaciones.api.serializers.CODIGOS_CONFLICTO",
+        "ResultadoRecepcionEnum": "apps.pedidos.models.ResultadoRecepcion",
+        "ResultadoCierreParcialEnum": "apps.pedidos.models.ResultadoCierreParcial",
+        "ResultadoClasificacionEnum": "apps.inventario.models.ResultadoClasificacion",
+        "OrigenResolucionEnum": "apps.pedidos.api.serializers.ORIGENES",
+    },
+}
+
+# --- Logs operativos ---
+# El proceso de vencimientos (AUD-11) registra cada vencimiento (INFO) y las inconsistencias
+# (CRITICAL) en la salida estándar del contenedor. Sin datos personales: solo identificadores.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {"simple": {"format": "%(asctime)s %(levelname)s %(name)s %(message)s"}},
+    "handlers": {"consola": {"class": "logging.StreamHandler", "formatter": "simple"}},
+    "loggers": {
+        "apps.pedidos": {"handlers": ["consola"], "level": "INFO", "propagate": False},
+    },
 }

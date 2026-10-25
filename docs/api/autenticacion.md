@@ -96,6 +96,8 @@ fetch(`${API}/auth/perfil/`, {
 | **Logout** | `POST /auth/logout/` y descartar `accessToken`. |
 | **`403` por CSRF** | Pedir otro token a `GET /auth/csrf/` y reintentar una vez. |
 
+**Implementación en la SPA (AUD-18):** `apps/frontend/src/lib/http/` y `src/features/auth/` siguen esta tabla con `VITE_AUTH_API=real`. El `403` de CSRF se reconoce por el inicio de su detalle («Falta el token CSRF»), porque DRF no envía su código. Ante un `401` de `refrescar` la sesión se da por terminada sin reintentar (ver el aviso siguiente). Detalle en [arquitectura del frontend](../arquitectura/frontend.md).
+
 > Varias pestañas que renuevan a la vez pueden competir por la misma cookie: la primera la rota y la segunda recibe `401`. Ante un `401` de `refrescar`, conviene reintentar una vez antes de dar la sesión por terminada, porque la cookie del navegador ya puede ser la nueva.
 
 ---
@@ -131,22 +133,24 @@ Fija la cookie `csrftoken` y devuelve el valor para la cabecera `X-CSRFToken`. R
 
 ### `POST /api/v1/auth/registro/comprador/` y `POST /api/v1/auth/registro/artesano/`
 
-Crean la cuenta con el rol que corresponde a la ruta e **inician la sesión**. El artesano queda registrado sin taller: el perfil del taller y su aprobación (RF-008, RF-013) son de la fase siguiente.
+Crean la cuenta con el rol que corresponde a la ruta e **inician la sesión**. El registro del artesano crea además, **en la misma transacción**, su taller en estado `pendiente` con los datos iniciales de `taller`: si el taller no es válido no se crea ninguno de los dos. La aprobación es exclusiva de la administración ([talleres](talleres.md)).
 
 | Campo | Tipo | Obligatorio | Reglas |
 |---|---|---|---|
-| `nombre` | texto | Sí | No vacío tras recortar espacios; máximo 150 caracteres |
-| `telefono` | texto | Sí | Teléfono de Nicaragua ([sección 4](#4-teléfono)) |
+| `nombre` | texto | Sí | Nombre del responsable. No vacío tras recortar espacios; máximo 150 caracteres |
+| `telefono` | texto | Sí | Teléfono de acceso, privado ([sección 4](#4-teléfono)) |
 | `password` | texto | Sí | Validadores de Django ([sección 5](#5-contraseña)) |
+| `taller` | objeto | Solo artesano | Datos iniciales: `nombre`, `rubro` y `direccion_completa` obligatorios; `historia`, `horario` y contactos públicos opcionales ([talleres §2](talleres.md#patch-apiv1talleresmi-taller)) |
 
-**Cualquier otro campo se rechaza** con `400`, incluidos `rol`, `is_staff`, `is_superuser`, `is_active`, `groups` y `user_permissions`. No existe registro público de administradores.
+**Cualquier otro campo se rechaza** con `400`, incluidos `rol`, `is_staff`, `is_superuser`, `is_active`, `groups` y `user_permissions`; dentro de `taller`, también `estado`, `propietario` y los campos de revisión. El comprador no envía `taller`. No existe registro público de administradores. El teléfono de acceso no se copia nunca como contacto público del taller.
 
 ```http
 POST /api/v1/auth/registro/artesano/
 Content-Type: application/json
 X-CSRFToken: y8Qm…
 
-{"nombre": "Ana Lucía Delgado", "telefono": "+505 8555-1234", "password": "Tejido-de-Masaya-2026"}
+{"nombre": "Ana Lucía Delgado", "telefono": "+505 8555-1234", "password": "Tejido-de-Masaya-2026",
+ "taller": {"nombre": "Cerámica López", "rubro": "Cerámica artesanal", "direccion_completa": "Barrio San Juan, Masaya"}}
 ```
 
 ```http
@@ -161,6 +165,7 @@ Set-Cookie: refresh=eyJ…; HttpOnly; Max-Age=604800; Path=/api/v1/auth/; SameSi
 | `400` teléfono ya registrado (tras normalizar) | `{"telefono": ["Ya existe una cuenta con este teléfono."]}` |
 | `400` campos obligatorios | `{"nombre": ["Este campo es requerido."], "telefono": [...], "password": [...]}` |
 | `400` campo no permitido | `{"rol": ["Campo no permitido."]}` |
+| `400` datos del taller (artesano) | `{"taller": {"rubro": ["Este campo es requerido."]}}` |
 | `400` contraseña débil | `{"password": ["La contraseña es demasiado corta. Debe contener por lo menos 8 caracteres."]}` |
 | `403` CSRF | `{"detail": "Falta el token CSRF o no es válido. Solicita uno en /api/v1/auth/csrf/."}` |
 | `429` límite de registros | `{"detail": "Solicitud fue regulada (throttled). Se espera que esté disponible en N segundos."}` |
@@ -206,7 +211,7 @@ Requiere `Authorization: Bearer <access>`. Devuelve solo la identidad, sin cach�
 ```
 
 - `rol` es `comprador` o `artesano`: la API no autentica cuentas de administración.
-- Los campos `artesano_id` y `artesano_estado` del contrato del frontend **todavía no existen**: dependen del modelo de taller y se añadirán en la fase de talleres. Se omiten en lugar de enviarse como `null`, porque en el contrato `null` significa «no es artesano».
+- Los campos `artesano_id` y `artesano_estado` del contrato del frontend **todavía no existen**: el taller y su estado se consultan en `GET /api/v1/talleres/mi-taller/` ([talleres](talleres.md)). Se omiten en lugar de enviarse como `null`, porque en el contrato `null` significa «no es artesano».
 - `401` sin token (`"Las credenciales de autenticación no se proveyeron."`) o con un token no válido, caducado, de renovación o de una cuenta desactivada (`"La sesión no es válida o expiró. Inicia sesión de nuevo."`).
 
 ---
@@ -238,6 +243,7 @@ Se guarda con el hash de Django (PBKDF2 por defecto; RNF-004) y se valida con `A
 | Todo endpoint exige autenticación salvo declaración expresa | `DEFAULT_PERMISSION_CLASSES` |
 | `EsComprador` / `EsArtesano`: `401` si es anónimo, `403` si el rol no corresponde | `apps/accounts/api/permissions.py` |
 | `EsPropietario`: el objeto declara `pertenece_a(usuario)`; un objeto ajeno responde `404` | `apps/accounts/api/permissions.py` |
+| `EsArtesanoAprobado`: como `EsArtesano`, y además el taller propio debe estar aprobado; `403` si está pendiente, rechazado o no existe (RF-004, RN-002). Exigido por toda función operativa del artesano | `apps/talleres/api/permissions.py` ([talleres §3](talleres.md#3-habilitación-operativa-del-artesano)) |
 | El rol se lee de la cuenta en el servidor; parámetros, cuerpo o cabeceras con un rol no conceden nada | Probado en `test_permissions.py` |
 | Cuentas de administración: no se autentican en la API | `puede_autenticarse` y `Usuario.puede_usar_api` |
 
@@ -278,8 +284,8 @@ CORS admite únicamente los orígenes exactos de `DJANGO_FRONTEND_ORIGINS`, con 
 | Contrato del frontend (agosto) | Implementación | Motivo |
 |---|---|---|
 | `POST /auth/registro/` con `rol` en el cuerpo | Dos operaciones: `/auth/registro/comprador/` y `/auth/registro/artesano/`; `rol` se rechaza | El servidor decide el rol (contrato §1.7 e instrucciones de la fase); ADR-007 |
-| El registro de artesano crea el taller pendiente | Solo crea la cuenta | Talleres y aprobación pertenecen a la fase siguiente |
-| `perfil` incluye `artesano_id` y `artesano_estado` | Se omiten hasta que exista el taller | No inventar un estado que todavía no existe |
+| El registro de artesano crea el taller pendiente | Crea cuenta y taller pendiente en una transacción, con los datos iniciales en `taller` (AUD-02) | El administrador revisa el taller con esos datos ([talleres](talleres.md)) |
+| `perfil` incluye `artesano_id` y `artesano_estado` | Se omiten; el estado se consulta en `GET /talleres/mi-taller/` | No ampliar el perfil de sesión antes de AUD-03 |
 | CSRF solo en `refrescar` y `logout` | También en `registro` y `login`, que fijan la cookie | Evita forzar a un navegador a iniciar sesión en una cuenta ajena |
 | Sin endpoint para obtener el token CSRF | `GET /auth/csrf/` | La SPA necesita el token aunque frontend y API estén en subdominios distintos |
 | `logout` marcado 🔒 | Exige cookie + CSRF, no el token de acceso; idempotente | Poder cerrar sesión con el acceso caducado |

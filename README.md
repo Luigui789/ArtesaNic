@@ -4,11 +4,11 @@ Sistema de comercialización de productos artesanales de las PYMEs de Masaya, Ni
 
 ## Estado y arquitectura
 
-El frontend conserva sus flujos con **mocks**, sesión simulada e IndexedDB. El backend ya contiene cuentas, autenticación, permisos y Django Admin. Esta reorganización no conecta esos flujos de negocio ni implementa nuevos RF. La comunicación técnica se verifica únicamente mediante `GET /api/v1/salud/`.
+El frontend conserva la sesión simulada e IndexedDB. Catálogo y solicitudes V1 pueden leer/escribir Django con `VITE_CATALOGO_API=real`; por defecto usan la demo. La sesión real del frontend sigue pendiente de AUD-18: el selector Demo no autentica peticiones reales. El backend contiene cuentas, talleres/aprobación, catálogo y solicitudes con renglones. Propuesta, confirmación, reservas, pagos y chat reales siguen en sus fases posteriores. [Contrato de solicitudes](docs/api/solicitudes.md).
 
-React 19 / React Router 8 / TanStack Query → servicios mock actuales. Arquitectura futura: servicios HTTP → Django REST Framework → PostgreSQL 17. Se conservan Tailwind, shadcn/ui, React Hook Form y Zod.
+React 19 / React Router 8 / TanStack Query → servicios por dominio → demo o Django REST Framework → PostgreSQL 17. Se conservan Tailwind, shadcn/ui, React Hook Form y Zod. Las solicitudes V1 están separadas de los pedidos monoproducto legacy de la demo.
 
-La especificación objetivo tiene **24 RF y 15 RNF**, pendientes de homologación según sus fichas. RF-012 permanece postergado. Publicar la documentación no acredita implementación. [Documentación e índice](docs/README.md).
+La especificación V1 acordada el 12 de octubre de 2026 tiene **21 RF activos y 15 RNF activos**, con un catálogo separado de **24 reglas de negocio**. Se conservan RF-001 a RF-024 y RNF-001 a RNF-015: RF-002 queda integrado en RF-001/RNF-005; RF-012 y RF-024 están postergados fuera de V1. Publicar la documentación no acredita implementación. [Documentación e índice](docs/README.md).
 
 ## Estructura
 
@@ -44,7 +44,7 @@ El backend espera el healthcheck de PostgreSQL y aplica migraciones antes de ini
 docker compose exec -T frontend node ../../infra/scripts/check-health.mjs
 ```
 
-La sonda usa el proxy `/api` de Vite hacia Django y comprueba `{"estado":"ok"}`. Ningún servicio de pedidos, pagos o inventario usa ese proxy en esta fase.
+La sonda usa el proxy `/api` de Vite hacia Django y comprueba `{"estado":"ok"}`. Catálogo y solicitudes también lo usan en modo real; pedidos legacy, pagos e inventario siguen simulados.
 
 ## Desarrollo en el host
 
@@ -77,9 +77,18 @@ cd apps/frontend
 pnpm dev
 ```
 
-Django carga `.env` de la raíz y admite un `.env` específico en `apps/backend`. Las variables exportadas tienen prioridad; las del archivo específico prevalecen sobre las de la raíz. Vite admite `apps/frontend/.env`, con ejemplo propio; `API_PROXY_TARGET` es `http://127.0.0.1:8000` en el host y `http://backend:8000` en Compose. `VITE_API_URL=/api/v1` es configuración pública para la sonda; el frontend de negocio sigue usando mocks.
+Django carga `.env` de la raíz y admite un `.env` específico en `apps/backend`. Las variables exportadas tienen prioridad; las del archivo específico prevalecen sobre las de la raíz. Vite admite `apps/frontend/.env`, con ejemplo propio; `API_PROXY_TARGET` es `http://127.0.0.1:8000` en el host y `http://backend:8000` en Compose. `VITE_API_URL=/api/v1` es configuración pública para la sonda y los clientes HTTP opcionales de catálogo y solicitudes.
 
 Se usan los nombres reales `DJANGO_SECRET_KEY`, `DJANGO_DEBUG`, `DJANGO_ALLOWED_HOSTS`, `DJANGO_FRONTEND_ORIGINS` y `POSTGRES_*`. La configuración actual no usa `DATABASE_URL`. [Variables y desarrollo del backend](docs/arquitectura/desarrollo-local-backend.md).
+
+Smoke HTTP de AUD-05 en una base PostgreSQL temporal (incluido también en la suite):
+
+```bash
+cd apps/backend
+uv run python manage.py test apps.solicitudes.tests.test_smoke --noinput
+```
+
+Las pruebas manuales de interfaz corresponden al responsable: [checklist AUD-05](docs/planes/pruebas-manuales-aud-05.md).
 
 ## Pruebas y calidad
 

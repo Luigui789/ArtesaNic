@@ -22,6 +22,20 @@ export function formatDate(iso: string): string {
   });
 }
 
+/**
+ * Fecha de calendario `YYYY-MM-DD` (sin hora). Se formatea en UTC porque `new Date` la
+ * interpreta como medianoche UTC; en la zona local (UTC-6) mostraría el día anterior.
+ */
+export function formatCalendarDate(fecha: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return fecha;
+  return new Date(`${fecha}T00:00:00Z`).toLocaleDateString("es-NI", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
 export function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("es-NI", {
     hour: "2-digit",
