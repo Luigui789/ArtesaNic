@@ -114,6 +114,7 @@ fetch(`${API}/auth/perfil/`, {
 | `POST` | `/api/v1/auth/refrescar/` | Cookie de renovación | Sí | `200` |
 | `POST` | `/api/v1/auth/logout/` | Cookie de renovación (opcional) | Sí | `204` |
 | `GET` | `/api/v1/auth/perfil/` | Bearer | No | `200` |
+| `PATCH` | `/api/v1/auth/perfil/` | Bearer | No | `200` |
 
 ### `GET /api/v1/salud/`
 
@@ -214,6 +215,40 @@ Requiere `Authorization: Bearer <access>`. Devuelve solo la identidad, sin cach�
 - Los campos `artesano_id` y `artesano_estado` del contrato del frontend **todavía no existen**: el taller y su estado se consultan en `GET /api/v1/talleres/mi-taller/` ([talleres](talleres.md)). Se omiten en lugar de enviarse como `null`, porque en el contrato `null` significa «no es artesano».
 - `401` sin token (`"Las credenciales de autenticación no se proveyeron."`) o con un token no válido, caducado, de renovación o de una cuenta desactivada (`"La sesión no es válida o expiró. Inicia sesión de nuevo."`).
 
+### `PATCH /api/v1/auth/perfil/`
+
+Actualiza los datos personales de la cuenta autenticada (AUD-15, RF-004). Requiere `Authorization: Bearer <access>` y **no exige CSRF**, igual que el `GET`: no usa cookies. No hay identificador en la ruta: la cuenta es siempre la del token. Actualización parcial con lista cerrada de campos:
+
+| Campo | Regla |
+|---|---|
+| `nombre` | Opcional. Se recorta; no vacío; máximo 150 caracteres. |
+| `telefono` | Opcional. Mismos formatos y normalización que el registro (§4). |
+| `password_actual` | Auxiliar y *write-only*. Obligatorio solo si el teléfono **cambia de forma efectiva**. No se guarda, no se registra y no se devuelve. |
+
+```json
+PATCH {"nombre": "Ana Lucía López"}
+PATCH {"telefono": "8777 1234", "password_actual": "…"}
+200   {"id": 4, "nombre": "Ana Lucía López", "telefono": "87771234", "rol": "artesano"}
+```
+
+- La respuesta es la misma identidad de `GET /auth/perfil/` (`UsuarioSerializer`), sin caché.
+- **Cambio efectivo del teléfono:** el teléfono es el identificador de acceso, así que cambiarlo exige la contraseña actual. Un teléfono que normaliza al actual (`8555-1234` cuando la cuenta tiene `85551234`) no es un cambio y no la pide. La decisión se toma sobre la fila de la cuenta bloqueada (`SELECT … FOR UPDATE`), no sobre datos leídos antes.
+- **No es editable aquí:** `id`, `rol`, `is_active`, `is_staff`, `is_superuser`, `groups`, `user_permissions`, `password`, `last_login`, `creado_en` ni cualquier otro campo: responden `400` «Campo no permitido.» y la petición no aplica nada. AUD-15 no implementa cambio ni recuperación de contraseña.
+- **Sesión:** no cierra la sesión ni emite tokens. El token de acceso y la cookie de renovación vigentes siguen sirviendo porque identifican la cuenta por su `id`. Tras cambiar el teléfono, el login con el anterior falla y con el nuevo funciona; la contraseña no cambia.
+- **Taller:** el teléfono de la cuenta es privado y no se sincroniza con `telefono_publico`, `whatsapp_publico` ni ningún contacto público del taller; tampoco cambia el estado del taller.
+- No se conserva historial de los valores anteriores. El registro de la operación solo anota el `id` de la cuenta, el tipo de operación y el resultado.
+
+Errores:
+
+| Código | Cuerpo |
+|---|---|
+| `400` | `{"telefono": ["Ya existe una cuenta con este teléfono."]}` (también cuando dos cuentas piden el mismo teléfono a la vez: la restricción única decide y nunca hay `500`) |
+| `400` | `{"password_actual": ["Confirma tu contraseña actual para cambiar el teléfono."]}` |
+| `400` | `{"password_actual": ["La contraseña actual no es correcta."]}` (se comprueba antes que la unicidad: sin la contraseña correcta no se revela si un teléfono está registrado) |
+| `400` | `{"rol": ["Campo no permitido."]}`, formatos de teléfono o nombre inválidos |
+| `401` | Sin token, token no válido o cuenta desactivada |
+| `429` | Límite `reautenticacion` superado (§7) |
+
 ---
 
 ## 4. Teléfono
@@ -256,6 +291,7 @@ Los permisos de rol y propietario se prueban con vistas de prueba: todavía no h
 | `login` | IP | 10 por minuto | login |
 | `login_telefono` | Teléfono normalizado | 20 por hora | login |
 | `registro` | IP | 10 por hora (ambos registros juntos) | registro de comprador y de artesano |
+| `reautenticacion` | Cuenta autenticada | 10 por hora | `PATCH /auth/perfil/` que envía `password_actual`; editar solo el nombre no cuenta |
 
 Al superarse: `429` con `Retry-After`. Límites conocidos:
 
