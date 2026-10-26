@@ -48,6 +48,10 @@ El usuario autenticado es exactamente `usuario` del servidor (`id`, `nombre`, `t
 
 **Mi taller (RF-008):** `/panel` y `/panel/perfil` permiten editar el perfil público con `PATCH /talleres/mi-taller/` en cualquier estado (pendiente, aprobado o rechazado). Solo viajan los campos de `CAMPOS_PERFIL` modificados; estado, motivo de rechazo y fecha de revisión se muestran como solo lectura. Editar no cambia la aprobación. Tras guardar, la respuesta reemplaza la caché `["mi-taller", usuario]` y se invalidan `["perfil-taller", id]`, el filtro de talleres y el catálogo ([D-AUD18-10](../decisiones/v1.md#concreciones-de-aud-18-primer-tramo-cliente-común-y-sesión)).
 
+## Mensajería del pedido (AUD-16)
+
+`src/features/mensajes/` es solo real: `http.ts` (Bearer, cuerpo `{texto}`, sin CSRF, respuestas validadas con Zod y traducidas a `camelCase`), `types.ts` (`MensajePedido`, `ConversacionPedido`; no usa el `Message` legacy) y `api.ts` (`fusionar`, `agregarPropio`, `sondearNovedades`, `INTERVALO_SONDEO_MS = 15000`). Un único `OrderChat` se monta en `DetallePedidoConfirmado` para comprador y artesano, con la clave `["mensajes-reales", usuario, pedido]`. La primera lectura trae el historial; después, cada 15 s y solo si `soloLectura` es `false`, pide `despues_de=<cursor>` y mezcla el delta en la caché sin `invalidateQueries`. El autor propio se reconoce por `autor.id`, nunca por nombre o rol. `409 conversacion_cerrada` o `solo_lectura: true` ocultan el compositor y conservan el historial. La demo usa `OrderChatDemo` y `NotificationsProvider`, que importan `@/mocks/mensajes` directamente (excepción explícita en `eslint.config.js`); `/mensajes` sigue siendo demo. Contrato: [mensajes](../api/mensajes.md); pruebas: `scripts/check-mensajes.mjs`.
+
 ## Caché de TanStack Query
 
 Al iniciar sesión (con cualquier identidad), registrarse, cerrar sesión o expirar, el controlador cancela las consultas y vacía la caché antes de publicar la identidad nueva. Ninguna pantalla puede mostrar datos de la cuenta anterior.
