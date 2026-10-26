@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { MessageSquare } from "lucide-react";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { EmptyState, ErrorState } from "@/components/common/states";
-import { OrderChat } from "@/features/mensajes/components/order-chat";
+import { OrderChatDemo } from "@/features/mensajes/components/order-chat-demo";
 import { OrderStatusBadge } from "@/features/pedidos/components/status-badges";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -171,7 +171,7 @@ export default function MensajesPage() {
                         : (taller.data?.nombreTaller ?? "Taller artesanal")}
                     </p>
                   </div>
-                  <OrderChat pedidoId={actual.id} estado={actual.estado} />
+                  <OrderChatDemo pedidoId={actual.id} estado={actual.estado} />
                 </>
               ) : null}
             </div>

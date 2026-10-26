@@ -38,6 +38,7 @@ import { PagoPedido } from "@/features/pagos/components/pago-pedido";
 import { CumplimientoPedido } from "../components/cumplimiento-pedido";
 import { ProgresoPedido } from "../components/progreso-pedido";
 import { ResolucionPedido } from "../components/resolucion-pedido";
+import { OrderChat } from "@/features/mensajes/components/order-chat";
 const ESTILO_ESTADO: Record<
   EstadoPedidoOperativo,
   { tone: "success" | "pending" | "danger"; icon: LucideIcon }
@@ -151,6 +152,7 @@ export function ContenidoPedidoConfirmado({
   cumplimiento,
   progreso,
   resolucion,
+  mensajes,
 }: {
   pedido: PedidoConfirmado;
   recibido?: boolean;
@@ -162,6 +164,8 @@ export function ContenidoPedidoConfirmado({
   progreso?: ReactNode;
   /** Cancelación, cierre parcial, reembolso y clasificación (AUD-13); la inyecta la página. */
   resolucion?: ReactNode;
+  /** Conversación privada del pedido (AUD-16); la inyecta la página. */
+  mensajes?: ReactNode;
 }) {
   const solicitud = recibido ? "/panel/solicitudes" : "/solicitudes";
   const vencido = p.estado === "vencido_falta_pago";
@@ -209,6 +213,7 @@ export function ContenidoPedidoConfirmado({
           {pago}
           {resolucion}
           {cumplimiento}
+          {mensajes}
           <Section
             title="Productos acordados"
             description="Estos datos se conservaron al confirmar el pedido."
@@ -331,6 +336,7 @@ export function DetallePedidoConfirmado({ recibido = false }: { recibido?: boole
             resolucion={<ResolucionPedido pedido={query.data} recibido={recibido} />}
             cumplimiento={<CumplimientoPedido pedido={query.data} recibido={recibido} />}
             progreso={<ProgresoPedido pedido={query.data} recibido={recibido} />}
+            mensajes={<OrderChat pedido={query.data.id} estado={query.data.estado} />}
           />
         )}
       </PageContainer>

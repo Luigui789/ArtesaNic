@@ -22,8 +22,8 @@ from apps.talleres.tests.base import crear_administrador
 
 URL_PEDIDOS = "/admin/pedidos/pedido/"
 
-# Superficie administrativa completa tras AUD-14. Ampliarla exige revisar RF-013.6 a 8:
-# pagos, comprobantes y futuras conversaciones no se registran (D-AUD14-11).
+# Superficie administrativa completa tras AUD-14; AUD-16 no la amplía. Ampliarla exige revisar
+# RF-013.6 a 8: pagos, comprobantes y conversaciones no se registran (D-AUD14-11, D-AUD16-09).
 SUPERFICIE_ADMIN = {
     "auth.group",
     "accounts.usuario",
@@ -147,6 +147,17 @@ class PrivacidadAdministrativaTests(PedidoAdminTestCase):
         self.assertEqual(self.client.get("/admin/pagos/").status_code, 404)
         self.assertNotContains(self.client.get("/admin/"), "/admin/pagos/")
 
+    def test_ningun_modelo_de_mensajes_registrado(self):
+        # AUD-16: la conversación privada del pedido no se lee, busca ni ve en Admin.
+        for modelo in apps.get_app_config("mensajes").get_models():
+            self.assertNotIn(modelo, admin.site._registry, modelo)
+        superusuario = Usuario.objects.create_superuser(
+            telefono="89990000", password=PASSWORD, nombre="Mantenimiento"
+        )
+        self.client.force_login(superusuario)
+        self.assertEqual(self.client.get("/admin/mensajes/").status_code, 404)
+        self.assertNotContains(self.client.get("/admin/"), "/admin/mensajes/")
+
     def test_detalle_del_pedido_sin_comprobantes_ni_referencias(self):
         antes = set(archivos_privados())
         pagos.registrar_intento(
@@ -168,3 +179,7 @@ class PrivacidadAdministrativaTests(PedidoAdminTestCase):
         for ruta in ("mios", "recibidos"):
             respuesta = self.client.get(f"/api/v1/pedidos/{ruta}/{self.pedido.pk}/pago/")
             self.assertEqual(respuesta.status_code, 401, ruta)
+
+    def test_admin_de_plataforma_no_lee_mensajes_por_la_api(self):
+        respuesta = self.client.get(f"/api/v1/pedidos/{self.pedido.pk}/mensajes/")
+        self.assertEqual(respuesta.status_code, 401)

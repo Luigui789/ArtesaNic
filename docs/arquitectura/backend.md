@@ -69,6 +69,12 @@ Back-Artesanic/
 │   │   ├── selectors.py        Lectura por parte en tres consultas
 │   │   ├── api/               Emisión, lectura y decisión bajo /api/v1/solicitudes/{mias,recibidas}/{id}/propuesta/
 │   │   └── tests/             Cotización, decisión, permisos, idempotencia, concurrencia real y smoke HTTP
+│   ├── mensajes/               Conversación privada del pedido confirmado (RF-014, RNF-010; AUD-16)
+│   │   ├── models.py           MensajePedido append-only (texto ≤ 500, índice (pedido, id))
+│   │   ├── services.py         enviar_mensaje: lock del Pedido, estado no terminal, autor = actor
+│   │   ├── selectors.py        Ownership en SQL, historial o delta por cursor de id
+│   │   ├── api/                GET/POST /api/v1/pedidos/{id}/mensajes/ (docs/api/mensajes.md)
+│   │   └── tests/              Modelo, API, privacidad y carreras reales en PostgreSQL
 │   ├── configuracion/          Tasa de cambio informativa administrada (RF-007, RF-013.4; AUD-14)
 │   │   ├── models.py           ConfiguracionPlataforma (singleton id=1) y CambioTasaCambio append-only
 │   │   ├── services.py         actualizar_tasa_cambio: lock del singleton, proyección + historial
@@ -158,7 +164,7 @@ Las reglas tienen un único lugar: la normalización del teléfono está en `pho
   | `/admin/configuracion/configuracionplataforma/` | Actualizar la tasa de cambio (con historial) | `view_`/`change_configuracionplataforma` |
   | `/admin/pedidos/pedido/` | Supervisar estado, importes y líneas de pedidos; solo lectura, sin acciones | `view_pedido` |
 
-- **Privacidad administrativa (RF-013.6 a 8, RN-006, RNF-013; D-AUD14-11):** el administrador no modifica acuerdos comerciales ni accede a chats ni comprobantes. Como un superusuario lo ve todo en Django Admin, `apps.pagos` (`Pago`, `IntentoPago`, `RevisionIntentoPago`, comprobantes) **no se registra en el admin**. Ningún modelo futuro de mensajes (AUD-16) debe registrarse. `PedidoAdmin` no muestra referencias, archivos, rutas privadas ni el teléfono del comprador. Una prueba fija la lista exacta de modelos registrados (`apps/pedidos/tests/test_admin.py`): ampliarla exige revisar estas reglas.
+- **Privacidad administrativa (RF-013.6 a 8, RN-006, RNF-013; D-AUD14-11):** el administrador no modifica acuerdos comerciales ni accede a chats ni comprobantes. Como un superusuario lo ve todo en Django Admin, `apps.pagos` (`Pago`, `IntentoPago`, `RevisionIntentoPago`, comprobantes) **no se registra en el admin**. `apps.mensajes` (`MensajePedido`, AUD-16) tampoco se registra: `/admin/mensajes/` responde `404` incluso al superusuario (D-AUD16-09). `PedidoAdmin` no muestra referencias, archivos, rutas privadas ni el teléfono del comprador. Una prueba fija la lista exacta de modelos registrados (`apps/pedidos/tests/test_admin.py`): ampliarla exige revisar estas reglas.
 
 ## Cómo crece: fase de talleres y catálogo
 

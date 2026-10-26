@@ -10,7 +10,8 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { listOrders } from "@/features/pedidos/api";
-import { pollNewMessages } from "@/features/mensajes/api";
+// Demo (AUD-16): el sondeo simulado usa el servidor simulado directo, nunca la API real.
+import { pollNewMessages } from "@/mocks/mensajes";
 import { DEMO_ARTISAN_ID } from "@/features/auth/api";
 import { chatMode } from "@/lib/order-state";
 import { useSession } from "@/features/auth/use-session";

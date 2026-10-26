@@ -931,6 +931,131 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe, no se completó o pertenece a otro actor.
+  /api/v1/pedidos/{pedido_id}/mensajes/:
+    get:
+      operationId: listar_mensajes_pedido
+      description: 'Solo el comprador del pedido o el artesano de su taller aprobado.
+        Sin `despues_de` devuelve el historial completo; con `despues_de=N`, solo
+        los mensajes con `id > N`, en orden de `id` (cursor del polling de 15 s, RNF-010).
+        Un pedido terminal sigue legible con `solo_lectura: true`. 404 si no existe
+        o es ajeno.'
+      summary: Leer la conversación del pedido (historial o novedades)
+      parameters:
+      - in: query
+        name: despues_de
+        schema:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          default: 0
+        description: 'Devuelve solo mensajes con `id` mayor. Omitido: historial completo.'
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mensajes
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversacionPedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: 'Errores por campo: texto vacío o mayor de 500 caracteres,
+            campo no permitido («Campo no permitido.») o cursor `despues_de` no entero
+            o negativo.'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+    post:
+      operationId: enviar_mensaje_pedido
+      description: El autor es la cuenta del token; solo se acepta `texto`. Se admite
+        mientras el pedido está `confirmado` o `en_cumplimiento`; en un estado terminal
+        responde 409 `conversacion_cerrada`. Sin adjuntos, edición ni borrado.
+      summary: Enviar un mensaje de texto al pedido
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mensajes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MensajeEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MensajePedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: 'Errores por campo: texto vacío o mayor de 500 caracteres,
+            campo no permitido («Campo no permitido.») o cursor `despues_de` no entero
+            o negativo.'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoConversacion'
+          description: 'El pedido alcanzó un estado terminal; nada se escribe. `codigo`
+            estable: `conversacion_cerrada`. El historial sigue disponible por GET.'
   /api/v1/pedidos/mios/:
     get:
       operationId: listar_mis_pedidos
@@ -3814,6 +3939,18 @@ components:
       required:
       - delta
       - motivo
+    AutorMensaje:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Id estable de la cuenta; distingue lo propio.
+        nombre:
+          type: string
+          description: Nombre vigente de la cuenta (puede cambiar).
+      required:
+      - id
+      - nombre
     BlankEnum:
       enum:
       - ''
@@ -4237,6 +4374,23 @@ components:
       required:
       - actualizada_en
       - tasa_cambio
+    ConflictoConversacion:
+      type: object
+      properties:
+        detail:
+          type: string
+          default: Este pedido ya finalizó. La conversación está disponible solo para
+            consulta.
+        codigo:
+          $ref: '#/components/schemas/ConflictoConversacionCodigoEnum'
+      required:
+      - codigo
+    ConflictoConversacionCodigoEnum:
+      enum:
+      - conversacion_cerrada
+      type: string
+      description: '* `conversacion_cerrada` - Pedido finalizado: conversación de
+        consulta'
     ConflictoCumplimiento:
       type: object
       properties:
@@ -4356,6 +4510,27 @@ components:
       required:
       - codigo
       - detail
+    ConversacionPedido:
+      type: object
+      properties:
+        mensajes:
+          type: array
+          items:
+            $ref: '#/components/schemas/MensajePedido'
+          description: Ordenados por `id` ascendente.
+        cursor:
+          type: integer
+          minimum: 0
+          description: Mayor id entregado o el `despues_de` recibido; nunca retrocede.
+            `0` sin mensajes ni cursor.
+        solo_lectura:
+          type: boolean
+          description: '`true` si el pedido alcanzó un estado terminal: no admite
+            mensajes nuevos.'
+      required:
+      - cursor
+      - mensajes
+      - solo_lectura
     CumplimientoLinea:
       type: object
       properties:
@@ -5033,6 +5208,36 @@ components:
       required:
       - password
       - telefono
+    MensajeEntradaRequest:
+      type: object
+      description: 'Lista cerrada: solo ``texto``. El autor sale del token, nunca
+        del cuerpo.'
+      properties:
+        texto:
+          type: string
+          description: Texto plano; 1–500 caracteres tras recortar los extremos.
+          maxLength: 500
+      required:
+      - texto
+    MensajePedido:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Orden contractual y cursor de la conversación.
+        autor:
+          $ref: '#/components/schemas/AutorMensaje'
+        texto:
+          type: string
+          maxLength: 500
+        creado_en:
+          type: string
+          format: date-time
+      required:
+      - autor
+      - creado_en
+      - id
+      - texto
     MetodoPagoEnum:
       enum:
       - transferencia

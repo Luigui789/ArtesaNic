@@ -52,3 +52,31 @@ class EsquemaOpenAPITests(SimpleTestCase):
         generado = yaml.safe_load(OpenApiYamlRenderer().render(self.esquema, renderer_context={}))
         versionado = yaml.safe_load(ARCHIVO.read_text(encoding="utf-8"))
         self.assertEqual(versionado, generado, f"Regenerar con: {COMANDO}")
+
+    def test_mensajeria_del_pedido(self):
+        """AUD-16: una sola ruta GET/POST, sin endpoints por mensaje y con sus esquemas."""
+        operaciones = self.esquema["paths"]["/api/v1/pedidos/{pedido_id}/mensajes/"]
+        self.assertEqual(set(operaciones), {"get", "post"})
+        self.assertEqual(set(operaciones["get"]["responses"]), {"200", "400", "401", "403", "404"})
+        self.assertEqual(
+            set(operaciones["post"]["responses"]), {"201", "400", "401", "403", "404", "409"}
+        )
+        self.assertEqual(
+            [p["name"] for p in operaciones["get"]["parameters"] if p["in"] == "query"],
+            ["despues_de"],
+        )
+        esquemas = self.esquema["components"]["schemas"]
+        for nombre in (
+            "MensajePedido",
+            "AutorMensaje",
+            "ConversacionPedido",
+            "MensajeEntradaRequest",
+            "ConflictoConversacion",
+        ):
+            self.assertIn(nombre, esquemas)
+        self.assertEqual(set(esquemas["AutorMensaje"]["properties"]), {"id", "nombre"})
+        self.assertEqual(set(esquemas["MensajeEntradaRequest"]["properties"]), {"texto"})
+        self.assertFalse(
+            [ruta for ruta in self.esquema["paths"] if "/mensajes/{" in ruta],
+            "sin rutas por mensaje: no hay edición ni borrado",
+        )
