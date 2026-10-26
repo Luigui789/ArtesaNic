@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router";
 import { useNotifications } from "@/features/notificaciones/use-notifications";
-import { Bell, Menu, Store, ShoppingBag } from "lucide-react";
+import { Bell, Menu, Store, ShoppingBag, UserRound } from "lucide-react";
 import { useSession } from "@/features/auth/use-session";
 import { MenuSesion } from "./menu-sesion";
 import { PUBLIC_NAV, navigationFor } from "./navigation";
@@ -117,6 +117,26 @@ export function AppHeader() {
                     </NavLink>
                   ))}
                 </div>
+                {usuario ? (
+                  <div className="space-y-1 border-t pt-4">
+                    <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Mi cuenta
+                    </p>
+                    <NavLink
+                      to="/cuenta"
+                      onClick={() => setOpen(false)}
+                      className={({ isActive }) =>
+                        cn(
+                          "flex min-h-12 items-center gap-2 rounded-lg px-3 text-sm hover:bg-muted",
+                          isActive && "bg-muted font-semibold text-primary",
+                        )
+                      }
+                    >
+                      <UserRound className="size-4 shrink-0" aria-hidden="true" />
+                      <span className="min-w-0 truncate">Datos personales · {usuario.nombre}</span>
+                    </NavLink>
+                  </div>
+                ) : null}
                 {usuario ? (
                   <div className="space-y-1 border-t pt-4">
                     <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

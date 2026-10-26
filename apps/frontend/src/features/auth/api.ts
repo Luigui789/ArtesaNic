@@ -17,6 +17,7 @@ const adaptadorReal: AdaptadorSesion = {
   registrarComprador: http.registrarComprador,
   registrarArtesano: http.registrarArtesano,
   cerrarSesion: http.cerrarSesion,
+  actualizarPerfil: http.actualizarPerfil,
   alExpirar: alExpirarSesion,
 };
 

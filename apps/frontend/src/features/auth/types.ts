@@ -24,6 +24,16 @@ export interface RegistroCompradorEntrada {
   password: string;
 }
 
+/**
+ * `PATCH /auth/perfil/` (AUD-15): solo los datos personales editables. Cada campo se
+ * envía únicamente si cambia; `passwordActual` solo acompaña a un teléfono nuevo.
+ */
+export interface ActualizarPerfilEntrada {
+  nombre?: string;
+  telefono?: string;
+  passwordActual?: string;
+}
+
 /** Campos de `CAMPOS_PERFIL` del backend (PerfilTallerEntradaSerializer). */
 export interface TallerEntrada {
   nombre: string;
