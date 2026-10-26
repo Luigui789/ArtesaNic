@@ -1,12 +1,16 @@
 import { useState } from "react";
 import { NavLink, useNavigate } from "react-router";
-import { LogIn, LogOut } from "lucide-react";
+import { LogIn, LogOut, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/use-session";
 import { cn } from "@/lib/utils";
 
-/** Sesión real: acceso para visitantes; nombre y cierre de sesión para cuentas. */
+/**
+ * Sesión real: acceso para visitantes; «Mi cuenta» (con el nombre) y cierre de sesión
+ * para cuentas. El nombre sale de la sesión, así que refleja al instante un cambio
+ * guardado en `/cuenta`.
+ */
 export function MenuSesion({ compacto = false }: { compacto?: boolean }) {
   const { modo, estado, usuario, cerrarSesion } = useSession();
   const navigate = useNavigate();
@@ -15,14 +19,21 @@ export function MenuSesion({ compacto = false }: { compacto?: boolean }) {
   if (modo === "real" && estado === "autenticada" && usuario)
     return (
       <div className="flex items-center gap-2">
-        <span
-          className={cn(
-            "hidden max-w-40 truncate text-sm text-muted-foreground",
-            compacto ? "2xl:inline" : "sm:inline",
-          )}
+        <NavLink
+          to="/cuenta"
+          aria-label={`Mi cuenta: ${usuario.nombre}`}
+          className={({ isActive }) =>
+            cn(
+              "flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2 text-sm text-muted-foreground hover:bg-surface hover:text-foreground",
+              isActive && "bg-surface text-foreground",
+            )
+          }
         >
-          {usuario.nombre}
-        </span>
+          <UserRound className="size-4 shrink-0" aria-hidden="true" />
+          <span className={cn("hidden max-w-40 truncate", compacto ? "2xl:inline" : "sm:inline")}>
+            {usuario.nombre}
+          </span>
+        </NavLink>
         <Button
           variant="outline"
           className="touch-target"

@@ -16,6 +16,7 @@ import Home from "@/routes/home";
 import Ayuda from "@/routes/ayuda";
 import Index from "@/features/catalogo/pages/inicio";
 import Auth from "@/features/auth/pages/acceso";
+import Cuenta from "@/features/auth/pages/cuenta";
 import Catalogo from "@/features/catalogo/pages/catalogo";
 import Producto from "@/features/catalogo/pages/producto";
 import Artesano from "@/features/talleres/pages/artesano";
@@ -77,6 +78,15 @@ export function App() {
                     <Route path="/descubrir" element={<Index />} />
                     <Route path="/ayuda" element={<Ayuda />} />
                     <Route path="/auth" element={<Auth />} />
+                    {/* Cuenta personal, de cualquier rol; distinta del perfil del taller. */}
+                    <Route
+                      path="/cuenta"
+                      element={
+                        <RequiereSesion>
+                          <Cuenta />
+                        </RequiereSesion>
+                      }
+                    />
                     <Route path="/catalogo" element={<Catalogo />} />
                     <Route path="/producto/:id" element={<Producto />} />
                     <Route path="/artesano/:id" element={<Artesano />} />

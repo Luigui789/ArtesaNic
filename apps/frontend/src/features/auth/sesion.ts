@@ -14,6 +14,7 @@
 import { MENSAJE_SIN_CONEXION } from "@/lib/http";
 import type { Role } from "@/types";
 import type {
+  ActualizarPerfilEntrada,
   Credenciales,
   RegistroArtesanoEntrada,
   RegistroCompradorEntrada,
@@ -32,6 +33,8 @@ export interface AdaptadorSesion {
   registrarComprador(entrada: RegistroCompradorEntrada): Promise<SesionUsuario>;
   registrarArtesano(entrada: RegistroArtesanoEntrada): Promise<SesionUsuario>;
   cerrarSesion(): Promise<void>;
+  /** Datos personales propios (AUD-15). Devuelve la identidad que guardó el servidor. */
+  actualizarPerfil(entrada: ActualizarPerfilEntrada): Promise<SesionUsuario>;
   /** Aviso de sesión terminada por el servidor (renovación `401`). */
   alExpirar(oyente: () => void): () => void;
   /** Exclusivo de la demo: alterna la vista simulada. No existe en modo real. */
@@ -115,6 +118,18 @@ export function crearControladorSesion(adaptador: AdaptadorSesion, cache: CacheP
 
     registrarArtesano: async (entrada: RegistroArtesanoEntrada) =>
       autenticar(await adaptador.registrarArtesano(entrada)),
+
+    /**
+     * Misma cuenta, datos nuevos: la respuesta del servidor reemplaza la identidad sin
+     * vaciar la caché (no hay cambio de cuenta). Si entretanto la sesión se cerró o es
+     * de otra cuenta, no se publica nada.
+     */
+    async actualizarPerfil(entrada: ActualizarPerfilEntrada): Promise<SesionUsuario> {
+      const usuario = await adaptador.actualizarPerfil(entrada);
+      if (actual.estado === "autenticada" && actual.usuario.id === usuario.id)
+        publicar({ estado: "autenticada", usuario, error: null });
+      return usuario;
+    },
 
     /**
      * Si el servidor no confirma el cierre, la sesión sigue abierta (la cookie de

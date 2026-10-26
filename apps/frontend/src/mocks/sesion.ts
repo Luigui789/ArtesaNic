@@ -77,6 +77,13 @@ export const adaptadorDemo: AdaptadorSesion = {
   cerrarSesion: async () => {
     guardar(null);
   },
+  // La demo no tiene contraseñas: el cambio de teléfono no se reautentica aquí.
+  actualizarPerfil: async ({ nombre, telefono }) =>
+    guardar({
+      ...leer(),
+      ...(nombre !== undefined ? { nombre: nombre.trim() } : {}),
+      ...(telefono !== undefined ? { telefono } : {}),
+    })!,
   alExpirar: () => () => undefined,
   cambiarVista: (rol) => guardar(rol === "artesano" ? ARTESANO : COMPRADOR)!,
 };

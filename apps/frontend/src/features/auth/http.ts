@@ -15,6 +15,7 @@ import {
   solicitar,
 } from "@/lib/http";
 import type {
+  ActualizarPerfilEntrada,
   Credenciales,
   RegistroArtesanoEntrada,
   RegistroCompradorEntrada,
@@ -74,6 +75,19 @@ export function cuerpoTaller(t: TallerEntrada) {
   };
 }
 
+/** Lista cerrada: nombre, teléfono y contraseña actual, solo los que se enviaron. */
+export function cuerpoActualizarPerfil({
+  nombre,
+  telefono,
+  passwordActual,
+}: ActualizarPerfilEntrada) {
+  return {
+    ...(nombre !== undefined ? { nombre } : {}),
+    ...(telefono !== undefined ? { telefono } : {}),
+    ...(telefono !== undefined && passwordActual ? { password_actual: passwordActual } : {}),
+  };
+}
+
 export function cuerpoRegistroArtesano(entrada: RegistroArtesanoEntrada) {
   return { ...cuerpoRegistroComprador(entrada), taller: cuerpoTaller(entrada.taller) };
 }
@@ -111,6 +125,21 @@ export function registrarArtesano(entrada: RegistroArtesanoEntrada): Promise<Ses
 export async function consultarPerfil(signal?: AbortSignal): Promise<SesionUsuario> {
   return aSesionUsuario(
     await solicitar("/auth/perfil/", { autenticada: true, esquema: esquemaUsuario, signal }),
+  );
+}
+
+/**
+ * `PATCH /auth/perfil/` (AUD-15): Bearer, sin CSRF. No emite tokens: la sesión sigue
+ * siendo la misma y la respuesta es la identidad actualizada, que reemplaza a la anterior.
+ */
+export async function actualizarPerfil(entrada: ActualizarPerfilEntrada): Promise<SesionUsuario> {
+  return aSesionUsuario(
+    await solicitar("/auth/perfil/", {
+      metodo: "PATCH",
+      cuerpo: cuerpoActualizarPerfil(entrada),
+      autenticada: true,
+      esquema: esquemaUsuario,
+    }),
   );
 }
 

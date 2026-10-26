@@ -78,6 +78,27 @@ class LoginSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
     password = PasswordField()
 
 
+class ActualizarPerfilSerializer(SinCamposDesconocidosMixin, serializers.Serializer):
+    """Datos personales propios editables (RF-004): solo nombre y teléfono.
+
+    Actualización parcial. Rol, estado, privilegios y contraseña no son editables:
+    cualquier otro campo se rechaza con 400 (D-AUD15-01, D-AUD15-04).
+    """
+
+    nombre = serializers.CharField(max_length=150, required=False, help_text="Nombre completo.")
+    telefono = TelefonoField(
+        required=False,
+        help_text="Nuevo teléfono de acceso, en cualquier formato admitido. Si cambia de "
+        "forma efectiva exige `password_actual`.",
+    )
+    password_actual = PasswordField(
+        required=False,
+        allow_blank=True,
+        help_text="Contraseña actual. Obligatoria solo para cambiar el teléfono; no se "
+        "guarda ni se devuelve.",
+    )
+
+
 class UsuarioSerializer(serializers.ModelSerializer):
     """Identidad autenticada. Sin contraseña, hash ni privilegios internos."""
 

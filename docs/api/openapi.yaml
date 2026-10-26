@@ -150,6 +150,93 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Sin token o token no válido.
+    patch:
+      operationId: actualizar_perfil
+      description: 'Actualización parcial de la cuenta autenticada: solo `nombre`
+        y `telefono`. Cambiar de forma efectiva el teléfono de acceso exige `password_actual`;
+        un teléfono que normaliza al actual no es un cambio. Rol, estado, privilegios
+        y contraseña no son editables: cualquier otro campo responde 400. No exige
+        CSRF (usa el token Bearer), no emite tokens nuevos y la sesión actual sigue
+        válida. No modifica los contactos públicos del taller.'
+      summary: Actualizar los datos personales propios
+      tags:
+      - Autenticación
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedActualizarPerfilRequest'
+            examples:
+              CambiarElNombre:
+                value:
+                  nombre: Ana Lucía López
+                summary: Cambiar el nombre
+              CambiarElTeléfono:
+                value:
+                  telefono: 8777 1234
+                  password_actual: …
+                summary: Cambiar el teléfono
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+              examples:
+                CuentaActualizada:
+                  value:
+                    id: 4
+                    nombre: Ana Lucía López
+                    telefono: '87771234'
+                    rol: artesano
+                  summary: Cuenta actualizada
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+              examples:
+                TeléfonoYaRegistrado:
+                  value:
+                    telefono:
+                    - Ya existe una cuenta con este teléfono.
+                  summary: Teléfono ya registrado
+                FaltaLaContraseñaActual:
+                  value:
+                    password_actual:
+                    - Confirma tu contraseña actual para cambiar el teléfono.
+                  summary: Falta la contraseña actual
+                ContraseñaActualIncorrecta:
+                  value:
+                    password_actual:
+                    - La contraseña actual no es correcta.
+                  summary: Contraseña actual incorrecta
+                CampoNoPermitido:
+                  value:
+                    rol:
+                    - Campo no permitido.
+                  summary: Campo no permitido
+          description: 'Errores de validación: cada campo con su lista de mensajes.
+            Los campos no editables responden «Campo no permitido.».'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o token no válido.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Demasiados intentos. La cabecera Retry-After indica la espera.
   /api/v1/auth/refrescar/:
     post:
       operationId: renovar_sesion
@@ -5405,6 +5492,30 @@ components:
       - registrable_hasta
       - revision_pendiente
       - total
+    PatchedActualizarPerfilRequest:
+      type: object
+      description: |-
+        Datos personales propios editables (RF-004): solo nombre y teléfono.
+
+        Actualización parcial. Rol, estado, privilegios y contraseña no son editables:
+        cualquier otro campo se rechaza con 400 (D-AUD15-01, D-AUD15-04).
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          description: Nombre completo.
+          maxLength: 150
+        telefono:
+          type: string
+          minLength: 1
+          description: Nuevo teléfono de acceso, en cualquier formato admitido. Si
+            cambia de forma efectiva exige `password_actual`.
+          maxLength: 32
+        password_actual:
+          type: string
+          writeOnly: true
+          description: Contraseña actual. Obligatoria solo para cambiar el teléfono;
+            no se guarda ni se devuelve.
     PatchedActualizarPerfilTallerRequest:
       type: object
       description: Edición del perfil del taller propio, incluyendo imagen de perfil

@@ -24,6 +24,9 @@ const nombre = z
   .min(1, "Escribe tu nombre completo.")
   .max(150, "Máximo 150 caracteres.");
 
+/** Datos personales editables de `/cuenta` (AUD-15): mismas reglas que el registro. */
+export const esquemaDatosPersonales = z.object({ nombre, telefono });
+
 /** Mínimo de `MinimumLengthValidator` (8) y `NumericPasswordValidator`. */
 const passwordNueva = z
   .string()
