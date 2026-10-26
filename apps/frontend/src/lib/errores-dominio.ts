@@ -51,6 +51,8 @@ const MENSAJES: Record<string, string> = {
   reembolso_ya_realizado: "La devolución de este reembolso ya fue registrada.",
   clasificacion_excede_pendiente:
     "La cantidad supera las unidades pendientes de clasificar. Actualiza para ver lo pendiente.",
+  conversacion_cerrada:
+    "Este pedido finalizó. La conversación queda disponible solo para consulta.",
   resultado_pendiente:
     "No pudimos confirmar el resultado anterior. Reintenta con los mismos datos antes de iniciar otra operación.",
 };

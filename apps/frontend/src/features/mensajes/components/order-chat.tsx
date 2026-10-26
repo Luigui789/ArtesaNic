@@ -1,100 +1,176 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { Lock, MessageSquareOff, RefreshCw, Send } from "lucide-react";
+import { Lock, RefreshCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { listMessages, pollNewMessages, sendMessage } from "@/features/mensajes/api";
-import { chatMode } from "@/lib/order-state";
-import { formatDate, formatTime, relativeSeconds } from "@/lib/format";
 import { useSession } from "@/features/auth/use-session";
-import type { OrderStatus } from "@/types";
+import {
+  agregarPropio,
+  enviarMensaje,
+  INTERVALO_SONDEO_MS,
+  listarMensajes,
+  MAX_TEXTO,
+  sondearNovedades,
+  type ConversacionPedido,
+  type MensajePedido,
+} from "@/features/mensajes/api";
+import { ESTADOS_TERMINALES, type EstadoPedidoOperativo } from "@/features/pedidos/confirmados";
+import { ApiError, reintentarSalvoErrorDelCliente } from "@/lib/http";
+import { mensajeDominio } from "@/lib/errores-dominio";
+import { formatDate, formatTime } from "@/lib/format";
+import { claves } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 
-const POLL_MS = 15000; // RNF-010
+export const AVISO_SOLO_LECTURA =
+  "Este pedido finalizó. La conversación queda disponible solo para consulta.";
 
-/** RF-014: mensajería asociada exclusivamente a un pedido. */
-export function OrderChat({ pedidoId, estado }: { pedidoId: number; estado: OrderStatus }) {
-  const modo = chatMode(estado);
+/**
+ * RF-014 (AUD-16): conversación privada del pedido confirmado, la misma para comprador y
+ * artesano. El servidor decide autor, permisos y si admite mensajes (`soloLectura`).
+ */
+export function OrderChat({ pedido, estado }: { pedido: number; estado: EstadoPedidoOperativo }) {
   const queryClient = useQueryClient();
   const { usuario } = useSession();
+  const usuarioId = usuario?.id;
+  const clave = claves.mensajes(usuarioId, pedido);
   const [texto, setTexto] = useState("");
-  const [ultimaActualizacion, setUltimaActualizacion] = useState(() => Date.now());
-  const [, forceTick] = useState(0);
-  const lastFecha = useRef<string>(new Date(0).toISOString());
-  const listaRef = useRef<HTMLDivElement>(null);
+  const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
+  const [errorSondeo, setErrorSondeo] = useState(false);
+  const sondeando = useRef(false);
 
-  const mensajes = useQuery({
-    queryKey: ["mensajes", pedidoId],
-    queryFn: () => listMessages(pedidoId),
-    enabled: modo !== "none",
+  // Primera lectura: historial completo. Después solo deltas: sin refetch automático.
+  const conversacion = useQuery({
+    queryKey: clave,
+    queryFn: ({ signal }) => listarMensajes(pedido, undefined, signal),
+    retry: reintentarSalvoErrorDelCliente,
+    staleTime: Infinity,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
+  // El servidor es la autoridad; un estado terminal ya conocido también cierra el compositor.
+  const soloLectura = conversacion.data?.soloLectura === true || ESTADOS_TERMINALES.has(estado);
+  const cargada = conversacion.isSuccess;
 
-  useEffect(() => {
-    const last = mensajes.data?.at(-1);
-    if (last) lastFecha.current = last.fecha;
-    // Solo se desplaza la lista de mensajes: mover la página haría saltar la vista al chat.
-    const lista = listaRef.current;
-    if (lista) lista.scrollTop = lista.scrollHeight;
-  }, [mensajes.data]);
+  const sondear = async () => {
+    if (sondeando.current) return;
+    sondeando.current = true;
+    try {
+      await sondearNovedades(queryClient, claves.mensajes(usuarioId, pedido), pedido);
+      setErrorSondeo(false);
+    } catch {
+      setErrorSondeo(true); // se reintenta en el siguiente ciclo
+    } finally {
+      sondeando.current = false;
+    }
+  };
+  const sondearRef = useRef(sondear);
+  sondearRef.current = sondear;
 
-  // Polling simulado: solo trae mensajes nuevos.
+  // RNF-010: cada 15 s, solo mientras la conversación admite mensajes.
   useEffect(() => {
-    if (modo !== "active") return;
-    const id = setInterval(() => {
-      void pollNewMessages(pedidoId, lastFecha.current).then((nuevos) => {
-        setUltimaActualizacion(Date.now());
-        if (nuevos.length > 0) {
-          void queryClient.invalidateQueries({ queryKey: ["mensajes", pedidoId] });
-        }
-      });
-    }, POLL_MS);
+    if (!cargada || soloLectura) return;
+    const id = setInterval(() => void sondearRef.current(), INTERVALO_SONDEO_MS);
     return () => clearInterval(id);
-  }, [modo, pedidoId, queryClient]);
-
-  // Refresca el texto "Actualizado hace N segundos".
-  useEffect(() => {
-    const id = setInterval(() => forceTick((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
+  }, [cargada, soloLectura, pedido, usuarioId]);
 
   const enviar = useMutation({
-    mutationFn: (t: string) =>
-      sendMessage(pedidoId, usuario?.rol ?? "comprador", usuario?.nombre ?? "Usuario", t),
-    onSuccess: () => {
+    mutationFn: (contenido: string) => enviarMensaje(pedido, contenido),
+    onSuccess: (mensaje) => {
+      queryClient.setQueryData<ConversacionPedido>(clave, (previa) =>
+        previa ? agregarPropio(previa, mensaje) : previa,
+      );
       setTexto("");
-      void queryClient.invalidateQueries({ queryKey: ["mensajes", pedidoId] });
+      setErrorEnvio(null);
+      // Delta inmediato: trae lo que la otra parte confirmó antes y avanza el cursor.
+      void sondear();
     },
-    onError: () => toast.error("No pudimos enviar el mensaje. Intenta nuevamente."),
+    onError: (error) => {
+      if (error instanceof ApiError && error.codigo === "conversacion_cerrada") {
+        queryClient.setQueryData<ConversacionPedido>(clave, (previa) =>
+          previa ? { ...previa, soloLectura: true } : previa,
+        );
+        setErrorEnvio(null);
+        return;
+      }
+      setErrorEnvio(mensajeDominio(error));
+    },
   });
 
-  if (modo === "none") {
-    return (
-      <div className="flex items-center gap-3 rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-        <MessageSquareOff className="size-5 shrink-0" aria-hidden="true" />
-        Esta solicitud fue rechazada, por lo que no tiene mensajería.
-      </div>
-    );
-  }
+  return (
+    <VistaConversacion
+      estado={conversacion.isPending ? "cargando" : conversacion.isError ? "error" : "lista"}
+      mensajes={conversacion.data?.mensajes ?? []}
+      usuarioId={usuarioId}
+      soloLectura={soloLectura}
+      errorCarga={conversacion.isError ? mensajeDominio(conversacion.error) : null}
+      onReintentar={() => void conversacion.refetch()}
+      errorSondeo={errorSondeo}
+      texto={texto}
+      onTexto={setTexto}
+      enviando={enviar.isPending}
+      errorEnvio={errorEnvio}
+      onEnviar={() => {
+        const limpio = texto.trim();
+        if (limpio) enviar.mutate(limpio);
+      }}
+    />
+  );
+}
 
-  if (modo === "disabled") {
-    return (
-      <div className="flex items-center gap-3 rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-        <Lock className="size-5 shrink-0" aria-hidden="true" />
-        La mensajería se habilita cuando el artesano acepta la solicitud.
-      </div>
-    );
-  }
+export interface VistaConversacionProps {
+  estado: "cargando" | "error" | "lista";
+  mensajes: MensajePedido[];
+  usuarioId: number | undefined;
+  soloLectura: boolean;
+  errorCarga: string | null;
+  onReintentar: () => void;
+  errorSondeo: boolean;
+  texto: string;
+  onTexto: (texto: string) => void;
+  enviando: boolean;
+  errorEnvio: string | null;
+  onEnviar: () => void;
+}
+
+/** Presentación pura del chat: se renderiza igual para comprador y artesano. */
+export function VistaConversacion({
+  estado,
+  mensajes,
+  usuarioId,
+  soloLectura,
+  errorCarga,
+  onReintentar,
+  errorSondeo,
+  texto,
+  onTexto,
+  enviando,
+  errorEnvio,
+  onEnviar,
+}: VistaConversacionProps) {
+  const listaRef = useRef<HTMLDivElement>(null);
+  const cantidad = mensajes.length;
+  const limpio = texto.trim();
+
+  // Solo se desplaza la lista de mensajes al llegar uno nuevo: la página no salta.
+  useEffect(() => {
+    const lista = listaRef.current;
+    if (lista) lista.scrollTop = lista.scrollHeight;
+  }, [cantidad]);
 
   return (
-    <div className="rounded-xl border bg-card">
+    <section aria-labelledby="mensajes-pedido" className="rounded-xl border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-        <h3 className="text-sm font-semibold">Mensajes del pedido</h3>
-        {/* Sin región viva: el texto cambia cada segundo y saturaría el lector de pantalla. */}
-        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <RefreshCw className="size-3.5" aria-hidden="true" />
-          Actualizado {relativeSeconds(ultimaActualizacion)}
-        </p>
+        <h2 id="mensajes-pedido" className="text-base font-semibold">
+          Mensajes del pedido
+        </h2>
+        {!soloLectura && estado === "lista" ? (
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <RefreshCw className="size-3.5" aria-hidden="true" />
+            {errorSondeo
+              ? "Sin conexión con el servidor; reintentaremos en unos segundos."
+              : "Se actualiza cada 15 segundos."}
+          </p>
+        ) : null}
       </div>
 
       <div
@@ -103,35 +179,42 @@ export function OrderChat({ pedidoId, estado }: { pedidoId: number; estado: Orde
         aria-label="Conversación del pedido"
         aria-live="polite"
         aria-relevant="additions"
-        className="max-h-96 space-y-3 overflow-y-auto p-4"
+        className="max-h-96 space-y-3 overflow-y-auto overscroll-contain p-4"
       >
-        {mensajes.isPending ? (
-          <div className="space-y-3">
+        {estado === "cargando" ? (
+          <div className="space-y-3" aria-label="Cargando mensajes">
             <div className="h-14 animate-pulse rounded-lg bg-surface" />
             <div className="h-14 animate-pulse rounded-lg bg-surface" />
           </div>
-        ) : mensajes.isError ? (
-          <div role="alert" className="text-sm text-destructive">
-            No pudimos cargar los mensajes.{" "}
-            <button className="underline" onClick={() => void mensajes.refetch()}>
+        ) : estado === "error" ? (
+          <div role="alert" className="space-y-2 text-sm text-destructive">
+            <p>No pudimos cargar los mensajes. {errorCarga}</p>
+            <Button type="button" variant="outline" className="touch-target" onClick={onReintentar}>
               Reintentar
-            </button>
+            </Button>
           </div>
-        ) : mensajes.data && mensajes.data.length > 0 ? (
-          mensajes.data.map((m) => {
-            const propio = m.autor === (usuario?.rol ?? "comprador");
+        ) : cantidad > 0 ? (
+          mensajes.map((m) => {
+            // Identidad estable de la cuenta: el nombre puede cambiar (AUD-15).
+            const propio = usuarioId !== undefined && m.autor.id === usuarioId;
             return (
-              <div key={m.id} className={cn("flex", propio ? "justify-end" : "justify-start")}>
+              <div
+                key={m.id}
+                data-mensaje={m.id}
+                className={cn("flex", propio ? "justify-end" : "justify-start")}
+              >
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-lg border px-3 py-2 text-sm",
-                    propio ? "bg-primary/10 border-primary/20" : "bg-surface",
+                    "max-w-[85%] min-w-0 rounded-lg border px-3 py-2 text-sm",
+                    propio ? "border-primary/20 bg-primary/10" : "bg-surface",
                   )}
                 >
-                  <p className="text-xs font-medium text-muted-foreground">{m.autorNombre}</p>
-                  <p className="mt-1 whitespace-pre-wrap">{m.texto}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {propio ? "Tú" : m.autor.nombre}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap break-words">{m.texto}</p>
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    {formatDate(m.fecha)} · {formatTime(m.fecha)}
+                    {formatDate(m.creadoEn)} · {formatTime(m.creadoEn)}
                   </p>
                 </div>
               </div>
@@ -139,48 +222,60 @@ export function OrderChat({ pedidoId, estado }: { pedidoId: number; estado: Orde
           })
         ) : (
           <p className="py-6 text-center text-sm text-muted-foreground">
-            Todavía no hay mensajes en este pedido. Escribe el primero para coordinar los detalles.
+            {soloLectura
+              ? "Este pedido no tuvo mensajes."
+              : "Todavía no hay mensajes en este pedido. Escribe el primero para coordinar los detalles."}
           </p>
         )}
       </div>
 
-      {modo === "readonly" ? (
-        <p className="flex items-center gap-2 border-t px-4 py-3 text-sm text-muted-foreground">
-          <Lock className="size-4" aria-hidden="true" />
-          Este pedido está cerrado. La conversación queda solo para consulta.
+      {soloLectura ? (
+        <p
+          role="status"
+          className="flex items-center gap-2 border-t px-4 py-3 text-sm text-muted-foreground"
+        >
+          <Lock className="size-4 shrink-0" aria-hidden="true" />
+          {AVISO_SOLO_LECTURA}
         </p>
-      ) : (
+      ) : estado === "lista" ? (
         <form
-          className="flex flex-col gap-2 border-t p-4 sm:flex-row sm:items-end"
+          className="space-y-2 border-t p-4"
           onSubmit={(e) => {
             e.preventDefault();
-            if (texto.trim().length === 0) return;
-            enviar.mutate(texto.trim());
+            onEnviar();
           }}
         >
-          <div className="flex-1">
-            <label htmlFor="mensaje" className="sr-only">
-              Escribe un mensaje
-            </label>
-            <Textarea
-              id="mensaje"
-              value={texto}
-              onChange={(e) => setTexto(e.target.value)}
-              placeholder="Escribe un mensaje para coordinar el pedido…"
-              rows={2}
-              maxLength={500}
-            />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <div className="min-w-0 flex-1">
+              <label htmlFor="mensaje-pedido" className="sr-only">
+                Escribe un mensaje
+              </label>
+              <Textarea
+                id="mensaje-pedido"
+                value={texto}
+                onChange={(e) => onTexto(e.target.value)}
+                placeholder="Escribe un mensaje para coordinar el pedido…"
+                rows={2}
+                maxLength={MAX_TEXTO}
+                aria-describedby="mensaje-pedido-ayuda"
+                aria-invalid={errorEnvio ? true : undefined}
+              />
+            </div>
+            <Button type="submit" className="touch-target" disabled={enviando || !limpio}>
+              <Send className="size-4" aria-hidden="true" />
+              {enviando ? "Enviando…" : "Enviar"}
+            </Button>
           </div>
-          <Button
-            type="submit"
-            className="touch-target"
-            disabled={enviar.isPending || texto.trim().length === 0}
-          >
-            <Send className="size-4" aria-hidden="true" />
-            {enviar.isPending ? "Enviando…" : "Enviar"}
-          </Button>
+          <p id="mensaje-pedido-ayuda" className="text-xs text-muted-foreground">
+            Solo texto, hasta {MAX_TEXTO} caracteres ({texto.length}/{MAX_TEXTO}).
+          </p>
+          {errorEnvio ? (
+            <p role="alert" className="text-sm text-destructive">
+              No pudimos enviar el mensaje: {errorEnvio}
+            </p>
+          ) : null}
         </form>
-      )}
-    </div>
+      ) : null}
+    </section>
   );
 }

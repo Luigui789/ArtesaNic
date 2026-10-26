@@ -16,6 +16,9 @@ export const claves = {
     ["cumplimiento-real", usuario, recibido, pedido] as const,
   resolucion: (usuario: number | undefined, recibido: boolean, pedido: number) =>
     ["resolucion-real", usuario, recibido, pedido] as const,
+  /** Conversación privada del pedido (AUD-16): la identidad forma parte de la clave. */
+  mensajes: (usuario: number | undefined, pedido: number) =>
+    ["mensajes-reales", usuario, pedido] as const,
   clasificacionesPedido: (usuario: number | undefined, recibido: boolean, pedido: number) =>
     ["clasificaciones-pedido-real", usuario, recibido, pedido] as const,
   /** Binario privado: solo en memoria y con identidad; se descarta al desmontar. */
