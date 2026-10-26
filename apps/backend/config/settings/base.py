@@ -189,6 +189,7 @@ REST_FRAMEWORK = {
         "login": "10/min",
         "login_telefono": "20/hour",
         "registro": "10/hour",
+        "reautenticacion": "10/hour",
     },
     # Sin proxies de confianza la IP es REMOTE_ADDR y se ignora X-Forwarded-For,
     # que el cliente podría falsificar para eludir la limitación.

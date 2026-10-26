@@ -25,6 +25,7 @@ from . import tokens
 from .authentication import MENSAJE_SESION_INVALIDA
 from .csrf import CSRFRequerido
 from .serializers import (
+    ActualizarPerfilSerializer,
     ErrorSerializer,
     LoginSerializer,
     RegistroSerializer,
@@ -33,10 +34,12 @@ from .serializers import (
     TokenCSRFSerializer,
     UsuarioSerializer,
 )
-from .throttles import LoginPorTelefonoThrottle
+from .throttles import LoginPorTelefonoThrottle, ReautenticacionThrottle
 
 MENSAJE_TELEFONO_REGISTRADO = "Ya existe una cuenta con este teléfono."
 MENSAJE_CREDENCIALES = "Teléfono o contraseña incorrectos."
+MENSAJE_PASSWORD_ACTUAL_REQUERIDO = "Confirma tu contraseña actual para cambiar el teléfono."
+MENSAJE_PASSWORD_ACTUAL_INCORRECTO = "La contraseña actual no es correcta."
 MENSAJE_CUENTA_ADMINISTRACION = (
     "Las cuentas de administración ingresan por Django Admin, no por esta aplicación."
 )
@@ -68,6 +71,26 @@ RESPUESTA_400 = OpenApiResponse(
             value={"telefono": ["Ya existe una cuenta con este teléfono."]},
             response_only=True,
         )
+    ],
+)
+RESPUESTA_400_PERFIL = OpenApiResponse(
+    response=RESPUESTA_400.response,
+    description="Errores de validación: cada campo con su lista de mensajes. Los campos no "
+    "editables responden «Campo no permitido.».",
+    examples=[
+        OpenApiExample(nombre, value=valor, response_only=True)
+        for nombre, valor in [
+            ("Teléfono ya registrado", {"telefono": [MENSAJE_TELEFONO_REGISTRADO]}),
+            (
+                "Falta la contraseña actual",
+                {"password_actual": [MENSAJE_PASSWORD_ACTUAL_REQUERIDO]},
+            ),
+            (
+                "Contraseña actual incorrecta",
+                {"password_actual": [MENSAJE_PASSWORD_ACTUAL_INCORRECTO]},
+            ),
+            ("Campo no permitido", {"rol": ["Campo no permitido."]}),
+        ]
     ],
 )
 RESPUESTA_403_CSRF = OpenApiResponse(ErrorSerializer, description="Token CSRF ausente o inválido.")
@@ -334,6 +357,10 @@ class LogoutView(_VistaDeSesion):
 
 @method_decorator(never_cache, name="dispatch")
 class PerfilView(APIView):
+    # Identidad propia: siempre request.user, nunca un identificador en la ruta.
+
+    throttle_classes = [ReautenticacionThrottle]
+
     @extend_schema(
         tags=[TAG],
         operation_id="consultar_perfil",
@@ -345,3 +372,60 @@ class PerfilView(APIView):
     )
     def get(self, request):
         return Response(UsuarioSerializer(request.user).data)
+
+    @extend_schema(
+        tags=[TAG],
+        operation_id="actualizar_perfil",
+        summary="Actualizar los datos personales propios",
+        description="Actualización parcial de la cuenta autenticada: solo `nombre` y "
+        "`telefono`. Cambiar de forma efectiva el teléfono de acceso exige `password_actual`; "
+        "un teléfono que normaliza al actual no es un cambio. Rol, estado, privilegios y "
+        "contraseña no son editables: cualquier otro campo responde 400. No exige CSRF "
+        "(usa el token Bearer), no emite tokens nuevos y la sesión actual sigue válida. "
+        "No modifica los contactos públicos del taller.",
+        request=ActualizarPerfilSerializer,
+        responses={
+            200: UsuarioSerializer,
+            400: RESPUESTA_400_PERFIL,
+            401: OpenApiResponse(ErrorSerializer, description="Sin token o token no válido."),
+            429: RESPUESTA_429,
+        },
+        examples=[
+            OpenApiExample(
+                "Cambiar el nombre", value={"nombre": "Ana Lucía López"}, request_only=True
+            ),
+            OpenApiExample(
+                "Cambiar el teléfono",
+                value={"telefono": "8777 1234", "password_actual": "…"},
+                request_only=True,
+            ),
+            OpenApiExample(
+                "Cuenta actualizada",
+                value={
+                    "id": 4,
+                    "nombre": "Ana Lucía López",
+                    "telefono": "87771234",
+                    "rol": "artesano",
+                },
+                response_only=True,
+            ),
+        ],
+    )
+    def patch(self, request):
+        entrada = ActualizarPerfilSerializer(data=request.data)
+        entrada.is_valid(raise_exception=True)
+        try:
+            usuario = services.actualizar_datos_personales(request.user, **entrada.validated_data)
+        except services.TelefonoYaRegistrado:
+            raise exceptions.ValidationError({"telefono": [MENSAJE_TELEFONO_REGISTRADO]}) from None
+        except services.PasswordActualRequerido:
+            raise exceptions.ValidationError(
+                {"password_actual": [MENSAJE_PASSWORD_ACTUAL_REQUERIDO]}
+            ) from None
+        except services.PasswordActualIncorrecto:
+            raise exceptions.ValidationError(
+                {"password_actual": [MENSAJE_PASSWORD_ACTUAL_INCORRECTO]}
+            ) from None
+        except DjangoValidationError as exc:
+            raise exceptions.ValidationError(exc.message_dict) from None
+        return Response(UsuarioSerializer(usuario).data)
