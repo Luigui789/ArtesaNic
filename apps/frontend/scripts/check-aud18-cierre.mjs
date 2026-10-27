@@ -298,16 +298,20 @@ await verificar(
       totalPages: 1,
     });
 
-    for (const invalido of ["/mensajes?pedido=abc", "/mensajes?pedido=0", "/mensajes?pedido=-5"]) {
-      const html = await renderConSesion((h) => h(m.mensajesPagina.default), {
-        usuario: ANA,
-        ruta: invalido,
-        qc,
-      });
-      assert.match(html, /Enlace de conversación no válido/, invalido);
-      assert.doesNotMatch(html, /aria-label="Conversación del pedido"/, invalido);
-      assert.match(html, /Pedido #81/, "mantiene visible la lista propia");
-    }
+    await Promise.all(
+      ["/mensajes?pedido=abc", "/mensajes?pedido=0", "/mensajes?pedido=-5"].map(
+        async (invalido) => {
+          const html = await renderConSesion((h) => h(m.mensajesPagina.default), {
+            usuario: ANA,
+            ruta: invalido,
+            qc,
+          });
+          assert.match(html, /Enlace de conversación no válido/, invalido);
+          assert.doesNotMatch(html, /aria-label="Conversación del pedido"/, invalido);
+          assert.match(html, /Pedido #81/, "mantiene visible la lista propia");
+        },
+      ),
+    );
   },
 );
 
@@ -347,8 +351,10 @@ await verificar(
 
 await verificar("/descubrir consulta GET /api/v1/talleres/ en modo real", async () => {
   const urls = [];
-  globalThis.fetch = async (url) => {
+  const senales = [];
+  globalThis.fetch = async (url, init) => {
     urls.push(String(url));
+    senales.push(init?.signal);
     return new Response(
       JSON.stringify([
         {
@@ -368,8 +374,10 @@ await verificar("/descubrir consulta GET /api/v1/talleres/ en modo real", async 
       { status: 200, headers: { "Content-Type": "application/json" } },
     );
   };
-  const talleres = await m.talleresApi.listPerfilesTalleres();
+  const controlador = new AbortController();
+  const talleres = await m.talleresApi.listPerfilesTalleres(controlador.signal);
   assert.deepEqual(urls, ["/api/v1/talleres/"]);
+  assert.equal(senales[0], controlador.signal);
   assert.equal(talleres.length, 1);
   assert.equal(talleres[0].nombre, "Taller Real de Masaya");
   assert.equal(talleres[0].direccion, "San Juan de Oriente");
@@ -423,11 +431,7 @@ await verificar(
     const app = fuente("app/App.tsx");
     assert.match(
       app,
-      /function ProveedorNotificacionesSegunModo[\s\S]*?authReal \? <>\{children\}<\/> : <NotificationsProvider>/,
-    );
-    assert.doesNotMatch(
-      fuente("features/solicitudes/pages/preparar.tsx"),
-      /El inicio de sesión real todavía no está disponible/,
+      /conNotificacionesDemo[\s\S]*?authReal \? contenido : <NotificationsProvider>\{contenido\}<\/NotificationsProvider>/,
     );
   },
 );

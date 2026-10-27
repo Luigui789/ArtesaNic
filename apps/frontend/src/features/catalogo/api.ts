@@ -37,11 +37,11 @@ export const unpublishOwnProduct = catalogoReal
 /** Fotografía de la demo: el modo real envía File mediante el cliente HTTP. */
 export const processImage = mock.processImage;
 
-// ---------- Lecturas del servidor simulado para dominios todavía simulados ----------
+// ---------- Lecturas del servidor simulado aisladas para modo demo ----------
 
 /**
- * Pedidos, mensajes y el panel resuelven productos de pedidos de la demo, con su
- * inventario simulado. Se sustituyen cuando esos dominios tengan API (AUD-05 y siguientes).
+ * Lecturas auxiliares de productos y movimientos que consumen únicamente las
+ * vistas de demostración cuando se ejecuta con `VITE_CATALOGO_API=mock`.
  */
 export { getProduct, listProducts } from "@/mocks/catalogo";
 export { listUnitMovements } from "@/mocks/inventario";

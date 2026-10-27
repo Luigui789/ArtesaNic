@@ -53,8 +53,8 @@ export function aPerfilTaller(t: TallerPublicoDTO): PerfilTaller {
 }
 
 /** `GET /api/v1/talleres/`: talleres aprobados visibles públicamente. */
-export async function listPerfilesTalleres(): Promise<PerfilTaller[]> {
-  const lista = await solicitar<TallerPublicoDTO[]>("/talleres/");
+export async function listPerfilesTalleres(signal?: AbortSignal): Promise<PerfilTaller[]> {
+  const lista = await solicitar<TallerPublicoDTO[]>("/talleres/", signal ? { signal } : undefined);
   return lista.map(aPerfilTaller);
 }
 

@@ -37,7 +37,10 @@ export default function Index() {
     queryKey: ["catalogo", "portada"],
     queryFn: () => listCatalog({ orden: "recientes", pageSize: 8 }),
   });
-  const artesanos = useQuery({ queryKey: ["talleres-publicos"], queryFn: listPerfilesTalleres });
+  const artesanos = useQuery({
+    queryKey: ["talleres-publicos"],
+    queryFn: ({ signal }) => listPerfilesTalleres(signal),
+  });
 
   return (
     <PublicLayout>

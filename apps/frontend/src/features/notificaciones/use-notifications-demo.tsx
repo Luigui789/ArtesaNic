@@ -13,6 +13,7 @@ import { listOrders } from "@/features/pedidos/api";
 // Demo (AUD-16): el sondeo simulado usa el servidor simulado directo, nunca la API real.
 import { pollNewMessages } from "@/mocks/mensajes";
 import { DEMO_ARTISAN_ID } from "@/features/auth/api";
+import { authReal } from "@/features/auth/modo";
 import { chatMode } from "@/lib/order-state";
 import { useSession } from "@/features/auth/use-session";
 
@@ -154,5 +155,10 @@ const SIN_NOTIFICACIONES_DEMO: NotificationsContextValue = {
 };
 
 export function useNotifications() {
-  return useContext(NotificationsContext) ?? SIN_NOTIFICACIONES_DEMO;
+  const ctx = useContext(NotificationsContext);
+  if (!ctx) {
+    if (authReal) return SIN_NOTIFICACIONES_DEMO;
+    throw new Error("useNotifications debe usarse dentro de NotificationsProvider");
+  }
+  return ctx;
 }

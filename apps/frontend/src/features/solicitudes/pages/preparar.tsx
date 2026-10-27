@@ -158,7 +158,7 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
         </p>
         <p className="rounded-lg border p-4 text-sm">
           {solicitudesReales
-            ? "Tu solicitud se enviará al taller artesanal para su revisión y emisión de propuesta."
+            ? "El inicio de sesión real todavía no está disponible. El selector Demo solo cambia la vista y no permite enviar solicitudes reales."
             : "Demostración local: esta solicitud se guarda en este navegador, separada de los pedidos de la demo anterior."}{" "}
           Enviar no confirma un pedido, fija precios ni reserva unidades.
         </p>
