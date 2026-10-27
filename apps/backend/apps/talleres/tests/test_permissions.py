@@ -1,7 +1,9 @@
 """Habilitación operativa del artesano (RF-004, RN-002): EsArtesano frente a EsArtesanoAprobado.
 
-Todavía no existe un endpoint operativo real; la vista operativa vive solo en estas
-pruebas y se ejercita con DRF completo (autenticación Bearer real, permisos y respuestas).
+Verifica de forma aislada el contrato reutilizable de ``EsArtesano`` y ``EsArtesanoAprobado``
+con DRF completo (autenticación Bearer real, permisos y respuestas), complementando las
+pruebas de los dominios operativos reales (catálogo, solicitudes, propuestas, inventario,
+pedidos, pagos y mensajes).
 """
 
 from rest_framework.response import Response

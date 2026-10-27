@@ -113,6 +113,7 @@ Desde la raíz:
 ```bash
 python infra/scripts/check-doc-links.py
 python infra/scripts/check-secrets.py
+python infra/scripts/check_requirements_coverage.py
 ```
 
 Las pruebas Django usan una base temporal PostgreSQL; no usan SQLite. El esquema implementado está en [docs/api/openapi.yaml](docs/api/openapi.yaml) y una prueba verifica que coincide con el código. CI ejecuta instalación bloqueada, calidad, pruebas y arranque de Compose; sus workflows filtran por rutas relevantes.
@@ -123,4 +124,4 @@ Las pruebas Django usan una base temporal PostgreSQL; no usan SQLite. El esquema
 
 En Windows, equivalentes con `./infra/scripts/dev.ps1 -Task Install`, `Dev`, `Db`, `Frontend`, `Backend`, `Migrate`, `Lint`, `Test`, `Health`, `Docs` o `Clean`. `Clean` detiene los contenedores y conserva los volúmenes.
 
-[Contribuir](CONTRIBUTING.md) · [ADR del monorepo](docs/adr/0010-monorepo-y-entorno-de-desarrollo.md) · [Discrepancias documentales](docs/trazabilidad/discrepancias-documentales.md) · [Informe de migración](docs/trazabilidad/informe-monorepo.md).
+[Contribuir](CONTRIBUTING.md) · [Cobertura de requisitos V1](docs/trazabilidad/cobertura-v1.md) · [ADR del monorepo](docs/adr/0010-monorepo-y-entorno-de-desarrollo.md) · [Discrepancias documentales](docs/trazabilidad/discrepancias-documentales.md) · [Informe de migración](docs/trazabilidad/informe-monorepo.md).

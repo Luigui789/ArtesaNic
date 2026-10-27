@@ -1,0 +1,3089 @@
+{
+  "version_esquema": "1.0",
+  "ticket": "AUD-19",
+  "fecha_actualizacion": "2026-10-26",
+  "fuentes_canonicas": {
+    "requisitos": "docs/requisitos/requisitos.md",
+    "reglas_negocio": "docs/requisitos/reglas-de-negocio.md",
+    "decisiones": "docs/decisiones/v1.md"
+  },
+  "resumen": {
+    "total_activos": 60,
+    "total_no_activos": 3,
+    "por_tipo": {
+      "RF": 21,
+      "RNF": 15,
+      "RN": 24
+    },
+    "por_estado": {
+      "AUTOMATED": 50,
+      "PARTIAL": 8,
+      "MANUAL_EVIDENCE": 0,
+      "DEFERRED": 2,
+      "NOT_IMPLEMENTED": 0,
+      "NOT_VERIFIED": 0
+    }
+  },
+  "foco_aud19": [
+    {
+      "id": "RF-004",
+      "tipo": "RF",
+      "expectativa_historica_sustituida": "En la demo histórica (src/mocks/sesion.ts) el inicio de sesión operaba como un selector de rol en localStorage con DEMO_ARTISAN_ID y sin actualización real de datos personales.",
+      "implementacion_actual": "Autenticación real por teléfono y contraseña con JWT en memoria y cookie HttpOnly de refresh + CSRF (AUD-01/AUD-09), bloqueo de funciones operativas para artesanos con taller no aprobado (EsArtesanoAprobado, AUD-02) y actualización de nombre y teléfono con reautenticación obligatoria al cambiar teléfono en PATCH /api/v1/auth/perfil/ (AUD-15).",
+      "huecos_reales": "Ninguno en reglas de dominio, API o cliente/UI de cuenta; la demostración E2E multi-actor integrada en navegador se ejecuta en AUD-20/AUD-21.",
+      "ticket_posterior": "AUD-20"
+    },
+    {
+      "id": "RF-005",
+      "tipo": "RF",
+      "expectativa_historica_sustituida": "El prototipo demo trataba el pedido como un único producto (Order legacy) que el artesano aceptaba globalmente cambiando el estado a 'aceptado' y reservando stock en ese instante.",
+      "implementacion_actual": "Separación estricta entre Solicitud con renglones evaluados individualmente por el artesano (aceptado o rechazado con motivo obligatorio, sin contraofertas, AUD-06), Propuesta comercial final con renglones aceptados (AUD-06) y DecisionPropuesta del comprador que al aceptar crea el Pedido confirmado y reserva stock de forma atómica (AUD-07).",
+      "huecos_reales": "Cobertura completa de dominio, API, concurrencia, smoke HTTP y cliente frontend; la demostración integral multi-actor de extremo a extremo pertenece a AUD-20.",
+      "ticket_posterior": "AUD-20"
+    },
+    {
+      "id": "RF-010",
+      "tipo": "RF",
+      "expectativa_historica_sustituida": "En src/lib/order-state.ts y src/mocks/pedidos.ts la transición pasaba por estados globales 'aceptado' -> 'en_produccion' -> 'listo_para_entrega' -> 'entregado' en una sola entrega global.",
+      "implementacion_actual": "EstadoOperativoPedido real ('confirmado' -> 'en_cumplimiento' -> 'entregado'), inicio por renglón (CumplimientoLineaPedido) bloqueado hasta existir Pago confirmado (RN-015), ledger append-only de entregas parciales o totales por renglón (EntregaPedido/LineaEntrega) y confirmación o discrepancia del comprador sin revertir inventario (AUD-12).",
+      "huecos_reales": "Cubierto en servicios, API, concurrencia PostgreSQL, smoke HTTP y componentes frontend; recorrido E2E multi-actor en AUD-20.",
+      "ticket_posterior": "AUD-20"
+    },
+    {
+      "id": "RF-015",
+      "tipo": "RF",
+      "expectativa_historica_sustituida": "En la demo el comprador podía cancelar unilateralmente un pedido ya 'aceptado', no existía vencimiento automático de 48 h por falta de pago inicial y no había cierre parcial con aceptación u objeción del comprador.",
+      "implementacion_actual": "Vencimiento automático a las 48 h sin pago (respetando pago en revisión o plazo de corrección vigente, AUD-11), cancelación justificada exclusiva del artesano antes de cualquier entrega con reembolso total si hay pago confirmado (AUD-13) y cierre parcial tras entrega parcial con decisión del comprador (aceptado u objetado, AUD-13). Antes de confirmar, el comprador desiste rechazando la propuesta emitida (AUD-07).",
+      "huecos_reales": "El desistimiento del comprador antes de confirmar está implementado como rechazo de la propuesta emitida (DecisionPropuesta='rechazada'); no existe endpoint independiente para cancelar una Solicitud mientras permanece en 'pendiente_revision' o 'lista_propuesta' antes de emitirse la propuesta.",
+      "ticket_posterior": "AUD-20"
+    },
+    {
+      "id": "RF-022",
+      "tipo": "RF",
+      "expectativa_historica_sustituida": "En la demo las existencias vivían en campos del producto simulado, la reserva ocurría al aceptar el artesano, la personalización sobre unidad base se descontaba recién al entregar y cualquier cancelación enviaba unidades a 'unidadesPorClasificar'.",
+      "implementacion_actual": "Agregado InventarioProducto con CHECK (reservada <= existencia_fisica), reserva atómica al aceptar la propuesta el comprador (AUD-07), descuento físico de stock al entregar (AUD-12), consumo inmediato de unidad estándar al iniciar transformación de personalización (AUD-12), liberación directa de reservas no manipuladas al vencer o cancelar y clasificación obligatoria (reutilizable o baja sin doble descuento) solo para unidades manipuladas (AUD-11/AUD-13).",
+      "huecos_reales": "Cubierto exhaustivamente en modelo, servicios, API, carreras PostgreSQL, smoke HTTP y frontend; demostración integral multi-flujo en AUD-20.",
+      "ticket_posterior": "AUD-20"
+    },
+    {
+      "id": "RN-002",
+      "tipo": "RN",
+      "expectativa_historica_sustituida": "El entorno demo operaba siempre con DEMO_ARTISAN_ID preaprobado sin control de acceso real en servidor.",
+      "implementacion_actual": "El taller nace en estado 'pendiente' al registrarse el artesano; solo la administración lo aprueba en Django Admin (AUD-02) y el permiso EsArtesanoAprobado bloquea todas las operaciones de catálogo, inventario, solicitudes, propuestas, pedidos, pagos y mensajes mientras no esté aprobado.",
+      "huecos_reales": "Cobertura automatizada en todos los dominios operativos; un taller rechazado puede editar su perfil pero la especificación V1 no define flujo de reapertura de revisión (documentado en D-AUD18-10).",
+      "ticket_posterior": "AUD-20"
+    },
+    {
+      "id": "RN-008",
+      "tipo": "RN",
+      "expectativa_historica_sustituida": "La solicitud monoproducto de la demo no tenía renglones ni historial de resolución por línea.",
+      "implementacion_actual": "Resolución individual e inmutable por renglón (RevisionRenglonSolicitud) como 'aceptado' o 'rechazado' con motivo obligatorio, prohibición de contraofertas de cantidad y transición a 'rechazada' (DR-03) cuando todos los renglones son rechazados (AUD-06).",
+      "huecos_reales": "Cobertura completa en dominio, API, concurrencia, smoke HTTP y frontend.",
+      "ticket_posterior": "AUD-20"
+    },
+    {
+      "id": "RN-009",
+      "tipo": "RN",
+      "expectativa_historica_sustituida": "En la demo el pedido quedaba comprometido cuando el artesano lo aceptaba, sin etapa de aceptación final del comprador sobre la cotización.",
+      "implementacion_actual": "Endpoint POST /api/v1/solicitudes/mias/{id}/propuesta/decision/ exclusivo del comprador: 'rechazar' registra DecisionPropuesta inmutable sin crear Pedido ni reservas; 'aceptar' crea el Pedido confirmado con snapshot congelado y reservas en una sola transacción ACID (AUD-07).",
+      "huecos_reales": "Cobertura completa en dominio, API, concurrencia, smoke HTTP y frontend.",
+      "ticket_posterior": "AUD-20"
+    },
+    {
+      "id": "RN-011",
+      "tipo": "RN",
+      "expectativa_historica_sustituida": "En la demo la reserva se aplicaba al aceptar el artesano y sin bloqueo pesimista multi-renglón en base de datos.",
+      "implementacion_actual": "En decidir_propuesta (AUD-07) se bloquean Solicitud, Propuesta e InventarioProducto en orden ascendente de producto_id (SELECT ... FOR UPDATE), se agrega el total estándar requerido por producto, se revalida disponibilidad (409 stock_insuficiente revierte todo) y se congelan importes en Pedido/LineaPedido/CargoPedido/DistribucionEconomicaLineaPedido inmunes a cambios posteriores del catálogo o de la tasa de cambio.",
+      "huecos_reales": "Cobertura completa en dominio, API, carreras PostgreSQL, smoke HTTP y frontend.",
+      "ticket_posterior": "AUD-20"
+    },
+    {
+      "id": "RN-023",
+      "tipo": "RN",
+      "expectativa_historica_sustituida": "En la demo (src/mocks/pedidos.ts) un pedido personalizado mantenía las unidades en 'reservadas' durante 'en_produccion' y recién las descontaba al pasar a 'entregado'.",
+      "implementacion_actual": "En iniciar_linea (AUD-12), cuando la línea es de personalización con origen 'unidad_estandar' y existe Pago confirmado, consumir_reserva descuenta inmediatamente existencia_fisica y reservada registrando MovimientoInventario(tipo='consumo'); entregar después no vuelve a descontar. La personalización 'desde_cero' y la 'produccion' no tocan inventario estándar.",
+      "huecos_reales": "Cobertura completa en dominio, API, carreras PostgreSQL, smoke HTTP y frontend.",
+      "ticket_posterior": "AUD-20"
+    },
+    {
+      "id": "RN-024",
+      "tipo": "RN",
+      "expectativa_historica_sustituida": "En la demo cancelar un pedido desde 'aceptado' antes de producción enviaba las unidades no manipuladas a 'unidadesPorClasificar' en lugar de liberarlas directamente.",
+      "implementacion_actual": "Al vencer por falta de pago (AUD-11), cancelar antes de entregas o aceptar cierre parcial (AUD-13), las reservas activas no manipuladas se liberan directamente a disponibilidad (MovimientoInventario tipo='liberacion'). Solo las unidades estándar consumidas al iniciar transformación y no entregadas generan ObligacionClasificacionInventario para clasificarse como 'reutilizable' (reincorporación) o 'baja' (sin doble descuento físico).",
+      "huecos_reales": "Cobertura completa en dominio, API, carreras PostgreSQL, smoke HTTP y frontend.",
+      "ticket_posterior": "AUD-20"
+    },
+    {
+      "id": "RNF-015",
+      "tipo": "RNF",
+      "expectativa_historica_sustituida": "Antes de AUD-01..AUD-18 gran parte de las reglas comerciales residía únicamente en mocks del frontend y no existía una matriz verificable automáticamente entre requisitos y pruebas reales.",
+      "implementacion_actual": "Reglas centralizadas en servicios transaccionales del backend Django/PostgreSQL, idempotencia persistente (OperacionIdempotente) y bloqueos SELECT ... FOR UPDATE cubiertos por suites de dominio, API, concurrencia y smoke HTTP, más trazabilidad verificada automáticamente por infra/scripts/check_requirements_coverage.py y su suite unitaria.",
+      "huecos_reales": "La demostración integral multi-actor que encadena todos los flujos y permisos de extremo a extremo se consolida en AUD-20.",
+      "ticket_posterior": "AUD-20"
+    }
+  ],
+  "requisitos": [
+    {
+      "id": "RF-001",
+      "tipo": "RF",
+      "resumen": "Gestión de productos por el artesano aprobado (alta, edición, fotografía principal y modalidades)",
+      "dominio": "catalogo",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-001"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/catalogo/models.py",
+        "apps/backend/apps/catalogo/services.py",
+        "apps/backend/apps/catalogo/imagenes.py",
+        "apps/backend/apps/catalogo/api/views.py",
+        "apps/frontend/src/features/catalogo/http.ts",
+        "apps/frontend/src/features/catalogo/validacion.ts",
+        "apps/frontend/src/features/catalogo/pages/panel-productos.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_gestion.py",
+          "simbolo": "CrearProductoTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_gestion.py",
+          "simbolo": "EditarProductoTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_imagenes.py",
+          "simbolo": "FotografiaTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "SnapshotYDespublicacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-catalogo-formulario.mjs",
+          "simbolo": "esquemaProducto",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-imagenes.mjs",
+          "simbolo": "FotografiaPrincipal",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Cubierto en modelo, servicio, validación binaria de imágenes (DR-01), API, inmutabilidad de pedidos previos y formulario frontend."
+    },
+    {
+      "id": "RF-003",
+      "tipo": "RF",
+      "resumen": "Consulta, búsqueda, filtrado, ordenamiento y paginación del catálogo público de talleres aprobados",
+      "dominio": "catalogo / talleres",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-003"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/catalogo/models.py",
+        "apps/backend/apps/catalogo/api/views.py",
+        "apps/backend/apps/catalogo/api/serializers.py",
+        "apps/frontend/src/features/catalogo/http.ts",
+        "apps/frontend/src/features/catalogo/pages/catalogo.tsx",
+        "apps/frontend/src/features/catalogo/pages/producto.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_catalogo.py",
+          "simbolo": "VisibilidadTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_catalogo.py",
+          "simbolo": "FiltrosYOrdenTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_catalogo.py",
+          "simbolo": "PaginacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_esquema.py",
+          "simbolo": "EsquemaPaginadoTests",
+          "nivel": "contract"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-catalogo-http.mjs",
+          "simbolo": "listCatalog",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-perfil-taller.mjs",
+          "simbolo": "getPerfilTaller",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Cubierto en consultas públicas, filtros, ordenación, paginación OpenAPI y navegación al perfil del taller."
+    },
+    {
+      "id": "RF-004",
+      "tipo": "RF",
+      "resumen": "Registro, autenticación por teléfono y contraseña, rol único, bloqueo de artesano no aprobado y edición de datos personales",
+      "dominio": "accounts / talleres",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-004"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/accounts/models.py",
+        "apps/backend/apps/accounts/services.py",
+        "apps/backend/apps/accounts/api/views.py",
+        "apps/backend/apps/talleres/api/permissions.py",
+        "apps/frontend/src/features/auth/sesion.ts",
+        "apps/frontend/src/features/auth/cuenta.ts",
+        "apps/frontend/src/features/auth/pages/acceso.tsx",
+        "apps/frontend/src/features/auth/pages/cuenta.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/accounts/tests/test_registration.py",
+          "simbolo": "RegistroValidoTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_registro.py",
+          "simbolo": "RegistroArtesanoTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/accounts/tests/test_authentication.py",
+          "simbolo": "LoginTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/accounts/tests/test_datos_personales.py",
+          "simbolo": "EditarDatosTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_permissions.py",
+          "simbolo": "HabilitacionTestCase",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-auth.mjs",
+          "simbolo": "crearControladorSesion",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-auth-ui.mjs",
+          "simbolo": "RequiereSesion",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-cuenta.mjs",
+          "simbolo": "FormularioCuenta",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: cubiertos los 8 criterios de aceptación en backend (AUD-01/02/15) y frontend real (AUD-09/15/18)."
+    },
+    {
+      "id": "RF-005",
+      "tipo": "RF",
+      "resumen": "Revisión individual de renglones por el artesano, emisión de propuesta final y decisión completa del comprador",
+      "dominio": "solicitudes / propuestas / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-005"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/solicitudes/services.py",
+        "apps/backend/apps/propuestas/services.py",
+        "apps/backend/apps/pedidos/services.py",
+        "apps/frontend/src/features/solicitudes/http.ts",
+        "apps/frontend/src/features/solicitudes/components/revision.tsx",
+        "apps/frontend/src/features/solicitudes/components/propuesta.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_revision.py",
+          "simbolo": "ResolucionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_revision.py",
+          "simbolo": "HistorialTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/propuestas/tests/test_propuesta.py",
+          "simbolo": "EmisionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "DecisionCompradorTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/propuestas/tests/test_smoke.py",
+          "simbolo": "SmokePropuestaTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes-http.mjs",
+          "simbolo": "resolverRenglon",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-post-aud07.mjs",
+          "simbolo": "decidirPropuesta",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: sustituye la aceptación global antigua por resolución por renglón, propuesta y confirmación atómica del comprador."
+    },
+    {
+      "id": "RF-006",
+      "tipo": "RF",
+      "resumen": "Resumen económico y cotización desglosada de la propuesta con congelación de importes al confirmar el pedido",
+      "dominio": "propuestas / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-006"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/propuestas/models.py",
+        "apps/backend/apps/propuestas/services.py",
+        "apps/backend/apps/propuestas/distribucion.py",
+        "apps/backend/apps/pedidos/models.py",
+        "apps/backend/apps/pedidos/services.py",
+        "apps/frontend/src/features/pedidos/components/resumen-contractual.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/propuestas/tests/test_propuesta.py",
+          "simbolo": "LimitesTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "SnapshotYDespublicacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_distribucion.py",
+          "simbolo": "DistribucionCongeladaTests",
+          "nivel": "unit"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_smoke.py",
+          "simbolo": "SmokeConfirmacionReservasTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes-http.mjs",
+          "simbolo": "emitirPropuesta",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-post-aud07.mjs",
+          "simbolo": "ContenidoPedidoConfirmado",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Incluye distribución económica congelada por renglón (AUD-13) para cálculo determinista de reembolsos posteriores."
+    },
+    {
+      "id": "RF-007",
+      "tipo": "RF",
+      "resumen": "Precios contractuales en córdobas y conversión informativa a dólares con tasa configurada por administración",
+      "dominio": "configuracion / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-007"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/configuracion/models.py",
+        "apps/backend/apps/configuracion/services.py",
+        "apps/backend/apps/configuracion/api/views.py",
+        "apps/frontend/src/features/configuracion/moneda.ts",
+        "apps/frontend/src/lib/format.ts",
+        "apps/frontend/src/components/common/currency-switcher.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/configuracion/tests/test_configuracion.py",
+          "simbolo": "ServicioTasaTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/configuracion/tests/test_configuracion.py",
+          "simbolo": "ConfiguracionPublicaAPITests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/configuracion/tests/test_configuracion.py",
+          "simbolo": "ServicioTasaTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-configuracion.mjs",
+          "simbolo": "formatPrice",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Sin tasa configurada la interfaz real muestra únicamente córdobas sin promover la tasa simulada de la demo (D-AUD14-05/06)."
+    },
+    {
+      "id": "RF-008",
+      "tipo": "RF",
+      "resumen": "Administración y consulta del perfil público del taller diferenciando contactos públicos del teléfono privado",
+      "dominio": "talleres",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-008"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/talleres/models.py",
+        "apps/backend/apps/talleres/services.py",
+        "apps/backend/apps/talleres/api/views.py",
+        "apps/frontend/src/features/talleres/http.ts",
+        "apps/frontend/src/features/talleres/perfil-propio.ts",
+        "apps/frontend/src/features/talleres/pages/artesano.tsx",
+        "apps/frontend/src/features/talleres/pages/panel-perfil.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_api.py",
+          "simbolo": "PerfilPublicoTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_api.py",
+          "simbolo": "MiTallerActualizacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_models.py",
+          "simbolo": "RestriccionesTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_services.py",
+          "simbolo": "ActualizarPerfilTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-perfil-taller.mjs",
+          "simbolo": "getPerfilTaller",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-taller-propio.mjs",
+          "simbolo": "PerfilTallerEntradaSerializer",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "El perfil público solo es visible tras la aprobación administrativa y nunca expone Usuario.telefono."
+    },
+    {
+      "id": "RF-009",
+      "tipo": "RF",
+      "resumen": "Creación y envío idempotente de solicitud con uno o varios renglones de un mismo taller aprobado",
+      "dominio": "solicitudes / operaciones",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-009"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/solicitudes/models.py",
+        "apps/backend/apps/solicitudes/services.py",
+        "apps/backend/apps/solicitudes/api/views.py",
+        "apps/frontend/src/features/solicitudes/http.ts",
+        "apps/frontend/src/features/solicitudes/validacion.ts",
+        "apps/frontend/src/features/solicitudes/pages/preparar.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_creacion.py",
+          "simbolo": "CreacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_idempotencia.py",
+          "simbolo": "IdempotenciaCreacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_smoke.py",
+          "simbolo": "SmokeSolicitudesTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes.mjs",
+          "simbolo": "validarSolicitudBorrador",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes-http.mjs",
+          "simbolo": "crearSolicitud",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Valida modalidad por renglón, mismo taller, stock temprano y protección contra duplicados por Idempotency-Key."
+    },
+    {
+      "id": "RF-010",
+      "tipo": "RF",
+      "resumen": "Gestión del ciclo de vida del pedido confirmado, inicio por renglón tras Pago confirmado, entregas y recepción",
+      "dominio": "pedidos / inventario",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-010"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pedidos/models.py",
+        "apps/backend/apps/pedidos/cumplimiento.py",
+        "apps/backend/apps/pedidos/resolucion.py",
+        "apps/backend/apps/pedidos/api/views.py",
+        "apps/frontend/src/features/pedidos/cumplimiento.ts",
+        "apps/frontend/src/features/pedidos/components/cumplimiento-pedido.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "PagoConfirmadoTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "InicioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "EntregaStockTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "RecepcionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_smoke_cumplimiento.py",
+          "simbolo": "SmokeCumplimientoTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-cumplimiento.mjs",
+          "simbolo": "CumplimientoPedido",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: cumplimiento real por renglón, entregas parciales/totales y evidencia del comprador sin revertir inventario."
+    },
+    {
+      "id": "RF-011",
+      "tipo": "RF",
+      "resumen": "Registro de pago externo por el 100 % del total congelado, verificación manual del artesano y corrección en 48 h",
+      "dominio": "pagos",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-011"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pagos/models.py",
+        "apps/backend/apps/pagos/services.py",
+        "apps/backend/apps/pagos/comprobantes.py",
+        "apps/backend/apps/pagos/api/views.py",
+        "apps/frontend/src/features/pagos/http.ts",
+        "apps/frontend/src/features/pagos/components/pago-pedido.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_pagos.py",
+          "simbolo": "RegistroInicialTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_pagos.py",
+          "simbolo": "RevisionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_pagos.py",
+          "simbolo": "PlazosTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_comprobantes.py",
+          "simbolo": "WhitelistTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_smoke.py",
+          "simbolo": "SmokePagosTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-pagos.mjs",
+          "simbolo": "MAX_COMPROBANTE_BYTES",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Incluye almacenamiento privado de comprobantes (JPEG/PNG/WebP/PDF) e historial append-only de intentos y revisiones."
+    },
+    {
+      "id": "RF-013",
+      "tipo": "RF",
+      "resumen": "Administración de la plataforma en Django Admin (talleres, cuentas, categorías, moderación, tasa y supervisión de pedidos)",
+      "dominio": "accounts / talleres / catalogo / configuracion / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-013"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/accounts/admin.py",
+        "apps/backend/apps/talleres/admin.py",
+        "apps/backend/apps/catalogo/admin.py",
+        "apps/backend/apps/configuracion/admin.py",
+        "apps/backend/apps/pedidos/admin.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_admin.py",
+          "simbolo": "RevisionEnAdminTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/accounts/tests/test_admin.py",
+          "simbolo": "AdminDeCuentasTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_admin.py",
+          "simbolo": "CategoriasEnAdminTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_moderacion.py",
+          "simbolo": "ProductoEnAdminTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/configuracion/tests/test_configuracion.py",
+          "simbolo": "TasaEnAdminTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_admin.py",
+          "simbolo": "SupervisionPedidosTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_admin.py",
+          "simbolo": "PrivacidadAdministrativaTests",
+          "nivel": "integration"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Verifica tanto las capacidades administrativas como la prohibición de editar pedidos o leer chats/comprobantes."
+    },
+    {
+      "id": "RF-014",
+      "tipo": "RF",
+      "resumen": "Mensajería privada de texto asociada exclusivamente al pedido confirmado y en solo lectura al finalizar",
+      "dominio": "mensajes",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-014"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/mensajes/models.py",
+        "apps/backend/apps/mensajes/services.py",
+        "apps/backend/apps/mensajes/selectors.py",
+        "apps/backend/apps/mensajes/api/views.py",
+        "apps/frontend/src/features/mensajes/http.ts",
+        "apps/frontend/src/features/mensajes/components/order-chat.tsx",
+        "apps/frontend/src/features/mensajes/pages/mensajes.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/mensajes/tests/test_api.py",
+          "simbolo": "LecturaYEnvioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/mensajes/tests/test_model.py",
+          "simbolo": "MensajePedidoModelTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/mensajes/tests/test_privacidad.py",
+          "simbolo": "PrivacidadRespuestasTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/mensajes/tests/test_concurrencia.py",
+          "simbolo": "CarrerasDeMensajesTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-mensajes.mjs",
+          "simbolo": "OrderChat",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-aud18-cierre.mjs",
+          "simbolo": "OrderChat",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Conversación vinculada al Pedido confirmado (no existe durante solicitud pendiente), privada entre las partes y cerrada en estados terminales."
+    },
+    {
+      "id": "RF-015",
+      "tipo": "RF",
+      "resumen": "Cancelación antes de confirmar, vencimiento por falta de pago, cancelación justificada del artesano y cierre parcial",
+      "dominio": "propuestas / pedidos / inventario",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-015"
+      },
+      "estado_cobertura": "PARTIAL",
+      "implementacion": [
+        "apps/backend/apps/propuestas/services.py",
+        "apps/backend/apps/pedidos/vencimiento.py",
+        "apps/backend/apps/pedidos/resolucion.py",
+        "apps/backend/apps/pedidos/reembolsos.py",
+        "apps/backend/apps/pedidos/api/views.py",
+        "apps/frontend/src/features/pedidos/resolucion.ts",
+        "apps/frontend/src/features/pedidos/components/resolucion-pedido.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "DecisionCompradorTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_vencimiento.py",
+          "simbolo": "LiberacionTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "CancelacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "CierreParcialTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_smoke_vencimiento.py",
+          "simbolo": "SmokeVencimientoTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_smoke_resolucion.py",
+          "simbolo": "SmokeResolucionTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-vencimiento.mjs",
+          "simbolo": "EstadoPedidoBadge",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-resolucion.mjs",
+          "simbolo": "ResolucionPedido",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: los criterios 2 a 9 (bloqueo de cancelación unilateral tras confirmar, vencimiento de 48 h, liberación de reservas, cancelación del artesano antes de entregas, reembolso y cierre parcial con aceptación u objeción) están automatizados. Para el criterio 1 (RN-016), el desistimiento del comprador antes de confirmar se realiza rechazando la propuesta emitida (DecisionPropuesta='rechazada'); no existe endpoint separado para cancelar una Solicitud en 'pendiente_revision' o 'lista_propuesta' antes de emitirse la propuesta."
+    },
+    {
+      "id": "RF-016",
+      "tipo": "RF",
+      "resumen": "Preferencia opcional de entrega del comprador y definición del plan, fecha comprometida y costo de entrega en la propuesta",
+      "dominio": "solicitudes / propuestas / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-016"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/solicitudes/models.py",
+        "apps/backend/apps/solicitudes/services.py",
+        "apps/backend/apps/propuestas/models.py",
+        "apps/backend/apps/propuestas/services.py",
+        "apps/frontend/src/features/solicitudes/entrega.ts",
+        "apps/frontend/src/features/solicitudes/esquema-propuesta.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_entrega_preferida.py",
+          "simbolo": "EntregaPreferidaTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/propuestas/tests/test_propuesta.py",
+          "simbolo": "EmisionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/propuestas/tests/test_smoke.py",
+          "simbolo": "SmokePropuestaTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes.mjs",
+          "simbolo": "validarSolicitudBorrador",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes-http.mjs",
+          "simbolo": "emitirPropuesta",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Incluye las concreciones post-AUD-09 (respeto de modalidad preferida y costo 0 obligatorio en retiro_taller)."
+    },
+    {
+      "id": "RF-017",
+      "tipo": "RF",
+      "resumen": "Soporte de modalidades de stock, producción por cantidad, personalización (desde cero o unidad estándar) y pedidos mixtos",
+      "dominio": "catalogo / solicitudes / propuestas / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-017"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/catalogo/models.py",
+        "apps/backend/apps/solicitudes/models.py",
+        "apps/backend/apps/solicitudes/services.py",
+        "apps/backend/apps/pedidos/models.py",
+        "apps/backend/apps/pedidos/cumplimiento.py",
+        "apps/frontend/src/features/solicitudes/validacion.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_gestion.py",
+          "simbolo": "ModalidadesTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_creacion.py",
+          "simbolo": "CreacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "AgregacionYRollbackTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "InicioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes.mjs",
+          "simbolo": "validarSolicitudBorrador",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Cada renglón conserva su modalidad y origen de personalización desde la solicitud hasta el cumplimiento y cierre."
+    },
+    {
+      "id": "RF-018",
+      "tipo": "RF",
+      "resumen": "Solicitud y pedido con múltiples renglones de un mismo taller, resolución individual y aceptación global de propuesta",
+      "dominio": "solicitudes / propuestas / pedidos / pagos",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-018"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/solicitudes/services.py",
+        "apps/backend/apps/propuestas/services.py",
+        "apps/backend/apps/pedidos/services.py",
+        "apps/backend/apps/pagos/services.py",
+        "apps/frontend/src/features/solicitudes/validacion.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_creacion.py",
+          "simbolo": "CreacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_revision.py",
+          "simbolo": "ResolucionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/propuestas/tests/test_propuesta.py",
+          "simbolo": "EmisionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "DecisionCompradorTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_pagos.py",
+          "simbolo": "RegistroInicialTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes.mjs",
+          "simbolo": "validarSolicitudBorrador",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Cubre solicitudes multi-renglón del mismo taller, exclusión de rechazados en la propuesta y pago único por el total."
+    },
+    {
+      "id": "RF-019",
+      "tipo": "RF",
+      "resumen": "Despublicación por el artesano y moderación administrativa con motivo y actor conservando referencias históricas",
+      "dominio": "catalogo",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-019"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/catalogo/models.py",
+        "apps/backend/apps/catalogo/services.py",
+        "apps/backend/apps/catalogo/admin.py",
+        "apps/backend/apps/catalogo/api/views.py",
+        "apps/frontend/src/features/catalogo/components/estado-producto-propio.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_gestion.py",
+          "simbolo": "PublicacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_moderacion.py",
+          "simbolo": "ServicioModeracionTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_moderacion.py",
+          "simbolo": "SolicitudesYModeracionTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_moderacion_concurrencia.py",
+          "simbolo": "CarrerasDeModeracionTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-moderacion.mjs",
+          "simbolo": "EstadoProductoPropio",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Despublicar o moderar retira del catálogo y de nuevas solicitudes sin alterar solicitudes, propuestas ni pedidos previos."
+    },
+    {
+      "id": "RF-020",
+      "tipo": "RF",
+      "resumen": "Notificaciones internas persistentes sin duplicados para eventos de solicitudes, propuestas, pedidos, pagos, entregas y reembolsos",
+      "dominio": "notificaciones",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-020"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/notificaciones/models.py",
+        "apps/backend/apps/notificaciones/services.py",
+        "apps/backend/apps/notificaciones/eventos.py",
+        "apps/backend/apps/notificaciones/api/views.py",
+        "apps/frontend/src/features/notificaciones/http.ts",
+        "apps/frontend/src/features/notificaciones/pages/notificaciones.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/notificaciones/tests/test_eventos.py",
+          "simbolo": "EventosComercialesTest",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/notificaciones/tests/test_notificaciones.py",
+          "simbolo": "NotificacionesTest",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/notificaciones/tests/test_concurrencia.py",
+          "simbolo": "ConcurrenciaNotificacionesTest",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-notificaciones.mjs",
+          "simbolo": "listarNotificaciones",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Cubre los 11 criterios de aceptación (AUD-17), incluyendo clave única por evento/destinatario y marcado como leída."
+    },
+    {
+      "id": "RF-021",
+      "tipo": "RF",
+      "resumen": "Registro de obligaciones de reembolso total o parcial con desglose congelado y seguimiento de devolución externa",
+      "dominio": "pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-021"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pedidos/models.py",
+        "apps/backend/apps/pedidos/reembolsos.py",
+        "apps/backend/apps/pedidos/resolucion.py",
+        "apps/backend/apps/pedidos/api/views.py",
+        "apps/frontend/src/features/pedidos/resolucion.ts",
+        "apps/frontend/src/features/pedidos/components/resolucion-pedido.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_distribucion.py",
+          "simbolo": "AlgoritmoTests",
+          "nivel": "unit"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "ClasificacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion_concurrencia.py",
+          "simbolo": "CarrerasDeResolucionTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_smoke_resolucion.py",
+          "simbolo": "SmokeResolucionTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-resolucion.mjs",
+          "simbolo": "ResolucionPedido",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Incluye notificación al comprador al crearse el reembolso y al registrarse la devolución externa (AUD-13/AUD-17)."
+    },
+    {
+      "id": "RF-022",
+      "tipo": "RF",
+      "resumen": "Control de existencias físicas, disponibilidad, reservas atómicas, consumos, liberaciones y clasificación de unidades manipuladas",
+      "dominio": "inventario / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-022"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/inventario/models.py",
+        "apps/backend/apps/inventario/services.py",
+        "apps/backend/apps/inventario/api/views.py",
+        "apps/backend/apps/pedidos/services.py",
+        "apps/backend/apps/pedidos/cumplimiento.py",
+        "apps/backend/apps/pedidos/resolucion.py",
+        "apps/backend/apps/pedidos/clasificacion.py",
+        "apps/frontend/src/features/inventario/api.ts",
+        "apps/frontend/src/features/inventario/pages/solo-real.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/inventario/tests/test_inventario.py",
+          "simbolo": "OperacionesInventarioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/inventario/tests/test_concurrencia.py",
+          "simbolo": "CarreraUltimaUnidadTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "AgregacionYRollbackTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "InicioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "EntregaStockTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "ClasificacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-post-aud07.mjs",
+          "simbolo": "CantidadesInventario",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: cubiertos los 15 criterios de aceptación (AUD-07, AUD-11, AUD-12 y AUD-13)."
+    },
+    {
+      "id": "RF-023",
+      "tipo": "RF",
+      "resumen": "Consulta paginada e inmutable del historial de movimientos de inventario del taller propio",
+      "dominio": "inventario",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-023"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/inventario/models.py",
+        "apps/backend/apps/inventario/selectors.py",
+        "apps/backend/apps/inventario/api/views.py",
+        "apps/frontend/src/features/inventario/api.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/inventario/tests/test_inventario.py",
+          "simbolo": "HistorialYPermisosInventarioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_smoke.py",
+          "simbolo": "SmokeConfirmacionReservasTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "ClasificacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-post-aud07.mjs",
+          "simbolo": "CantidadesInventario",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Cubre los 8 tipos de movimiento V1, inmutabilidad append-only y aislamiento por taller aprobado."
+    },
+    {
+      "id": "RNF-001",
+      "tipo": "RNF",
+      "resumen": "Usabilidad: estados comunicados con texto, mensajes de validación comprensibles, formulario de producto acotado y áreas táctiles",
+      "dominio": "frontend / transversal",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-001"
+      },
+      "estado_cobertura": "PARTIAL",
+      "implementacion": [
+        "apps/frontend/src/features/pedidos/components/status-badges.tsx",
+        "apps/frontend/src/features/catalogo/validacion.ts",
+        "apps/frontend/src/features/auth/errores.ts",
+        "apps/frontend/src/lib/errores-dominio.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/frontend/scripts/check-catalogo-formulario.mjs",
+          "simbolo": "esquemaProducto",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-auth.mjs",
+          "simbolo": "interpretarFallo",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-cumplimiento.mjs",
+          "simbolo": "CumplimientoPedido",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-resolucion.mjs",
+          "simbolo": "ResolucionPedido",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-21",
+        "AUD-24"
+      ],
+      "observaciones": "Los criterios 2, 3 y 4 (formulario de producto en un flujo directo, estados con etiqueta textual y mensajes de validación por campo) tienen cobertura automatizada. El criterio 1 (inspección de área táctil mínima de 44×44 px en navegador real) corresponde a AUD-21 y AUD-24."
+    },
+    {
+      "id": "RNF-002",
+      "tipo": "RNF",
+      "resumen": "Diseño responsivo utilizable desde 360 px sin desplazamiento horizontal en flujos principales",
+      "dominio": "frontend",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-002"
+      },
+      "estado_cobertura": "PARTIAL",
+      "implementacion": [
+        "apps/frontend/src/hooks/use-mobile.tsx",
+        "apps/frontend/src/components/layout/public-header.tsx",
+        "apps/frontend/src/components/layout/app-header.tsx",
+        "apps/frontend/src/components/layout/site-layout.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/frontend/scripts/check-auth-ui.mjs",
+          "simbolo": "SiteLayout",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-cuenta.mjs",
+          "simbolo": "RequiereSesion",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-21",
+        "AUD-24"
+      ],
+      "observaciones": "La estructura de cabeceras, menús móviles y vistas responsivas se valida en renderizado SSR, pero la comprobación visual desde 360 px sin scroll horizontal ni solapamientos en dispositivos reales corresponde a AUD-21 y AUD-24."
+    },
+    {
+      "id": "RNF-003",
+      "tipo": "RNF",
+      "resumen": "Desempeño: tiempos de respuesta P95 <= 2-3 s bajo concurrencia prevista y paginación de listados extensos",
+      "dominio": "backend / frontend / infraestructura",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-003"
+      },
+      "estado_cobertura": "PARTIAL",
+      "implementacion": [
+        "apps/backend/config/settings/base.py",
+        "apps/backend/apps/catalogo/api/views.py",
+        "apps/backend/apps/solicitudes/selectors.py",
+        "apps/backend/apps/pedidos/selectors.py",
+        "apps/frontend/src/lib/paginacion.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_catalogo.py",
+          "simbolo": "PaginacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_esquema.py",
+          "simbolo": "EsquemaPaginadoTests",
+          "nivel": "contract"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_lectura.py",
+          "simbolo": "LecturaSolicitudesTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "PermisosYConsultasPedidosTests",
+          "nivel": "api"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-25",
+        "AUD-26"
+      ],
+      "observaciones": "El criterio 4 (paginación y prevención de consultas N+1 mediante CaptureQueriesContext) está cubierto por pruebas automatizadas. Los criterios 1 a 3 (medición de P95 <= 2 s / <= 3 s con 500 productos y 20 usuarios concurrentes) requieren pruebas controladas de rendimiento y carga en AUD-25/AUD-26."
+    },
+    {
+      "id": "RNF-004",
+      "tipo": "RNF",
+      "resumen": "Seguridad y control de acceso: HTTPS/TLS, hash seguro, permisos por rol/pertenencia, CSRF y privacidad de chats/comprobantes",
+      "dominio": "accounts / talleres / pagos / mensajes / seguridad",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-004"
+      },
+      "estado_cobertura": "PARTIAL",
+      "implementacion": [
+        "apps/backend/config/settings/base.py",
+        "apps/backend/apps/accounts/api/authentication.py",
+        "apps/backend/apps/accounts/api/permissions.py",
+        "apps/backend/apps/talleres/api/permissions.py",
+        "apps/backend/apps/pagos/api/views.py",
+        "apps/backend/apps/mensajes/api/permissions.py",
+        "infra/scripts/check-secrets.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/accounts/tests/test_authentication.py",
+          "simbolo": "RefrescarTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/accounts/tests/test_permissions.py",
+          "simbolo": "PermisosTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_permissions.py",
+          "simbolo": "HabilitacionTestCase",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_pagos.py",
+          "simbolo": "PrivacidadComprobanteTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/mensajes/tests/test_privacidad.py",
+          "simbolo": "PrivacidadRespuestasTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_admin.py",
+          "simbolo": "PrivacidadAdministrativaTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-auth.mjs",
+          "simbolo": "crearControladorSesion",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20",
+        "AUD-22",
+        "AUD-25"
+      ],
+      "observaciones": "Los criterios 2 a 7 (hash de contraseñas, permisos por rol y ownership en servidor, protección CSRF, ausencia de datos de tarjeta y privacidad estricta de chats y comprobantes frente a terceros y administradores) están cubiertos por pruebas automatizadas. El criterio 1 (HTTPS/TLS en despliegue productivo) y el endurecimiento de seguridad corresponden a AUD-22 y AUD-25."
+    },
+    {
+      "id": "RNF-005",
+      "tipo": "RNF",
+      "resumen": "Arquitectura desacoplada React/TypeScript + Django/DRF + PostgreSQL, contrato REST JSON y media fuera de filas SQL",
+      "dominio": "arquitectura / transversal",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-005"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/config/settings/base.py",
+        "apps/backend/apps/catalogo/imagenes.py",
+        "apps/backend/apps/pagos/comprobantes.py",
+        "docs/api/openapi.yaml",
+        "apps/frontend/src/lib/http/cliente.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/config/tests/test_openapi.py",
+          "simbolo": "EsquemaOpenAPITests",
+          "nivel": "contract"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_imagenes.py",
+          "simbolo": "FotografiaTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_comprobantes.py",
+          "simbolo": "WhitelistTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-catalogo-http.mjs",
+          "simbolo": "listCatalog",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-aud18-cierre.mjs",
+          "simbolo": "modoAuth",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Contrato OpenAPI sincronizado en CI, imágenes almacenadas en Django Storage fuera de PostgreSQL y adaptadores tipados en frontend."
+    },
+    {
+      "id": "RNF-006",
+      "tipo": "RNF",
+      "resumen": "Disponibilidad mensual mínima del 95 % con comprobación automática de salud al menos cada 5 minutos",
+      "dominio": "infraestructura / operaciones",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-006"
+      },
+      "estado_cobertura": "PARTIAL",
+      "implementacion": [
+        "apps/backend/config/health.py",
+        "docker-compose.yml",
+        "infra/scripts/check-health.mjs"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/config/tests/test_health.py",
+          "simbolo": "SaludTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "infra/scripts/check-health.mjs",
+          "simbolo": "VITE_API_URL",
+          "nivel": "smoke"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-25",
+        "AUD-26"
+      ],
+      "observaciones": "La sonda técnica /api/v1/health/ (con consulta real SELECT 1 en PostgreSQL) y el healthcheck de contenedores están implementados y probados en CI. El cálculo mensual >= 95 % y el monitoreo periódico externo durante el período de evaluación corresponden a AUD-25 y AUD-26."
+    },
+    {
+      "id": "RNF-007",
+      "tipo": "RNF",
+      "resumen": "Capacidad y escalabilidad para al menos 50 talleres activos y 500 productos publicados con listados paginados",
+      "dominio": "catalogo / solicitudes / pedidos / inventario",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-007"
+      },
+      "estado_cobertura": "PARTIAL",
+      "implementacion": [
+        "apps/backend/config/settings/base.py",
+        "apps/backend/apps/catalogo/api/views.py",
+        "apps/backend/apps/solicitudes/api/views.py",
+        "apps/backend/apps/pedidos/api/views.py",
+        "apps/backend/apps/inventario/api/views.py",
+        "docker-compose.yml"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_esquema.py",
+          "simbolo": "EsquemaPaginadoTests",
+          "nivel": "contract"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_esquema.py",
+          "simbolo": "EsquemaSolicitudesTests",
+          "nivel": "contract"
+        },
+        {
+          "archivo": "apps/backend/apps/inventario/tests/test_inventario.py",
+          "simbolo": "HistorialYPermisosInventarioTests",
+          "nivel": "api"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-25",
+        "AUD-26"
+      ],
+      "observaciones": "Los criterios 3 y 4 (paginación en catálogos e historiales y desacoplamiento de estado en contenedores) están verificados automáticamente. Los criterios 1 y 2 (prueba de capacidad con >= 50 talleres y >= 500 productos publicados) se validan en AUD-25 y AUD-26."
+    },
+    {
+      "id": "RNF-008",
+      "tipo": "RNF",
+      "resumen": "Trazabilidad transaccional e inmutable de operaciones críticas (actor, fecha/hora, tipo, motivo, estados e importes)",
+      "dominio": "solicitudes / propuestas / inventario / pagos / pedidos / catalogo / configuracion",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-008"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/solicitudes/models.py",
+        "apps/backend/apps/propuestas/models.py",
+        "apps/backend/apps/inventario/models.py",
+        "apps/backend/apps/pagos/models.py",
+        "apps/backend/apps/pedidos/models.py",
+        "apps/backend/apps/catalogo/models.py",
+        "apps/backend/apps/configuracion/models.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_revision.py",
+          "simbolo": "HistorialTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/inventario/tests/test_inventario.py",
+          "simbolo": "HistorialYPermisosInventarioTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_pagos.py",
+          "simbolo": "HistorialTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_vencimiento.py",
+          "simbolo": "EstadosDePagoTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "EntregaStockTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "CancelacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_moderacion.py",
+          "simbolo": "ServicioModeracionTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/configuracion/tests/test_configuracion.py",
+          "simbolo": "ServicioTasaTests",
+          "nivel": "domain"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Todas las bitácoras de negocio son append-only (save/delete posteriores bloqueados) y se escriben en la misma transacción ACID."
+    },
+    {
+      "id": "RNF-009",
+      "tipo": "RNF",
+      "resumen": "Compatibilidad con últimas dos versiones estables de Chrome, Firefox, Edge y navegadores móviles Chrome/Safari",
+      "dominio": "frontend",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-009"
+      },
+      "estado_cobertura": "DEFERRED",
+      "implementacion": [
+        "apps/frontend/vite.config.ts",
+        "apps/frontend/tsconfig.json"
+      ],
+      "evidencia_automatizada": [],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-21",
+        "AUD-24"
+      ],
+      "observaciones": "La compilación estándar ES/Vite y las pruebas SSR en Node.js están activas, pero la matriz de ejecución en navegadores reales Chrome, Firefox, Edge y móviles corresponde a AUD-21 y AUD-24."
+    },
+    {
+      "id": "RNF-010",
+      "tipo": "RNF",
+      "resumen": "Actualización incremental de mensajería activa en un plazo máximo aproximado de 15 segundos conservando orden y sin pérdidas",
+      "dominio": "mensajes",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-010"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/mensajes/models.py",
+        "apps/backend/apps/mensajes/services.py",
+        "apps/backend/apps/mensajes/selectors.py",
+        "apps/frontend/src/features/mensajes/api.ts",
+        "apps/frontend/src/features/mensajes/components/order-chat.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/mensajes/tests/test_api.py",
+          "simbolo": "LecturaYEnvioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/mensajes/tests/test_concurrencia.py",
+          "simbolo": "CarrerasDeMensajesTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-mensajes.mjs",
+          "simbolo": "INTERVALO_SONDEO_MS",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Sondeo cada 15 s (INTERVALO_SONDEO_MENSAJES_MS = 15000) con cursor incremental por id y serialización SELECT ... FOR UPDATE."
+    },
+    {
+      "id": "RNF-011",
+      "tipo": "RNF",
+      "resumen": "Integridad transaccional ACID y control de concurrencia sobre pedidos, pagos, reservas y movimientos de inventario",
+      "dominio": "inventario / propuestas / pedidos / pagos / operaciones",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-011"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/inventario/services.py",
+        "apps/backend/apps/propuestas/services.py",
+        "apps/backend/apps/pedidos/services.py",
+        "apps/backend/apps/pedidos/vencimiento.py",
+        "apps/backend/apps/pedidos/cumplimiento.py",
+        "apps/backend/apps/pedidos/resolucion.py",
+        "apps/backend/apps/pagos/services.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/inventario/tests/test_concurrencia.py",
+          "simbolo": "CarreraUltimaUnidadTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/propuestas/tests/test_concurrencia.py",
+          "simbolo": "CarrerasDeRevisionTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/propuestas/tests/test_concurrencia.py",
+          "simbolo": "CarrerasDePropuestaTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_concurrencia.py",
+          "simbolo": "CarrerasDePagoTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_vencimiento_concurrencia.py",
+          "simbolo": "CarrerasDeVencimientoTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento_concurrencia.py",
+          "simbolo": "CarrerasDeCumplimientoTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion_concurrencia.py",
+          "simbolo": "CarrerasDeResolucionTests",
+          "nivel": "integration"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Verificado con carreras reales multihilo contra PostgreSQL sincronizadas mediante pg_stat_activity."
+    },
+    {
+      "id": "RNF-012",
+      "tipo": "RNF",
+      "resumen": "Respaldo automático cada 24 h con retención mínima de 14 días, RPO <= 24 h, RTO <= 8 h y pruebas de restauración",
+      "dominio": "infraestructura / operaciones",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-012"
+      },
+      "estado_cobertura": "DEFERRED",
+      "implementacion": [],
+      "evidencia_automatizada": [],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-25",
+        "AUD-26"
+      ],
+      "observaciones": "La persistencia está separada en volúmenes de PostgreSQL y media en Docker Compose, pero los scripts/jobs de respaldo diario, retención de 14 días y evidencia de restauración pertenecen a AUD-25 y AUD-26."
+    },
+    {
+      "id": "RNF-013",
+      "tipo": "RNF",
+      "resumen": "Privacidad y minimización de datos: teléfono de acceso privado, comprobantes y chats restringidos a las partes y ocultos al admin",
+      "dominio": "accounts / talleres / solicitudes / pagos / mensajes / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-013"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/talleres/models.py",
+        "apps/backend/apps/talleres/api/serializers.py",
+        "apps/backend/apps/solicitudes/api/serializers.py",
+        "apps/backend/apps/pagos/api/views.py",
+        "apps/backend/apps/mensajes/api/views.py",
+        "apps/backend/apps/pedidos/admin.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_api.py",
+          "simbolo": "PerfilPublicoTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/accounts/tests/test_datos_personales.py",
+          "simbolo": "EditarDatosTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_lectura.py",
+          "simbolo": "LecturaSolicitudesTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_pagos.py",
+          "simbolo": "PrivacidadComprobanteTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/mensajes/tests/test_privacidad.py",
+          "simbolo": "PrivacidadRespuestasTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_admin.py",
+          "simbolo": "PrivacidadAdministrativaTests",
+          "nivel": "integration"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Comprobado en DTOs públicos, vistas privadas por rol, descargas de comprobantes y superficie de Django Admin."
+    },
+    {
+      "id": "RNF-014",
+      "tipo": "RNF",
+      "resumen": "Resiliencia ante conectividad inestable: estados de carga/éxito/error, consulta previa de operación incierta e idempotencia en servidor",
+      "dominio": "operaciones / frontend",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-014"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/operaciones/models.py",
+        "apps/backend/apps/operaciones/services.py",
+        "apps/backend/apps/operaciones/api/views.py",
+        "apps/frontend/src/lib/intento-seguro.ts",
+        "apps/frontend/src/features/solicitudes/idempotencia.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/operaciones/tests/test_servicio.py",
+          "simbolo": "EjecutarIdempotenteTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/operaciones/tests/test_api.py",
+          "simbolo": "RecuperacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/operaciones/tests/test_concurrencia.py",
+          "simbolo": "ConcurrenciaTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_smoke_idempotencia.py",
+          "simbolo": "SmokeIdempotenciaTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes-http.mjs",
+          "simbolo": "cargarClienteReal",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-post-aud07.mjs",
+          "simbolo": "Idempotency",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Antes de repetir un intento incierto, el ejecutor seguro consulta GET /api/v1/operaciones/{tipo}/{clave}/ y reutiliza la misma Idempotency-Key."
+    },
+    {
+      "id": "RNF-015",
+      "tipo": "RNF",
+      "resumen": "Mantenibilidad y pruebas automatizadas de reglas de negocio en servicios del backend con trazabilidad verificable",
+      "dominio": "transversal",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RNF-015"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/solicitudes/services.py",
+        "apps/backend/apps/propuestas/services.py",
+        "apps/backend/apps/inventario/services.py",
+        "apps/backend/apps/pagos/services.py",
+        "apps/backend/apps/pedidos/services.py",
+        "apps/backend/apps/pedidos/cumplimiento.py",
+        "apps/backend/apps/pedidos/resolucion.py",
+        "apps/backend/apps/pedidos/reembolsos.py",
+        "docs/trazabilidad/cobertura-v1.json",
+        "infra/scripts/check_requirements_coverage.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/config/tests/test_requirements_coverage.py",
+          "simbolo": "TrazabilidadRequisitosTests",
+          "nivel": "ci"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "EntregaStockTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "CierreParcialTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_vencimiento.py",
+          "simbolo": "LiberacionTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_distribucion.py",
+          "simbolo": "AlgoritmoTests",
+          "nivel": "unit"
+        },
+        {
+          "archivo": "apps/backend/apps/operaciones/tests/test_concurrencia.py",
+          "simbolo": "ConcurrenciaTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-aud18-cierre.mjs",
+          "simbolo": "modoAuth",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: cierra la trazabilidad verificable por máquina entre los 60 requisitos activos y las suites reales de backend y frontend."
+    },
+    {
+      "id": "RN-001",
+      "tipo": "RN",
+      "resumen": "Rol único por cuenta (Comprador, Artesano o Administrador); el registro público solo admite Comprador o Artesano",
+      "dominio": "accounts",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-001"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/accounts/models.py",
+        "apps/backend/apps/accounts/services.py",
+        "apps/backend/apps/accounts/api/serializers.py",
+        "apps/frontend/src/features/auth/validacion.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/accounts/tests/test_account_model.py",
+          "simbolo": "CreacionDeCuentasTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/accounts/tests/test_registration.py",
+          "simbolo": "RegistroValidoTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_registro.py",
+          "simbolo": "RegistroArtesanoTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-auth.mjs",
+          "simbolo": "registrarComprador",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-002",
+      "tipo": "RN",
+      "resumen": "Habilitación del artesano condicionada a la aprobación administrativa del taller para operar y hacer público su perfil",
+      "dominio": "talleres / transversal",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-002"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/talleres/models.py",
+        "apps/backend/apps/talleres/services.py",
+        "apps/backend/apps/talleres/api/permissions.py",
+        "apps/frontend/src/features/talleres/pages/panel-taller.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_permissions.py",
+          "simbolo": "HabilitacionTestCase",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_api.py",
+          "simbolo": "PerfilPublicoTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_gestion.py",
+          "simbolo": "PermisosDeGestionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_revision.py",
+          "simbolo": "PermisosResolucionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/inventario/tests/test_inventario.py",
+          "simbolo": "HistorialYPermisosInventarioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-taller-propio.mjs",
+          "simbolo": "RequiereSesion",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: EsArtesanoAprobado se aplica en todos los endpoints operativos de artesano."
+    },
+    {
+      "id": "RN-003",
+      "tipo": "RN",
+      "resumen": "Publicación en catálogo solo de productos publicados de talleres aprobados y conservación histórica ante edición, despublicación o moderación",
+      "dominio": "catalogo / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-003"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/catalogo/models.py",
+        "apps/backend/apps/catalogo/services.py",
+        "apps/backend/apps/pedidos/models.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_catalogo.py",
+          "simbolo": "VisibilidadTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_gestion.py",
+          "simbolo": "PublicacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_moderacion.py",
+          "simbolo": "SolicitudesYModeracionTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "SnapshotYDespublicacionTests",
+          "nivel": "api"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-004",
+      "tipo": "RN",
+      "resumen": "Modalidades disponibles del producto (stock, producción por cantidad, personalización desde cero o unidad estándar, solas o combinadas)",
+      "dominio": "catalogo / solicitudes",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-004"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/catalogo/models.py",
+        "apps/backend/apps/solicitudes/models.py",
+        "apps/backend/apps/solicitudes/services.py",
+        "apps/frontend/src/features/catalogo/validacion.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/catalogo/tests/test_gestion.py",
+          "simbolo": "ModalidadesTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_creacion.py",
+          "simbolo": "CreacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-catalogo-formulario.mjs",
+          "simbolo": "esquemaProducto",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes.mjs",
+          "simbolo": "validarSolicitudBorrador",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-005",
+      "tipo": "RN",
+      "resumen": "Solicitud de un único taller sin mezclar talleres distintos y sin duplicados por reintentos",
+      "dominio": "solicitudes / operaciones",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-005"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/solicitudes/services.py",
+        "apps/backend/apps/operaciones/services.py",
+        "apps/frontend/src/features/solicitudes/validacion.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_creacion.py",
+          "simbolo": "CreacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_idempotencia.py",
+          "simbolo": "IdempotenciaCreacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes.mjs",
+          "simbolo": "validarSolicitudBorrador",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-006",
+      "tipo": "RN",
+      "resumen": "Privacidad de chats, comprobantes de pago y teléfono de autenticación frente a terceros y administradores",
+      "dominio": "pagos / mensajes / talleres / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-006"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pagos/api/views.py",
+        "apps/backend/apps/mensajes/api/views.py",
+        "apps/backend/apps/pedidos/admin.py",
+        "apps/backend/apps/talleres/models.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_pagos.py",
+          "simbolo": "PrivacidadComprobanteTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/mensajes/tests/test_privacidad.py",
+          "simbolo": "PrivacidadRespuestasTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_admin.py",
+          "simbolo": "PrivacidadAdministrativaTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/talleres/tests/test_api.py",
+          "simbolo": "PerfilPublicoTests",
+          "nivel": "api"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-007",
+      "tipo": "RN",
+      "resumen": "Modalidad individual por renglón sin convertir globalmente un pedido mixto en personalizado",
+      "dominio": "solicitudes / propuestas / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-007"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/solicitudes/models.py",
+        "apps/backend/apps/propuestas/models.py",
+        "apps/backend/apps/pedidos/models.py",
+        "apps/backend/apps/pedidos/cumplimiento.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_creacion.py",
+          "simbolo": "CreacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "AgregacionYRollbackTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "EntregaStockTests",
+          "nivel": "api"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-008",
+      "tipo": "RN",
+      "resumen": "Revisión individual de renglones como aceptado o rechazado con motivo obligatorio, historial y sin contraofertas de cantidad",
+      "dominio": "solicitudes / propuestas",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-008"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/solicitudes/models.py",
+        "apps/backend/apps/solicitudes/services.py",
+        "apps/backend/apps/propuestas/services.py",
+        "apps/frontend/src/features/solicitudes/components/revision.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_revision.py",
+          "simbolo": "ResolucionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_revision.py",
+          "simbolo": "HistorialTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/solicitudes/tests/test_revision.py",
+          "simbolo": "EstadosDR03Tests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/propuestas/tests/test_propuesta.py",
+          "simbolo": "EmisionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-solicitudes-http.mjs",
+          "simbolo": "resolverRenglon",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: verificado en modelos, servicios, OpenAPI y cliente HTTP."
+    },
+    {
+      "id": "RN-009",
+      "tipo": "RN",
+      "resumen": "Aceptación o rechazo final de la propuesta completa por el comprador antes de generar el pedido confirmado",
+      "dominio": "propuestas / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-009"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/propuestas/models.py",
+        "apps/backend/apps/propuestas/services.py",
+        "apps/backend/apps/pedidos/services.py",
+        "apps/frontend/src/features/solicitudes/decision.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "DecisionCompradorTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/propuestas/tests/test_propuesta.py",
+          "simbolo": "EmisionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_smoke.py",
+          "simbolo": "SmokeConfirmacionReservasTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-post-aud07.mjs",
+          "simbolo": "decidirPropuesta",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: emitir propuesta no crea pedido ni reserva; solo la aceptación del comprador lo confirma."
+    },
+    {
+      "id": "RN-010",
+      "tipo": "RN",
+      "resumen": "Cotización desglosada por renglón y cargos, plan y costo de entrega, importes contractuales en córdobas y conversión informativa a USD",
+      "dominio": "propuestas / pedidos / configuracion",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-010"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/propuestas/models.py",
+        "apps/backend/apps/propuestas/services.py",
+        "apps/backend/apps/propuestas/distribucion.py",
+        "apps/backend/apps/configuracion/models.py",
+        "apps/frontend/src/features/configuracion/moneda.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/propuestas/tests/test_propuesta.py",
+          "simbolo": "LimitesTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_distribucion.py",
+          "simbolo": "DistribucionCongeladaTests",
+          "nivel": "unit"
+        },
+        {
+          "archivo": "apps/backend/apps/configuracion/tests/test_configuracion.py",
+          "simbolo": "ServicioTasaTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-configuracion.mjs",
+          "simbolo": "formatPrice",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-011",
+      "tipo": "RN",
+      "resumen": "Confirmación, congelación de importes y reserva atómica de inventario estándar con revalidación de stock sin confirmación parcial",
+      "dominio": "propuestas / pedidos / inventario",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-011"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/propuestas/services.py",
+        "apps/backend/apps/pedidos/services.py",
+        "apps/backend/apps/inventario/services.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "DecisionCompradorTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "SnapshotYDespublicacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "AgregacionYRollbackTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "AgregacionYRollbackTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/inventario/tests/test_concurrencia.py",
+          "simbolo": "CarreraUltimaUnidadTests",
+          "nivel": "integration"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: transacción ACID con SELECT ... FOR UPDATE ordenado por producto_id y rollback completo ante stock_insuficiente."
+    },
+    {
+      "id": "RN-012",
+      "tipo": "RN",
+      "resumen": "Pago externo después de la aceptación por el 100 % del total congelado con verificación manual e historial de intentos",
+      "dominio": "pagos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-012"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pagos/models.py",
+        "apps/backend/apps/pagos/services.py",
+        "apps/backend/apps/pagos/api/views.py",
+        "apps/frontend/src/features/pagos/components/pago-pedido.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_pagos.py",
+          "simbolo": "RegistroInicialTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_pagos.py",
+          "simbolo": "RevisionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_smoke.py",
+          "simbolo": "SmokePagosTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-pagos.mjs",
+          "simbolo": "MAX_COMPROBANTE_BYTES",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-013",
+      "tipo": "RN",
+      "resumen": "Vencimiento automático a las 48 horas por falta de pago con liberación de reservas, respetando revisión y plazo de corrección",
+      "dominio": "pedidos / pagos / inventario",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-013"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pedidos/vencimiento.py",
+        "apps/backend/apps/pedidos/management/commands/procesar_vencimientos_pago.py",
+        "apps/backend/apps/inventario/services.py",
+        "apps/frontend/src/features/pedidos/progreso.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_vencimiento.py",
+          "simbolo": "LiberacionTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_vencimiento_concurrencia.py",
+          "simbolo": "CarrerasDeVencimientoTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_smoke_vencimiento.py",
+          "simbolo": "SmokeVencimientoTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-vencimiento.mjs",
+          "simbolo": "EstadoPedidoBadge",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-014",
+      "tipo": "RN",
+      "resumen": "Corrección independiente del comprobante observado dentro de un plazo de 48 horas con motivo e historial conservado",
+      "dominio": "pagos / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-014"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pagos/models.py",
+        "apps/backend/apps/pagos/services.py",
+        "apps/backend/apps/pedidos/vencimiento.py",
+        "apps/frontend/src/features/pagos/components/pago-pedido.tsx"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pagos/tests/test_pagos.py",
+          "simbolo": "PlazosTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_vencimiento.py",
+          "simbolo": "LiberacionTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_vencimiento_concurrencia.py",
+          "simbolo": "CarrerasDeVencimientoTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-pagos.mjs",
+          "simbolo": "ACCEPT_COMPROBANTE",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-015",
+      "tipo": "RN",
+      "resumen": "Inicio de producción, personalización o preparación condicionado estrictamente a Pago confirmado en cada renglón",
+      "dominio": "pedidos / pagos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-015"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pedidos/cumplimiento.py",
+        "apps/backend/apps/pedidos/api/views.py",
+        "apps/frontend/src/features/pedidos/cumplimiento.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "PagoConfirmadoTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_smoke_cumplimiento.py",
+          "simbolo": "SmokeCumplimientoTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-cumplimiento.mjs",
+          "simbolo": "CumplimientoPedido",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-016",
+      "tipo": "RN",
+      "resumen": "Cancelación unilateral del comprador permitida solo antes de confirmar la propuesta final y bloqueada después de confirmarla",
+      "dominio": "propuestas / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-016"
+      },
+      "estado_cobertura": "PARTIAL",
+      "implementacion": [
+        "apps/backend/apps/propuestas/services.py",
+        "apps/backend/apps/pedidos/resolucion.py",
+        "apps/backend/apps/pedidos/api/views.py",
+        "apps/frontend/src/features/pedidos/resolucion.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_confirmacion_y_pedidos.py",
+          "simbolo": "DecisionCompradorTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "CancelacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-post-aud07.mjs",
+          "simbolo": "decidirPropuesta",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-resolucion.mjs",
+          "simbolo": "ResolucionPedido",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "La prohibición de cancelación unilateral del comprador tras confirmar el pedido (403 en API y sin acción en UI del comprador) y el rechazo de la propuesta emitida antes de confirmar están automatizados. No existe endpoint independiente para cancelar una Solicitud en 'pendiente_revision' o 'lista_propuesta' antes de emitirse la propuesta."
+    },
+    {
+      "id": "RN-017",
+      "tipo": "RN",
+      "resumen": "Cancelación justificada del artesano antes de cualquier entrega con reembolso total cuando existen fondos confirmados",
+      "dominio": "pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-017"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pedidos/resolucion.py",
+        "apps/backend/apps/pedidos/reembolsos.py",
+        "apps/backend/apps/pedidos/api/views.py",
+        "apps/frontend/src/features/pedidos/resolucion.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "CancelacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "ClasificacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion_concurrencia.py",
+          "simbolo": "CarrerasDeResolucionTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-resolucion.mjs",
+          "simbolo": "ResolucionPedido",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-018",
+      "tipo": "RN",
+      "resumen": "Registro de entregas con fecha y cantidades por renglón, transición a Entregado al completar todo y evidencia del comprador",
+      "dominio": "pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-018"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pedidos/cumplimiento.py",
+        "apps/backend/apps/pedidos/models.py",
+        "apps/backend/apps/pedidos/api/views.py",
+        "apps/frontend/src/features/pedidos/cumplimiento.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "EntregaStockTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "RecepcionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento_concurrencia.py",
+          "simbolo": "CarrerasDeCumplimientoTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-cumplimiento.mjs",
+          "simbolo": "CumplimientoPedido",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-019",
+      "tipo": "RN",
+      "resumen": "Cierre parcial iniciado por el artesano tras entrega parcial, decisión del comprador y reembolso parcial por lo no entregado",
+      "dominio": "pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-019"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pedidos/resolucion.py",
+        "apps/backend/apps/pedidos/reembolsos.py",
+        "apps/backend/apps/pedidos/models.py",
+        "apps/frontend/src/features/pedidos/resolucion.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "CierreParcialTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_distribucion.py",
+          "simbolo": "AlgoritmoTests",
+          "nivel": "unit"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion_concurrencia.py",
+          "simbolo": "CarrerasDeResolucionTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-resolucion.mjs",
+          "simbolo": "ResolucionPedido",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-020",
+      "tipo": "RN",
+      "resumen": "Notificaciones internas persistentes sin duplicados ni canales externos y conversación privada exclusiva del pedido confirmado",
+      "dominio": "notificaciones / mensajes",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-020"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/notificaciones/models.py",
+        "apps/backend/apps/notificaciones/services.py",
+        "apps/backend/apps/notificaciones/eventos.py",
+        "apps/backend/apps/mensajes/models.py",
+        "apps/backend/apps/mensajes/services.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/notificaciones/tests/test_eventos.py",
+          "simbolo": "EventosComercialesTest",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/notificaciones/tests/test_notificaciones.py",
+          "simbolo": "NotificacionesTest",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/mensajes/tests/test_api.py",
+          "simbolo": "LecturaYEnvioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-notificaciones.mjs",
+          "simbolo": "listarNotificaciones",
+          "nivel": "frontend"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-mensajes.mjs",
+          "simbolo": "OrderChat",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-021",
+      "tipo": "RN",
+      "resumen": "Existencia física, disponibilidad (física menos reservada), ajustes protegidos bajo comprometido e historial inmutable por taller",
+      "dominio": "inventario",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-021"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/inventario/models.py",
+        "apps/backend/apps/inventario/services.py",
+        "apps/backend/apps/inventario/selectors.py",
+        "apps/frontend/src/features/inventario/api.ts"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/inventario/tests/test_inventario.py",
+          "simbolo": "OperacionesInventarioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/inventario/tests/test_inventario.py",
+          "simbolo": "HistorialYPermisosInventarioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/inventario/tests/test_inventario.py",
+          "simbolo": "ConstraintsInventarioBDTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-post-aud07.mjs",
+          "simbolo": "CantidadesInventario",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-022",
+      "tipo": "RN",
+      "resumen": "Descuento físico de stock normal al registrar la entrega sin doble consumo ni movimientos duplicados por reintentos",
+      "dominio": "pedidos / inventario",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-022"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pedidos/cumplimiento.py",
+        "apps/backend/apps/inventario/services.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "EntregaStockTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento_concurrencia.py",
+          "simbolo": "CarrerasDeCumplimientoTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_smoke_cumplimiento.py",
+          "simbolo": "SmokeCumplimientoTests",
+          "nivel": "smoke"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": ""
+    },
+    {
+      "id": "RN-023",
+      "tipo": "RN",
+      "resumen": "Consumo de unidad estándar al iniciar transformación de personalización (tras Pago confirmado) y no al entregar",
+      "dominio": "pedidos / inventario",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-023"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/pedidos/cumplimiento.py",
+        "apps/backend/apps/inventario/services.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento.py",
+          "simbolo": "InicioTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_cumplimiento_concurrencia.py",
+          "simbolo": "CarrerasDeCumplimientoTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_smoke_cumplimiento.py",
+          "simbolo": "SmokeCumplimientoTests",
+          "nivel": "smoke"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-cumplimiento.mjs",
+          "simbolo": "CumplimientoPedido",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: corrige la expectativa antigua de la demo que descontaba recién al entregar."
+    },
+    {
+      "id": "RN-024",
+      "tipo": "RN",
+      "resumen": "Liberación directa de unidades reservadas no manipuladas y clasificación como Reutilizable o Baja solo para manipuladas",
+      "dominio": "inventario / pedidos",
+      "fuente": {
+        "archivo": "docs/requisitos/reglas-de-negocio.md",
+        "seccion": "RN-024"
+      },
+      "estado_cobertura": "AUTOMATED",
+      "implementacion": [
+        "apps/backend/apps/inventario/services.py",
+        "apps/backend/apps/pedidos/vencimiento.py",
+        "apps/backend/apps/pedidos/resolucion.py",
+        "apps/backend/apps/pedidos/clasificacion.py"
+      ],
+      "evidencia_automatizada": [
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_vencimiento.py",
+          "simbolo": "LiberacionTests",
+          "nivel": "domain"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "CancelacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "CierreParcialTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion.py",
+          "simbolo": "ClasificacionTests",
+          "nivel": "api"
+        },
+        {
+          "archivo": "apps/backend/apps/pedidos/tests/test_resolucion_concurrencia.py",
+          "simbolo": "CarrerasDeResolucionTests",
+          "nivel": "integration"
+        },
+        {
+          "archivo": "apps/frontend/scripts/check-resolucion.mjs",
+          "simbolo": "ResolucionPedido",
+          "nivel": "frontend"
+        }
+      ],
+      "evidencia_manual": [],
+      "pendiente_en": [
+        "AUD-20"
+      ],
+      "observaciones": "Foco AUD-19: libera directamente stock no manipulado y exige clasificar solo unidades base consumidas no entregadas."
+    }
+  ],
+  "requisitos_no_activos": [
+    {
+      "id": "RF-002",
+      "tipo": "RF",
+      "resumen": "Gestión técnica de imágenes",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-002"
+      },
+      "estado_normativo": "Integrado; sin RF independiente",
+      "explicacion": "Integrado en RF-001 y RNF-005 según la actualización normativa del 12 de octubre de 2026 y cerrado técnicamente mediante DR-01 (apps/catalogo/imagenes.py y tests/test_imagenes.py)."
+    },
+    {
+      "id": "RF-012",
+      "tipo": "RF",
+      "resumen": "Pasarela de pago",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-012"
+      },
+      "estado_normativo": "Postergado; fuera de V1",
+      "explicacion": "Postergado fuera del alcance de V1; la primera versión registra y verifica manualmente pagos realizados externamente conforme a RF-011 y RN-012."
+    },
+    {
+      "id": "RF-024",
+      "tipo": "RF",
+      "resumen": "Costos y valorización del inventario",
+      "fuente": {
+        "archivo": "docs/requisitos/requisitos.md",
+        "seccion": "RF-024"
+      },
+      "estado_normativo": "Postergado; fuera de V1",
+      "explicacion": "Postergado fuera del alcance de V1; la primera versión controla existencias físicas, reservas, disponibilidad y movimientos conforme a RF-022 y RF-023 sin cálculo de costo promedio."
+    }
+  ]
+}

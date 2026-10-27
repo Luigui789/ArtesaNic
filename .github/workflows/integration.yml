@@ -18,6 +18,7 @@ jobs:
           python-version: '3.13'
       - run: python infra/scripts/check-doc-links.py
       - run: python infra/scripts/check-secrets.py
+      - run: python infra/scripts/check_requirements_coverage.py
       - run: cp .env.example .env
       - run: docker compose up --build --wait --wait-timeout 180
       - run: docker compose exec -T frontend node ../../infra/scripts/check-health.mjs

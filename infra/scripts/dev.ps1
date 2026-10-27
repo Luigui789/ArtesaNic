@@ -36,9 +36,13 @@ try {
             In-Backend @('run', 'python', 'manage.py', 'makemigrations', '--check', '--dry-run')
             In-Backend @('run', 'python', 'manage.py', 'test')
             Run-Command python @('infra/scripts/check-doc-links.py')
+            Run-Command python @('infra/scripts/check_requirements_coverage.py')
         }
         Health { Run-Command docker @('compose', 'exec', '-T', 'frontend', 'node', '../../infra/scripts/check-health.mjs') }
-        Docs { Run-Command python @('infra/scripts/check-doc-links.py') }
+        Docs {
+            Run-Command python @('infra/scripts/check-doc-links.py')
+            Run-Command python @('infra/scripts/check_requirements_coverage.py')
+        }
         Clean { Run-Command docker @('compose', 'stop') }
     }
 } finally { Pop-Location }

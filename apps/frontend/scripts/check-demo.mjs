@@ -1,4 +1,6 @@
-// Verifica las reglas del servicio con Node, sin añadir un framework de pruebas.
+// [DEMO_ONLY] Verifica únicamente las reglas internas del entorno de demostración aislado
+// (src/mocks/index.ts, activable sólo con VITE_CATALOGO_API=mock).
+// NO constituye evidencia del sistema real ni de los requisitos normativos vigentes de V1.
 import assert from "node:assert/strict";
 import { build } from "vite";
 import { fileURLToPath } from "node:url";
@@ -36,7 +38,7 @@ const conInventario = (inventarioDemo) => ({
   inventarioDemo: { ...input.inventarioDemo, ...inventarioDemo },
 });
 
-// RF-017 / RN-004: modalidades combinables; solo la venta desde stock pide existencias.
+// Demo aislada: modalidades combinables; solo la venta desde stock simulado pide existencias.
 for (const modalidades of [[], ["pieza_unica"], ["stock", "stock"]])
   await assert.rejects(
     api.createProduct(api.DEMO_ARTISAN_ID, { ...input, modalidades }, actor),
@@ -54,7 +56,7 @@ const bajoPedido = await api.createProduct(
 assert.deepEqual(bajoPedido.modalidades, ["produccion", "personalizacion"]);
 assert.equal(bajoPedido.existenciasFisicas, 0);
 
-// RF-019 / RN-003: se registra sin publicar; despublicar lo retira sin borrarlo.
+// Demo aislada: se registra sin publicar; despublicar lo retira del catálogo simulado sin borrarlo.
 assert.equal(bajoPedido.publicado, false);
 await assert.rejects(api.getCatalogProduct(bajoPedido.id), /No encontramos/);
 assert.equal((await api.publishOwnProduct(bajoPedido.id)).publicado, true);
@@ -302,5 +304,5 @@ await api.resetDemo();
 assert.equal((await api.listOrders({ rol: "comprador" })).length, 10);
 await assert.rejects(api.getProduct(unique.id), /No encontramos/);
 console.log(
-  "OK: modalidades, publicación, cantidades, concurrencia, reservas, congelación, entrega, pagos, plazo, privacidad, clasificación, fallo de persistencia y restablecimiento.",
+  "OK [DEMO_ONLY]: regresión del entorno demo aislado (VITE_CATALOGO_API=mock) verificada.",
 );

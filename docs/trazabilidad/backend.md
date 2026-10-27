@@ -1,6 +1,6 @@
 # Trazabilidad con requisitos y módulos
 
-> **Trazabilidad heredada de la fase 1.** Las referencias anteriores deben contrastarse con las [24 RF y 15 RNF actuales](../requisitos/requisitos.md). Esta migración no amplía el backend ni ratifica diferencias pendientes.
+> **Trazabilidad heredada de la fase 1.** Para la matriz vigente y verificada automáticamente tras AUD-01…AUD-19 (21 RF activos, 15 RNF activos, 24 RN activas y 3 RF no activos en V1), consultar [cobertura-v1.md](cobertura-v1.md) y [cobertura-v1.json](cobertura-v1.json). Las referencias históricas siguientes corresponden a la fase 1 y deben contrastarse con las [39 fichas de requisitos](../requisitos/requisitos.md).
 
 ## Fuente de los requisitos
 
