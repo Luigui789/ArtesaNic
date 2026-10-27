@@ -59,3 +59,6 @@ Al iniciar sesión (con cualquier identidad), registrarse, cerrar sesión o expi
 ## Pruebas
 
 `scripts/check-taller-propio.mjs` cubre `GET`/`PATCH` del taller propio y el panel renderizado. `scripts/check-auth.mjs` usa un backend simulado con estado (CSRF, rotación de la cookie de renovación, revocación) y `scripts/check-auth-ui.mjs` renderiza formularios, cabecera y guards con `react-dom/server`. Las tres forman parte de `pnpm test`.
+
+
+AUD-17: las notificaciones comerciales persistentes y su bandeja real se describen en [notificaciones](../api/notificaciones.md). La demo de mensajes conserva su estado separado.

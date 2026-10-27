@@ -42,7 +42,7 @@ Back-Artesanic/
 │   │   ├── services.py         Creación transaccional desde la propuesta aceptada (+ estado, cumplimiento
 │   │   │                       y copia de la distribución económica)
 │   │   ├── cumplimiento.py     Iniciar renglón, registrar entrega y recepción: Pago confirmado, locks,
-│   │   │                       consumo de reservas, transiciones y puntos de integración AUD-20
+│   │   │                       consumo de reservas, transiciones y notificaciones AUD-17
 │   │   ├── resolucion.py       Cancelación del taller, propuesta y respuesta de cierre parcial (AUD-13)
 │   │   ├── reembolsos.py       Base reembolsable, reembolso total/parcial y devolución externa (AUD-13)
 │   │   ├── clasificacion.py    Clasificación reutilizable/baja de unidades manipuladas (AUD-13)
@@ -196,3 +196,6 @@ Las aplicaciones se crean cuando su fase empieza. La lista prevista (`workshops`
 6. Las transacciones, junto a la operación que necesita consistencia (`services.py`).
 7. Sin repositorios, eventos ni interfaces abstractas sin una necesidad comprobada.
 8. Las pruebas, junto al módulo que verifican.
+
+
+AUD-17: las notificaciones comerciales persistentes y su bandeja real se describen en [notificaciones](../api/notificaciones.md). La demo de mensajes conserva su estado separado.

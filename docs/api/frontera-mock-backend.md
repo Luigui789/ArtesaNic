@@ -271,3 +271,6 @@ Adaptación de src/
 **`src/` permanece congelado** hasta que el backend exista. La tabla de impacto sobre el frontend vive en la sección 10 del contrato y se ejecutará por fases, con el mismo método que las fases B y C.
 
 **El siguiente paso es el modelo de datos, no los endpoints.** A partir de aquí, el mock deja de ser guía: la única fuente de verdad es el contrato.
+
+
+AUD-17: las notificaciones comerciales persistentes y su bandeja real se describen en [notificaciones](../api/notificaciones.md). La demo de mensajes conserva su estado separado.

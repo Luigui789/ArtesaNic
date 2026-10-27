@@ -81,3 +81,6 @@ Ninguna se resuelve aquí. Se registran para no convertir el comportamiento del 
 | 8 | **Retiro del artesano frente a moderación del administrador** (D14) | El contrato tiene un solo `publicado`; la hoja recomienda dos causas distinguibles | Catálogo |
 | 9 | **Acceso administrativo a chats y comprobantes** (D11) | RF-013, RNF-004 y RNF-013 lo prohíben sin excepciones; la elección A de Luis espera al equipo. El backend no convierte a la administración de plataforma en superusuario, y esos modelos no deberán registrarse en Django Admin | Mensajería y pagos |
 | 10 | **Política de imágenes** (RF-002) | Cantidad, dimensiones y miniaturas sin definir; almacenamiento público del catálogo separado de los comprobantes privados | Catálogo |
+
+
+AUD-17: las notificaciones comerciales persistentes y su bandeja real se describen en [notificaciones](../api/notificaciones.md). La demo de mensajes conserva su estado separado.
