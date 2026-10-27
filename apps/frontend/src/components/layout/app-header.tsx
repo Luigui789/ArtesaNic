@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, NavLink } from "react-router";
-import { useNotifications } from "@/features/notificaciones/use-notifications";
+import { useResumenNotificaciones } from "@/features/notificaciones/use-resumen";
+import { useNotifications } from "@/features/notificaciones/use-notifications-demo";
 import { Bell, Menu, Store, ShoppingBag, UserRound } from "lucide-react";
 import { useSession } from "@/features/auth/use-session";
 import { MenuSesion } from "./menu-sesion";
@@ -17,7 +18,9 @@ import {
 import { cn } from "@/lib/utils";
 export function AppHeader() {
   const { usuario, modo } = useSession();
-  const { total } = useNotifications();
+  const demo = useNotifications();
+  const resumen = useResumenNotificaciones();
+  const total = modo === "real" ? (resumen.data ?? 0) : demo.total;
   const [open, setOpen] = useState(false);
   const destino = usuario?.rol === "artesano" ? "/panel" : "/solicitudes";
   const cuenta = usuario?.rol === "artesano" ? "Mi taller" : "Mis solicitudes";
@@ -77,7 +80,7 @@ export function AppHeader() {
               </Link>
             </Button>
           ) : null}
-          {modo === "mock" ? (
+          {usuario ? (
             <Button asChild variant="ghost" size="icon">
               <Link to="/notificaciones" aria-label={`Notificaciones: ${total} sin leer`}>
                 <Bell className="size-5" aria-hidden="true" />

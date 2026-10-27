@@ -23,7 +23,7 @@ const m = await cargarModulos(
     rq: "@tanstack/react-query",
     sesionReact: "@/features/auth/use-session",
     moneda: "@/hooks/use-currency",
-    notificaciones: "@/features/notificaciones/use-notifications",
+    notificaciones: "@/features/notificaciones/use-notifications-demo",
   },
   { VITE_AUTH_API: "real", VITE_CATALOGO_API: "real" },
 );

@@ -1,5 +1,9 @@
 /** Claves privadas incluyen identidad; el cierre/cambio de sesión también limpia QueryClient. */
 export const claves = {
+  notificaciones: (usuario: number | undefined, pagina: number) =>
+    ["notificaciones-reales", usuario, pagina] as const,
+  notificacionesResumen: (usuario: number | undefined) =>
+    ["notificaciones-resumen-real", usuario] as const,
   /** Configuración pública (tasa de cambio): sin identidad, es igual para todos. */
   configuracion: () => ["configuracion-publica"] as const,
   pedidos: (usuario?: number) => ["pedidos-reales", usuario] as const,

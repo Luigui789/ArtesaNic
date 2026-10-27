@@ -27,7 +27,7 @@ const m = await cargarModulos(
     propio: "@/features/talleres/perfil-propio",
     panel: "@/features/talleres/pages/panel-taller",
     moneda: "@/hooks/use-currency",
-    notificaciones: "@/features/notificaciones/use-notifications",
+    notificaciones: "@/features/notificaciones/use-notifications-demo",
   },
   { VITE_AUTH_API: "real", VITE_CATALOGO_API: "real" },
 );

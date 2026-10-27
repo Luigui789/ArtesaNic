@@ -15,7 +15,7 @@ import { DEMO_ARTISAN_ID } from "@/features/auth/api";
 import { chatMode } from "@/lib/order-state";
 import { formatDate } from "@/lib/format";
 import { useSession } from "@/features/auth/use-session";
-import { useNotifications } from "@/features/notificaciones/use-notifications";
+import { useNotifications } from "@/features/notificaciones/use-notifications-demo";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { parseRouteId } from "@/lib/route-id";
 import { cn } from "@/lib/utils";
