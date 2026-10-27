@@ -1,18 +1,18 @@
-# Arquitectura del frontend — cliente HTTP y sesión
+# Arquitectura del frontend — cliente HTTP, sesión y cierre de AUD-18
 
-**Estado:** primer tramo de AUD-18 (21 de octubre de 2026). Decisiones: [D-AUD18-01 a D-AUD18-09](../decisiones/v1.md#concreciones-de-aud-18-primer-tramo-cliente-común-y-sesión). Contrato: [autenticación](../api/autenticacion.md) y [talleres](../api/talleres.md).
+**Estado:** AUD-18 cerrado (octubre de 2026). Decisiones: [D-AUD18-01 a D-AUD18-09](../decisiones/v1.md#concreciones-de-aud-18-primer-tramo-cliente-común-y-sesión) y [cierre de AUD-18](../decisiones/v1.md#cierre-de-aud-18-integración-real-del-frontend). Contratos: [autenticación](../api/autenticacion.md), [talleres](../api/talleres.md), [pedidos](../api/pedidos.md), [mensajes](../api/mensajes.md) y [notificaciones](../api/notificaciones.md).
 
 ## Modos
 
 | Variable | Valores | Efecto |
 |---|---|---|
-| `VITE_AUTH_API` | `mock` (por defecto) · `real` | `real`: la identidad sale solo de Django. `mock`: sesión simulada de la demo con el selector «Vista de demostración». |
-| `VITE_CATALOGO_API` | `mock` (por defecto) · `real` | Fuente de catálogo, talleres públicos y solicitudes. `VITE_AUTH_API=real` exige `real`. |
+| `VITE_AUTH_API` | `real` (por defecto) · `mock` | `real`: la identidad sale solo de Django. `mock`: sesión simulada aislada para pruebas de regresión de la demo. |
+| `VITE_CATALOGO_API` | `real` (por defecto) · `mock` | Fuente de catálogo, talleres públicos y solicitudes. `VITE_AUTH_API=real` exige `real`. |
 
-Un valor inválido o `VITE_AUTH_API=real` con `VITE_CATALOGO_API=mock` detiene la aplicación al cargar. Para probar contra Django y PostgreSQL:
+Un valor inválido o `VITE_AUTH_API=real` con `VITE_CATALOGO_API=mock` detiene la aplicación al cargar. Por omisión (`pnpm -C apps/frontend dev` o Docker Compose), la aplicación arranca en modo `real`:
 
 ```bash
-VITE_AUTH_API=real VITE_CATALOGO_API=real pnpm -C apps/frontend dev
+pnpm -C apps/frontend dev
 ```
 
 El proxy de Vite envía `/api` al backend, así que las cookies `csrftoken` y `refresh` son del mismo origen que la SPA.
@@ -48,9 +48,9 @@ El usuario autenticado es exactamente `usuario` del servidor (`id`, `nombre`, `t
 
 **Mi taller (RF-008):** `/panel` y `/panel/perfil` permiten editar el perfil público con `PATCH /talleres/mi-taller/` en cualquier estado (pendiente, aprobado o rechazado). Solo viajan los campos de `CAMPOS_PERFIL` modificados; estado, motivo de rechazo y fecha de revisión se muestran como solo lectura. Editar no cambia la aprobación. Tras guardar, la respuesta reemplaza la caché `["mi-taller", usuario]` y se invalidan `["perfil-taller", id]`, el filtro de talleres y el catálogo ([D-AUD18-10](../decisiones/v1.md#concreciones-de-aud-18-primer-tramo-cliente-común-y-sesión)).
 
-## Mensajería del pedido (AUD-16)
+## Mensajería del pedido (AUD-16 y cierre AUD-18)
 
-`src/features/mensajes/` es solo real: `http.ts` (Bearer, cuerpo `{texto}`, sin CSRF, respuestas validadas con Zod y traducidas a `camelCase`), `types.ts` (`MensajePedido`, `ConversacionPedido`; no usa el `Message` legacy) y `api.ts` (`fusionar`, `agregarPropio`, `sondearNovedades`, `INTERVALO_SONDEO_MS = 15000`). Un único `OrderChat` se monta en `DetallePedidoConfirmado` para comprador y artesano, con la clave `["mensajes-reales", usuario, pedido]`. La primera lectura trae el historial; después, cada 15 s y solo si `soloLectura` es `false`, pide `despues_de=<cursor>` y mezcla el delta en la caché sin `invalidateQueries`. El autor propio se reconoce por `autor.id`, nunca por nombre o rol. `409 conversacion_cerrada` o `solo_lectura: true` ocultan el compositor y conservan el historial. La demo usa `OrderChatDemo` y `NotificationsProvider`, que importan `@/mocks/mensajes` directamente (excepción explícita en `eslint.config.js`); `/mensajes` sigue siendo demo. Contrato: [mensajes](../api/mensajes.md); pruebas: `scripts/check-mensajes.mjs`.
+`src/features/mensajes/` es solo real: `http.ts` (Bearer, cuerpo `{texto}`, sin CSRF, respuestas validadas con Zod y traducidas a `camelCase`), `types.ts` (`MensajePedido`, `ConversacionPedido`; no usa el `Message` legacy) y `api.ts` (`fusionar`, `agregarPropio`, `sondearNovedades`, `INTERVALO_SONDEO_MS = 15000`). Un único `OrderChat` se monta tanto en `DetallePedidoConfirmado` (`/pedidos/:id` y `/panel/pedidos/:id`) como en la conversación seleccionada de `/mensajes` (`src/features/mensajes/pages/mensajes.tsx`), con la clave `["mensajes-reales", usuario, pedido]`. `/mensajes` está protegida con `RequiereSesion` para comprador y artesano, pagina los pedidos confirmados con `listarPedidosConfirmados(recibido, page)` y resuelve enlaces directos `/mensajes?pedido=<id>` fuera de la página actual mediante `consultarPedidoConfirmado`, sin iniciar bucles de sondeo para conversaciones no seleccionadas. La primera lectura trae el historial; después, cada 15 s y solo si `soloLectura` es `false`, pide `despues_de=<cursor>` y mezcla el delta en la caché sin `invalidateQueries`. El autor propio se reconoce por `autor.id`, nunca por nombre o rol. `409 conversacion_cerrada` o `solo_lectura: true` ocultan el compositor y conservan el historial. En modo real no se monta `NotificationsProvider` de la demo. Contrato: [mensajes](../api/mensajes.md); pruebas: `scripts/check-mensajes.mjs` y `scripts/check-aud18-cierre.mjs`.
 
 ## Caché de TanStack Query
 
@@ -58,7 +58,6 @@ Al iniciar sesión (con cualquier identidad), registrarse, cerrar sesión o expi
 
 ## Pruebas
 
-`scripts/check-taller-propio.mjs` cubre `GET`/`PATCH` del taller propio y el panel renderizado. `scripts/check-auth.mjs` usa un backend simulado con estado (CSRF, rotación de la cookie de renovación, revocación) y `scripts/check-auth-ui.mjs` renderiza formularios, cabecera y guards con `react-dom/server`. Las tres forman parte de `pnpm test`.
+`scripts/check-taller-propio.mjs` cubre `GET`/`PATCH` del taller propio y el panel renderizado. `scripts/check-auth.mjs` usa un backend simulado con estado (CSRF, rotación de la cookie de renovación, revocación), `scripts/check-auth-ui.mjs` renderiza formularios, cabecera y guards con `react-dom/server` y `scripts/check-aud18-cierre.mjs` verifica `/mensajes` real, `/descubrir` real, el modo real por defecto y la ausencia de fugas demo en rutas reales. Todas forman parte de `pnpm test`.
 
-
-AUD-17: las notificaciones comerciales persistentes y su bandeja real se describen en [notificaciones](../api/notificaciones.md). La demo de mensajes conserva su estado separado.
+AUD-17: las notificaciones comerciales persistentes y su bandeja real se describen en [notificaciones](../api/notificaciones.md).
