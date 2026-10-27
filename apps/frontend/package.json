@@ -11,8 +11,9 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
-    "test": "node scripts/check-demo.mjs && node scripts/check-catalogo-http.mjs && node scripts/check-catalogo-formulario.mjs && node scripts/check-imagenes.mjs && node scripts/check-post-aud07.mjs && node scripts/check-perfil-taller.mjs && node scripts/check-solicitudes.mjs && node scripts/check-solicitudes-http.mjs && node scripts/check-auth.mjs && node scripts/check-auth-ui.mjs && node scripts/check-taller-propio.mjs && node scripts/check-pagos.mjs && node scripts/check-vencimiento.mjs && node scripts/check-cumplimiento.mjs && node scripts/check-resolucion.mjs && node scripts/check-configuracion.mjs && node scripts/check-moderacion.mjs && node scripts/check-cuenta.mjs && node scripts/check-mensajes.mjs",
-    "check:health": "node ../../infra/scripts/check-health.mjs"
+    "test": "node scripts/check-demo.mjs && node scripts/check-catalogo-http.mjs && node scripts/check-catalogo-formulario.mjs && node scripts/check-imagenes.mjs && node scripts/check-post-aud07.mjs && node scripts/check-perfil-taller.mjs && node scripts/check-solicitudes.mjs && node scripts/check-solicitudes-http.mjs && node scripts/check-auth.mjs && node scripts/check-auth-ui.mjs && node scripts/check-taller-propio.mjs && node scripts/check-pagos.mjs && node scripts/check-vencimiento.mjs && node scripts/check-cumplimiento.mjs && node scripts/check-resolucion.mjs && node scripts/check-configuracion.mjs && node scripts/check-moderacion.mjs && node scripts/check-cuenta.mjs && node scripts/check-mensajes.mjs && node scripts/check-notificaciones.mjs && node scripts/check-doctor-baseline.mjs",
+    "check:health": "node ../../infra/scripts/check-health.mjs",
+    "doctor": "node scripts/doctor-baseline.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -79,6 +80,7 @@
     "eslint-plugin-react-refresh": "^0.4.20",
     "globals": "^15.15.0",
     "prettier": "^3.7.3",
+    "react-doctor": "0.9.18",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.56.1",
     "vite": "^8.2.0"

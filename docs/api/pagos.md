@@ -316,8 +316,6 @@ estados vive en `apps/pagos/services.py` y sus pruebas.
   legibles. El registro de pago y la cancelación compiten por el lock del `Pedido`: si gana el
   registro, la cancelación responde `pago_pendiente_de_resolucion`; si gana la cancelación, el
   registro responde `pedido_finalizado`.
-- **RF-020 (AUD-20):** notificaciones de eventos de pago. No existe aún infraestructura
-  persistente de notificaciones; el punto de integración son los servicios
-  `registrar_intento`, `corregir_intento` y `resolver_intento`, al confirmar la transacción.
+- **RF-020 (AUD-17):** los servicios de pago crean [notificaciones internas](notificaciones.md) dentro de la transacción comercial.
 - **Protección técnica pendiente:** límite de tamaño del cuerpo en el proxy de producción y
   limitación de frecuencia de subidas (hoy: autenticación, ownership, 10 MiB y plazos).

@@ -10,6 +10,7 @@ from django.db import transaction
 
 from apps.accounts.models import Rol
 from apps.catalogo.models import Modalidad, Producto
+from apps.notificaciones import eventos as notificaciones
 from apps.operaciones import services as operaciones
 from apps.operaciones.models import TipoOperacion
 
@@ -201,6 +202,12 @@ def crear_solicitud(
     for fila in filas:
         fila.solicitud = solicitud
     RenglonSolicitud.objects.bulk_create(filas)
+    notificaciones.avisar(
+        tipo="solicitud_recibida",
+        destinatario_id=solicitud.taller.propietario_id,
+        evento_id=solicitud.pk,
+        solicitud_id=solicitud.pk,
+    )
     return solicitud
 
 
@@ -348,6 +355,13 @@ def resolver_renglon(
 
     solicitud.estado = estado_tras_revision([r.resolucion for r in renglones])
     solicitud.save(update_fields=["estado", "actualizado_en"])
+    if solicitud.estado == EstadoSolicitud.RECHAZADA:
+        notificaciones.avisar(
+            tipo="solicitud_rechazada",
+            destinatario_id=solicitud.comprador_id,
+            evento_id=solicitud.pk,
+            solicitud_id=solicitud.pk,
+        )
     return revision
 
 

@@ -225,14 +225,11 @@ pago. Los hitos son solo visuales (no hay estados nuevos en el backend) y se der
 estado del pedido, del estado del pago y del cumplimiento, leídos de las mismas `queryKey`
 que las secciones de pago y seguimiento, sin peticiones adicionales.
 
-## Resolución (AUD-13) y fuera de alcance (AUD-20)
+## Resolución y notificaciones
 
 Cancelación del artesano, cierre parcial y su objeción, reembolsos, reincorporación, baja y
 clasificación reutilizable/baja están en [resolución de pedidos](resolucion-pedidos.md). Desde
 AUD-13, iniciar y entregar responden `409 pedido_finalizado` en un pedido cancelado o cerrado
 parcialmente y `409 cierre_parcial_pendiente` mientras una propuesta de cierre espera al
 comprador; el seguimiento queda visible en modo histórico. La respuesta del comprador a una
-entrega sigue admitida. Las notificaciones persistentes pertenecen a AUD-20; los
-puntos de integración (`pedido_en_cumplimiento`, `entrega_registrada`, `pedido_entregado`,
-`recepcion_confirmada`, `discrepancia_entrega`) se emiten tras el `COMMIT` en
-`apps/pedidos/cumplimiento.py` y hoy solo registran un log `INFO`.
+entrega sigue admitida. Los eventos de cumplimiento y recepción generan [notificaciones persistentes](notificaciones.md) en la misma transacción comercial.

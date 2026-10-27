@@ -30,7 +30,7 @@ const MODULOS = {
   ayuda: "@/routes/ayuda",
   descubrir: "@/features/catalogo/pages/inicio",
   moneda: "@/hooks/use-currency",
-  notificaciones: "@/features/notificaciones/use-notifications",
+  notificaciones: "@/features/notificaciones/use-notifications-demo",
 };
 
 const real = await cargarModulos(MODULOS, { VITE_AUTH_API: "real", VITE_CATALOGO_API: "real" });
@@ -150,7 +150,7 @@ await verificar("33. modo real: sin «Vista de demostración» ni cambio de rol"
   const navegacion = texto(artesano.match(/<nav aria-label="Navegación del taller".*?<\/nav>/s)[0]);
   assert.equal(
     navegacion.trim(),
-    "Mi taller Resumen Solicitudes Pedidos Productos Inventario Perfil del taller",
+    "Mi taller Resumen Solicitudes Pedidos Productos Inventario Perfil del taller Notificaciones",
   );
 });
 

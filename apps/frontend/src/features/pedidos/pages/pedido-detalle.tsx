@@ -37,7 +37,7 @@ import { formatDateTime } from "@/lib/format";
 import { orderTotal } from "@/lib/order-amounts";
 import { useCurrency } from "@/hooks/use-currency";
 import { useSession } from "@/features/auth/use-session";
-import { useNotifications } from "@/features/notificaciones/use-notifications";
+import { useNotifications } from "@/features/notificaciones/use-notifications-demo";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { DELIVERY_MODE_LABELS } from "@/lib/labels";
 import { parseRouteId } from "@/lib/route-id";

@@ -30,7 +30,7 @@ const m = await cargarModulos(
     guard: "@/features/auth/components/requiere-sesion",
     layout: "@/components/layout/site-layout",
     moneda: "@/hooks/use-currency",
-    notificaciones: "@/features/notificaciones/use-notifications",
+    notificaciones: "@/features/notificaciones/use-notifications-demo",
   },
   { VITE_AUTH_API: "real", VITE_CATALOGO_API: "real" },
 );

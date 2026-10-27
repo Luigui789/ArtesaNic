@@ -5,7 +5,7 @@ import { SessionProvider } from "@/features/auth/use-session";
 import { authReal } from "@/features/auth/api";
 import { RequiereSesion, SoloDemo } from "@/features/auth/components/requiere-sesion";
 import { CurrencyProvider } from "@/hooks/use-currency";
-import { NotificationsProvider } from "@/features/notificaciones/use-notifications";
+import { NotificationsProvider } from "@/features/notificaciones/use-notifications-demo";
 import { Toaster } from "@/components/ui/sonner";
 import { LoadingState } from "@/components/common/states";
 import { AppErrorBoundary } from "./error-boundary";
@@ -38,6 +38,9 @@ import PanelProductos from "@/features/catalogo/pages/panel-productos";
 const PedidosIndex = lazy(() => import("@/features/pedidos/pages/pedidos"));
 const PedidosDetalle = lazy(() => import("@/features/pedidos/pages/pedido-detalle"));
 const Notificaciones = lazy(() => import("@/features/notificaciones/pages/notificaciones"));
+const NotificacionesDemo = lazy(
+  () => import("@/features/notificaciones/pages/notificaciones-demo"),
+);
 const Mensajes = lazy(() => import("@/features/mensajes/pages/mensajes"));
 const PanelPedidosIndex = lazy(() => import("@/features/pedidos/pages/panel-pedidos"));
 const PanelPedidosDetalle = lazy(() => import("@/features/pedidos/pages/panel-pedido-detalle"));
@@ -115,7 +118,18 @@ export function App() {
                       }
                     />
                     <Route path="/mensajes" element={demo(<Mensajes />)} />
-                    <Route path="/notificaciones" element={demo(<Notificaciones />)} />
+                    <Route
+                      path="/notificaciones"
+                      element={
+                        authReal ? (
+                          <RequiereSesion>
+                            <Notificaciones />
+                          </RequiereSesion>
+                        ) : (
+                          demo(<NotificacionesDemo />)
+                        )
+                      }
+                    />
                     <Route
                       path="/panel"
                       element={artesano(authReal ? <PanelResumen /> : <PanelIndex />)}

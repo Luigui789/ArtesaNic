@@ -246,7 +246,7 @@ await verificar("sondeo: pide solo novedades y las mezcla en QueryClient", async
 await verificar("poll cada 15 s, solo activo y sin releer el historial", () => {
   assert.equal(m.api.INTERVALO_SONDEO_MS, 15000);
   const chat = fuente("features/mensajes/components/order-chat.tsx");
-  assert.match(chat, /setInterval\(\(\) => void sondearRef\.current\(\), INTERVALO_SONDEO_MS\)/);
+  assert.match(chat, /setInterval\([\s\S]*?sondearConversacion\([\s\S]*?INTERVALO_SONDEO_MS/);
   assert.match(chat, /if \(!cargada \|\| soloLectura\) return;/);
   assert.doesNotMatch(chat, /invalidateQueries|refetchInterval/);
   assert.match(chat, /staleTime: Infinity/);
@@ -425,7 +425,7 @@ await verificar("demo aislada: mocks directos, sin fallback real → mock", () =
     /export function OrderChatDemo/,
   );
   assert.match(
-    fuente("features/notificaciones/use-notifications.tsx"),
+    fuente("features/notificaciones/use-notifications-demo.tsx"),
     /from "@\/mocks\/mensajes"/,
   );
   for (const demo of [

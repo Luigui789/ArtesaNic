@@ -869,6 +869,135 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe o no pertenece a esta parte.
+  /api/v1/notificaciones/:
+    get:
+      operationId: notificaciones_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      tags:
+      - Notificaciones
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedNotificacionList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+  /api/v1/notificaciones/{notificacion_id}/leer/:
+    post:
+      operationId: notificaciones_leer_create
+      parameters:
+      - in: path
+        name: notificacion_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Notificaciones
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notificacion'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/notificaciones/leer-todas/:
+    post:
+      operationId: notificaciones_leer_todas_create
+      tags:
+      - Notificaciones
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultadoMarcarTodas'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+  /api/v1/notificaciones/resumen/:
+    get:
+      operationId: notificaciones_resumen_retrieve
+      tags:
+      - Notificaciones
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resumen'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
   /api/v1/operaciones/{tipo}/{clave}/:
     get:
       operationId: consultar_operacion
@@ -5351,6 +5480,96 @@ components:
       - reservada_antes
       - reservada_despues
       - tipo
+    Notificacion:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        tipo:
+          $ref: '#/components/schemas/NotificacionTipoEnum'
+        titulo:
+          type: string
+          readOnly: true
+        detalle:
+          type: string
+          readOnly: true
+        solicitud_id:
+          type: integer
+          nullable: true
+          readOnly: true
+        pedido_id:
+          type: integer
+          nullable: true
+          readOnly: true
+        creada_en:
+          type: string
+          format: date-time
+          readOnly: true
+        leida:
+          type: boolean
+          readOnly: true
+        leida_en:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - creada_en
+      - detalle
+      - id
+      - leida
+      - pedido_id
+      - solicitud_id
+      - tipo
+      - titulo
+    NotificacionTipoEnum:
+      enum:
+      - solicitud_recibida
+      - solicitud_rechazada
+      - propuesta_lista
+      - propuesta_aceptada
+      - propuesta_rechazada
+      - pago_registrado
+      - pago_corregido
+      - pago_confirmado
+      - pago_observado
+      - pago_no_recibido
+      - pedido_en_cumplimiento
+      - entrega_registrada
+      - pedido_entregado
+      - recepcion_confirmada
+      - discrepancia_entrega
+      - pedido_vencido_falta_pago
+      - pedido_cancelado_artesano
+      - cierre_parcial_propuesto
+      - cierre_parcial_objetado
+      - pedido_cerrado_parcial
+      - reembolso_creado
+      - reembolso_realizado
+      type: string
+      description: |-
+        * `solicitud_recibida` - Solicitud recibida
+        * `solicitud_rechazada` - Solicitud rechazada
+        * `propuesta_lista` - Propuesta lista
+        * `propuesta_aceptada` - Propuesta aceptada
+        * `propuesta_rechazada` - Propuesta rechazada
+        * `pago_registrado` - Pago registrado
+        * `pago_corregido` - Pago corregido
+        * `pago_confirmado` - Pago confirmado
+        * `pago_observado` - Pago observado
+        * `pago_no_recibido` - Pago no recibido
+        * `pedido_en_cumplimiento` - Pedido en cumplimiento
+        * `entrega_registrada` - Entrega registrada
+        * `pedido_entregado` - Pedido entregado
+        * `recepcion_confirmada` - Recepcion confirmada
+        * `discrepancia_entrega` - Discrepancia entrega
+        * `pedido_vencido_falta_pago` - Pedido vencido falta pago
+        * `pedido_cancelado_artesano` - Pedido cancelado artesano
+        * `cierre_parcial_propuesto` - Cierre parcial propuesto
+        * `cierre_parcial_objetado` - Cierre parcial objetado
+        * `pedido_cerrado_parcial` - Pedido cerrado parcial
+        * `reembolso_creado` - Reembolso creado
+        * `reembolso_realizado` - Reembolso realizado
     ObligacionClasificacion:
       type: object
       properties:
@@ -5503,6 +5722,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MovimientoInventario'
+    PaginatedNotificacionList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notificacion'
     PaginatedPedidoArtesanoList:
       type: object
       required:
@@ -6941,6 +7183,16 @@ components:
       description: |-
         * `aceptada` - Aceptada
         * `rechazada` - Rechazada
+    ResultadoMarcarTodas:
+      type: object
+      properties:
+        actualizadas:
+          type: integer
+        no_leidas:
+          type: integer
+      required:
+      - actualizadas
+      - no_leidas
     ResultadoRecepcionEnum:
       enum:
       - confirmada
@@ -6959,6 +7211,13 @@ components:
         * `confirmado` - Pago confirmado
         * `observado` - Pago observado
         * `no_recibido` - Pago no recibido
+    Resumen:
+      type: object
+      properties:
+        no_leidas:
+          type: integer
+      required:
+      - no_leidas
     Revisor:
       type: object
       properties:

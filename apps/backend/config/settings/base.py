@@ -73,6 +73,7 @@ INSTALLED_APPS = [
     "apps.operaciones",
     "apps.configuracion",
     "apps.mensajes",
+    "apps.notificaciones",
 ]
 
 MIDDLEWARE = [

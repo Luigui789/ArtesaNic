@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState, type RefObject } from "react";
+import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Lock, RefreshCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -23,6 +23,25 @@ import { cn } from "@/lib/utils";
 
 export const AVISO_SOLO_LECTURA =
   "Este pedido finalizó. La conversación queda disponible solo para consulta.";
+
+async function sondearConversacion(
+  queryClient: QueryClient,
+  usuarioId: number | undefined,
+  pedido: number,
+  sondeando: RefObject<boolean>,
+  setErrorSondeo: (valor: boolean) => void,
+) {
+  if (sondeando.current) return;
+  sondeando.current = true;
+  try {
+    await sondearNovedades(queryClient, claves.mensajes(usuarioId, pedido), pedido);
+    setErrorSondeo(false);
+  } catch {
+    setErrorSondeo(true);
+  } finally {
+    sondeando.current = false;
+  }
+}
 
 /**
  * RF-014 (AUD-16): conversación privada del pedido confirmado, la misma para comprador y
@@ -51,27 +70,15 @@ export function OrderChat({ pedido, estado }: { pedido: number; estado: EstadoPe
   const soloLectura = conversacion.data?.soloLectura === true || ESTADOS_TERMINALES.has(estado);
   const cargada = conversacion.isSuccess;
 
-  const sondear = async () => {
-    if (sondeando.current) return;
-    sondeando.current = true;
-    try {
-      await sondearNovedades(queryClient, claves.mensajes(usuarioId, pedido), pedido);
-      setErrorSondeo(false);
-    } catch {
-      setErrorSondeo(true); // se reintenta en el siguiente ciclo
-    } finally {
-      sondeando.current = false;
-    }
-  };
-  const sondearRef = useRef(sondear);
-  sondearRef.current = sondear;
-
   // RNF-010: cada 15 s, solo mientras la conversación admite mensajes.
   useEffect(() => {
     if (!cargada || soloLectura) return;
-    const id = setInterval(() => void sondearRef.current(), INTERVALO_SONDEO_MS);
+    const id = setInterval(
+      () => void sondearConversacion(queryClient, usuarioId, pedido, sondeando, setErrorSondeo),
+      INTERVALO_SONDEO_MS,
+    );
     return () => clearInterval(id);
-  }, [cargada, soloLectura, pedido, usuarioId]);
+  }, [cargada, soloLectura, pedido, usuarioId, queryClient]);
 
   const enviar = useMutation({
     mutationFn: (contenido: string) => enviarMensaje(pedido, contenido),
@@ -82,7 +89,7 @@ export function OrderChat({ pedido, estado }: { pedido: number; estado: EstadoPe
       setTexto("");
       setErrorEnvio(null);
       // Delta inmediato: trae lo que la otra parte confirmó antes y avanza el cursor.
-      void sondear();
+      void sondearConversacion(queryClient, usuarioId, pedido, sondeando, setErrorSondeo);
     },
     onError: (error) => {
       if (error instanceof ApiError && error.codigo === "conversacion_cerrada") {

@@ -18,21 +18,13 @@ export function navigationFor(rol: Role, real: boolean): NavigationItem[] {
       { to: "/panel/productos", label: "Productos" },
       ...(real ? [{ to: "/panel/inventario", label: "Inventario" }] : []),
       { to: "/panel/perfil", label: "Perfil del taller" },
-      ...(!real
-        ? [
-            { to: "/mensajes", label: "Mensajes" },
-            { to: "/notificaciones", label: "Notificaciones" },
-          ]
-        : []),
+      { to: "/notificaciones", label: "Notificaciones" },
+      ...(!real ? [{ to: "/mensajes", label: "Mensajes" }] : []),
     ];
   return [
     { to: "/solicitudes", label: "Mis solicitudes" },
     { to: "/pedidos", label: real ? "Mis pedidos" : "Pedidos de demo" },
-    ...(!real
-      ? [
-          { to: "/mensajes", label: "Mensajes" },
-          { to: "/notificaciones", label: "Notificaciones" },
-        ]
-      : []),
+    { to: "/notificaciones", label: "Notificaciones" },
+    ...(!real ? [{ to: "/mensajes", label: "Mensajes" }] : []),
   ];
 }

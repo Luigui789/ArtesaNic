@@ -27,6 +27,7 @@ from django.db.models import Max
 
 from apps.inventario import services as inventario
 from apps.inventario.models import ObligacionClasificacionInventario
+from apps.notificaciones import eventos as notificaciones
 from apps.operaciones import services as operaciones
 from apps.operaciones.models import TipoOperacion
 from apps.pagos import services as pagos
@@ -60,7 +61,7 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
-# Nombres estables de los puntos de integración para notificaciones (AUD-20, RN-020).
+# Nombres estables para el registro técnico posterior al commit.
 EVENTO_CANCELADO = "pedido_cancelado_artesano"
 EVENTO_CIERRE_PROPUESTO = "cierre_parcial_propuesto"
 EVENTO_CIERRE_OBJETADO = "cierre_parcial_objetado"
@@ -73,7 +74,7 @@ C = CodigoConflictoResolucion
 
 
 def _notificar(evento: str, **datos) -> None:
-    """Se ejecuta tras el COMMIT. AUD-20 enganchará aquí la notificación persistente."""
+    """Registro técnico tras el commit; el aviso persistente se escribe en la transacción."""
     logger.info(
         "%s %s", evento, " ".join(f"{clave}={valor}" for clave, valor in sorted(datos.items()))
     )
@@ -253,6 +254,12 @@ def cancelar_pedido(*, artesano, pedido_id: int, motivo: str) -> CancelacionPedi
         actor=artesano,
         momento=momento,
     )
+    notificaciones.avisar(
+        tipo="pedido_cancelado_artesano",
+        destinatario_id=pedido.comprador_id,
+        evento_id=cancelacion.pk,
+        pedido_id=pedido.pk,
+    )
     transaction.on_commit(
         lambda: _notificar(EVENTO_CANCELADO, pedido_id=pedido.pk, por_clasificar=len(obligaciones))
     )
@@ -301,6 +308,12 @@ def proponer_cierre_parcial(*, artesano, pedido_id: int, motivo: str) -> CierreP
         )
         for c in calculadas
     )
+    notificaciones.avisar(
+        tipo="cierre_parcial_propuesto",
+        destinatario_id=pedido.comprador_id,
+        evento_id=cierre.pk,
+        pedido_id=pedido.pk,
+    )
     transaction.on_commit(
         lambda: _notificar(EVENTO_CIERRE_PROPUESTO, pedido_id=pedido.pk, cierre=numero, monto=monto)
     )
@@ -342,6 +355,12 @@ def responder_cierre_parcial(
         registrado_en=momento,
     )
     if decision == ResultadoCierreParcial.OBJETADO:
+        notificaciones.avisar(
+            tipo="cierre_parcial_objetado",
+            destinatario_id=pedido.taller.propietario_id,
+            evento_id=registro.pk,
+            pedido_id=pedido.pk,
+        )
         transaction.on_commit(
             lambda: _notificar(EVENTO_CIERRE_OBJETADO, pedido_id=pedido.pk, cierre=cierre.numero)
         )
@@ -376,6 +395,12 @@ def responder_cierre_parcial(
         tipo=TipoEventoPedido.COMPRADOR,
         actor=comprador,
         momento=momento,
+    )
+    notificaciones.avisar(
+        tipo="pedido_cerrado_parcial",
+        destinatario_id=pedido.taller.propietario_id,
+        evento_id=registro.pk,
+        pedido_id=pedido.pk,
     )
     transaction.on_commit(
         lambda: _notificar(
