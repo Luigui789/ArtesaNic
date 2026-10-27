@@ -80,3 +80,17 @@ class EsquemaOpenAPITests(SimpleTestCase):
             [ruta for ruta in self.esquema["paths"] if "/mensajes/{" in ruta],
             "sin rutas por mensaje: no hay edición ni borrado",
         )
+
+    def test_notificaciones_privadas(self):
+        rutas = self.esquema["paths"]
+        for ruta, metodo in [
+            ("/api/v1/notificaciones/", "get"),
+            ("/api/v1/notificaciones/resumen/", "get"),
+            ("/api/v1/notificaciones/{notificacion_id}/leer/", "post"),
+            ("/api/v1/notificaciones/leer-todas/", "post"),
+        ]:
+            self.assertEqual(set(rutas[ruta]), {metodo})
+            self.assertTrue({"200", "401", "403"}.issubset(rutas[ruta][metodo]["responses"]))
+        self.assertIn(
+            "404", rutas["/api/v1/notificaciones/{notificacion_id}/leer/"]["post"]["responses"]
+        )

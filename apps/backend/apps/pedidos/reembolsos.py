@@ -27,6 +27,7 @@ from http import HTTPStatus
 
 from django.db import transaction
 
+from apps.notificaciones import eventos as notificaciones
 from apps.operaciones import services as operaciones
 from apps.operaciones.models import TipoOperacion
 from apps.pagos import services as pagos
@@ -53,7 +54,7 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
-# Nombres estables de los puntos de integración para notificaciones (AUD-20, RN-020).
+# Nombres estables para el registro técnico posterior al commit.
 EVENTO_REEMBOLSO_CREADO = "reembolso_creado"
 EVENTO_REEMBOLSO_REALIZADO = "reembolso_realizado"
 
@@ -149,7 +150,7 @@ def estado_reembolso(reembolso: ReembolsoPedido) -> str:
 
 
 def _notificar(evento: str, **datos) -> None:
-    """Se ejecuta tras el COMMIT. AUD-20 enganchará aquí la notificación persistente."""
+    """Registro técnico tras el commit; el aviso persistente se escribe en la transacción."""
     logger.info(
         "%s %s", evento, " ".join(f"{clave}={valor}" for clave, valor in sorted(datos.items()))
     )
@@ -164,6 +165,12 @@ def crear_reembolso_total(*, pedido: Pedido, cancelacion, momento) -> ReembolsoP
         moneda=pedido.moneda,
         cancelacion=cancelacion,
         creado_en=momento,
+    )
+    notificaciones.avisar(
+        tipo="reembolso_creado",
+        destinatario_id=pedido.comprador_id,
+        evento_id=reembolso.pk,
+        pedido_id=pedido.pk,
     )
     transaction.on_commit(
         lambda: _notificar(
@@ -182,6 +189,12 @@ def crear_reembolso_parcial(*, pedido: Pedido, cierre, monto: Decimal, momento) 
         moneda=pedido.moneda,
         cierre_parcial=cierre,
         creado_en=momento,
+    )
+    notificaciones.avisar(
+        tipo="reembolso_creado",
+        destinatario_id=pedido.comprador_id,
+        evento_id=reembolso.pk,
+        pedido_id=pedido.pk,
     )
     transaction.on_commit(
         lambda: _notificar(
@@ -236,6 +249,12 @@ def registrar_devolucion(*, artesano, pedido_id: int, fecha, referencia) -> Devo
         referencia=referencia,
         registrado_por=artesano,
         registrado_en=pagos.ahora(),
+    )
+    notificaciones.avisar(
+        tipo="reembolso_realizado",
+        destinatario_id=pedido.comprador_id,
+        evento_id=devolucion.pk,
+        pedido_id=pedido.pk,
     )
     transaction.on_commit(
         lambda: _notificar(EVENTO_REEMBOLSO_REALIZADO, pedido_id=pedido.pk, monto=devolucion.monto)

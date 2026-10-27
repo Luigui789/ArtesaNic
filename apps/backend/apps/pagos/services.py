@@ -23,6 +23,7 @@ from django.db import transaction
 from django.db.models import Max
 from django.utils import timezone
 
+from apps.notificaciones import eventos as notificaciones
 from apps.operaciones import services as operaciones
 from apps.operaciones.models import TipoOperacion
 from apps.pedidos.models import ESTADOS_TERMINALES, EstadoOperativoPedido, EstadoPedido, Pedido
@@ -312,7 +313,7 @@ def registrar_intento(
         if vencido(pago.plazo_hasta, momento):
             raise ConflictoPago(CodigoConflictoPago.NUEVO_INTENTO_FUERA_PLAZO)
         origen, previo = OrigenIntento.NUEVO_TRAS_NO_RECIBIDO, pago.intentos.order_by("-numero")[0]
-    return _crear_intento(
+    intento = _crear_intento(
         pago=pago,
         origen=origen,
         intento_previo=previo,
@@ -322,6 +323,13 @@ def registrar_intento(
         actor=comprador,
         momento=momento,
     )
+    notificaciones.avisar(
+        tipo="pago_registrado",
+        destinatario_id=pedido.taller.propietario_id,
+        evento_id=intento.pk,
+        pedido_id=pedido.pk,
+    )
+    return intento
 
 
 @transaction.atomic
@@ -353,7 +361,7 @@ def corregir_intento(
     momento = ahora()
     if vencido(pago.plazo_hasta, momento):
         raise ConflictoPago(CodigoConflictoPago.CORRECCION_FUERA_PLAZO)
-    return _crear_intento(
+    intento = _crear_intento(
         pago=pago,
         origen=OrigenIntento.CORRECCION,
         intento_previo=previo,
@@ -363,6 +371,13 @@ def corregir_intento(
         actor=comprador,
         momento=momento,
     )
+    notificaciones.avisar(
+        tipo="pago_corregido",
+        destinatario_id=pedido.taller.propietario_id,
+        evento_id=intento.pk,
+        pedido_id=pedido.pk,
+    )
+    return intento
 
 
 @transaction.atomic
@@ -397,6 +412,12 @@ def resolver_intento(
     pago.confirmado_en = momento if resultado == ResultadoRevision.CONFIRMADO else None
     pago.actualizado_en = momento
     pago.save(update_fields=["estado", "plazo_hasta", "confirmado_en", "actualizado_en"])
+    notificaciones.avisar(
+        tipo=f"pago_{resultado}",
+        destinatario_id=pedido.comprador_id,
+        evento_id=revision.pk,
+        pedido_id=pedido.pk,
+    )
     return revision
 
 
