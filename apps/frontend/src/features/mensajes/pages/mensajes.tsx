@@ -1,46 +1,64 @@
-import { PageContainer } from "@/components/common/page";
+import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { MessageSquare } from "lucide-react";
 import { SiteLayout } from "@/components/layout/site-layout";
-import { EmptyState, ErrorState } from "@/components/common/states";
-import { OrderChatDemo } from "@/features/mensajes/components/order-chat-demo";
-import { OrderStatusBadge } from "@/features/pedidos/components/status-badges";
+import { PageContainer, PageHeader } from "@/components/common/page";
+import { EmptyState, ErrorState, LoadingState } from "@/components/common/states";
+import { ListPagination } from "@/components/common/pagination";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { getArtisan } from "@/features/talleres/api";
-import { listOrders } from "@/features/pedidos/api";
-import { listProducts } from "@/features/catalogo/api";
-import { DEMO_ARTISAN_ID } from "@/features/auth/api";
-import { chatMode } from "@/lib/order-state";
-import { formatDate } from "@/lib/format";
 import { useSession } from "@/features/auth/use-session";
-import { useNotifications } from "@/features/notificaciones/use-notifications-demo";
-import { useDocumentHead } from "@/hooks/use-document-head";
+import { OrderChat } from "@/features/mensajes/components/order-chat";
+import {
+  consultarPedidoConfirmado,
+  listarPedidosConfirmados,
+  type PedidoConfirmado,
+} from "@/features/pedidos/confirmados";
+import { EstadoPedidoBadge } from "@/features/pedidos/pages/confirmados";
+import { mensajeDominio } from "@/lib/errores-dominio";
+import { formatDate } from "@/lib/format";
+import { reintentarSalvoErrorDelCliente } from "@/lib/http";
+import { mostrarImporte } from "@/lib/importes";
+import { claves } from "@/lib/query-keys";
 import { parseRouteId } from "@/lib/route-id";
 import { cn } from "@/lib/utils";
-import { useEffect } from "react";
+import { useDocumentHead } from "@/hooks/use-document-head";
+
+function resumenLineas(pedido: PedidoConfirmado): string {
+  const primera = pedido.lineas[0];
+  if (!primera) return `Pedido #${pedido.id}`;
+  if (pedido.lineas.length === 1) return primera.producto.nombre;
+  return `${primera.producto.nombre} y ${pedido.lineas.length - 1} más`;
+}
+
+function contraparte(pedido: PedidoConfirmado, recibido: boolean): string {
+  return recibido ? (pedido.comprador?.nombre ?? "Comprador") : pedido.taller.nombre;
+}
 
 export default function MensajesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  // Un identificador inválido no es un 404: se cae en la primera conversación.
-  const seleccionado = parseRouteId(searchParams.get("pedido"));
+  const [page, setPage] = useState(1);
   const { usuario } = useSession();
-  const rol = usuario?.rol ?? "comprador";
-  const { noLeidos, marcarLeido } = useNotifications();
+  const recibido = usuario?.rol === "artesano";
+
+  const parametro = searchParams.get("pedido");
+  const tieneParametro = parametro !== null && parametro.trim() !== "";
+  const pedidoSolicitado = parseRouteId(parametro);
+  const parametroInvalido = tieneParametro && pedidoSolicitado === undefined;
 
   useDocumentHead({
-    title: "Mensajes por pedido | Artesanías de Masaya",
+    title: "Mensajes por pedido | ArtesaNic",
     meta: [
       {
         name: "description",
         content:
-          "Conversa con el taller artesanal sobre cada pedido: detalles, materiales y coordinación de entrega.",
+          "Conversa con la otra parte sobre tus pedidos confirmados: coordinación, avances y entrega.",
       },
-      { property: "og:title", content: "Mensajes por pedido | Artesanías de Masaya" },
+      { property: "og:title", content: "Mensajes por pedido | ArtesaNic" },
       {
         property: "og:description",
-        content: "Mensajería simulada asociada a cada pedido artesanal de Masaya.",
+        content:
+          "Conversaciones privadas asociadas a cada pedido confirmado entre comprador y taller.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
@@ -48,130 +66,198 @@ export default function MensajesPage() {
     canonical: "/mensajes",
   });
 
-  const pedidos = useQuery({
-    queryKey: ["mensajes-pedidos", rol],
-    queryFn: () => listOrders(rol === "artesano" ? { rol, artesanoId: DEMO_ARTISAN_ID } : { rol }),
+  const pedidosQuery = useQuery({
+    queryKey: [...claves.pedidos(usuario?.id), recibido, page],
+    queryFn: ({ signal }) => listarPedidosConfirmados(recibido, page, signal),
+    enabled: Boolean(usuario),
+    placeholderData: keepPreviousData,
+    retry: reintentarSalvoErrorDelCliente,
   });
-  const productos = useQuery({
-    queryKey: ["catalogo-nombres"],
-    queryFn: () => listProducts({ pageSize: 1000 }),
-  });
 
-  const nombreProducto = (id: number) =>
-    productos.data?.items.find((p) => p.id === id)?.nombre ?? "Producto artesanal";
+  const enPagina =
+    pedidoSolicitado !== undefined
+      ? pedidosQuery.data?.items.find((p) => p.id === pedidoSolicitado)
+      : undefined;
 
-  const conversaciones = (pedidos.data ?? []).filter((o) => chatMode(o.estado) !== "none");
-  const actual =
-    conversaciones.find((o) => o.id === seleccionado) ?? conversaciones[0] ?? undefined;
-
-  const taller = useQuery({
-    queryKey: ["artesano", actual?.artesanoId],
-    queryFn: () => getArtisan(actual!.artesanoId),
-    enabled: rol === "comprador" && !!actual,
+  const detalleQuery = useQuery({
+    queryKey: claves.pedido(usuario?.id, recibido, pedidoSolicitado ?? 0),
+    queryFn: ({ signal }) => consultarPedidoConfirmado(recibido, pedidoSolicitado ?? 0, signal),
+    enabled:
+      Boolean(usuario) && pedidoSolicitado !== undefined && !pedidosQuery.isPending && !enPagina,
+    retry: reintentarSalvoErrorDelCliente,
   });
 
   const seleccionar = (id: number) => {
-    marcarLeido(id);
-    setSearchParams({ pedido: String(id) });
+    const siguientes = new URLSearchParams(searchParams);
+    siguientes.set("pedido", String(id));
+    setSearchParams(siguientes);
   };
 
-  // La conversación visible se marca como leída.
-  useEffect(() => {
-    if (actual) marcarLeido(actual.id);
-  }, [actual, marcarLeido]);
+  const limpiarSeleccion = () => {
+    const siguientes = new URLSearchParams(searchParams);
+    siguientes.delete("pedido");
+    setSearchParams(siguientes);
+  };
+
+  const itemsPagina = pedidosQuery.data?.items ?? [];
+  const pedidoExterno =
+    detalleQuery.data && !itemsPagina.some((p) => p.id === detalleQuery.data.id)
+      ? detalleQuery.data
+      : undefined;
+  const conversaciones = pedidoExterno ? [pedidoExterno, ...itemsPagina] : itemsPagina;
+
+  const actual: PedidoConfirmado | undefined = parametroInvalido
+    ? undefined
+    : pedidoSolicitado !== undefined
+      ? (enPagina ?? detalleQuery.data)
+      : conversaciones[0];
+
+  const rutaBasePedidos = recibido ? "/panel/pedidos" : "/pedidos";
+  const rutaSolicitudes = recibido ? "/panel/solicitudes" : "/solicitudes";
 
   return (
     <SiteLayout>
       <PageContainer className="max-w-6xl">
-        <h1 className="font-display text-3xl font-bold">Mensajes</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Cada conversación pertenece a un pedido. La mensajería se habilita cuando el artesano
-          acepta la solicitud.
-        </p>
+        <PageHeader
+          title="Mensajes"
+          description="Cada conversación privada pertenece a un pedido confirmado entre el comprador y el taller."
+          action={
+            <Button asChild variant="outline" className="min-h-11 touch-target">
+              <Link to={rutaBasePedidos}>
+                {recibido ? "Ver pedidos del taller" : "Ver mis pedidos"}
+              </Link>
+            </Button>
+          }
+        />
 
-        {pedidos.isPending ? (
-          <div className="mt-6 grid gap-4 lg:grid-cols-[320px_1fr]">
-            <div className="space-y-3">
-              <Skeleton className="h-20 w-full rounded-xl" />
-              <Skeleton className="h-20 w-full rounded-xl" />
-              <Skeleton className="h-20 w-full rounded-xl" />
-            </div>
-            <Skeleton className="h-96 w-full rounded-xl" />
-          </div>
-        ) : pedidos.isError ? (
-          <div className="mt-6">
-            <ErrorState
-              mensaje="No pudimos cargar tus conversaciones."
-              onRetry={() => void pedidos.refetch()}
-            />
-          </div>
-        ) : conversaciones.length === 0 ? (
-          <div className="mt-6">
-            <EmptyState
-              titulo="Todavía no tienes conversaciones"
-              descripcion="Cuando envíes una solicitud de pedido podrás conversar aquí con el taller artesanal."
-              accion={
-                <Button asChild className="touch-target">
-                  <Link to="/catalogo">Explorar el catálogo</Link>
-                </Button>
-              }
-            />
-          </div>
+        {pedidosQuery.isPending ? (
+          <LoadingState label="Cargando conversaciones…" />
+        ) : pedidosQuery.isError ? (
+          <ErrorState
+            mensaje={mensajeDominio(pedidosQuery.error)}
+            onRetry={() => void pedidosQuery.refetch()}
+          />
+        ) : conversaciones.length === 0 && !tieneParametro ? (
+          <EmptyState
+            titulo="Todavía no tienes conversaciones"
+            descripcion={
+              recibido
+                ? "Cuando un comprador confirme una propuesta de tu taller, podrás conversar aquí sobre el pedido."
+                : "Cuando aceptes la propuesta de una solicitud y se confirme el pedido, podrás conversar aquí con el taller."
+            }
+            accion={
+              <Button asChild variant="outline" className="min-h-11 touch-target">
+                <Link to={rutaSolicitudes}>Ver solicitudes</Link>
+              </Button>
+            }
+          />
         ) : (
-          <div className="mt-6 grid gap-4 lg:grid-cols-[320px_1fr]">
-            <ul aria-label="Conversaciones" className="space-y-2">
-              {conversaciones.map((o) => {
-                const activo = actual?.id === o.id;
-                return (
-                  <li key={o.id}>
-                    <button
-                      type="button"
-                      onClick={() => seleccionar(o.id)}
-                      aria-current={activo ? "true" : undefined}
-                      className={cn(
-                        "w-full rounded-xl border bg-card p-3 text-left transition-colors hover:bg-surface",
-                        activo && "border-primary/40 bg-primary/5",
-                      )}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="flex items-center gap-1.5 text-sm font-semibold">
-                          {o.codigo}
-                          {(noLeidos[o.id] ?? 0) > 0 ? (
-                            <span
-                              aria-label={`${noLeidos[o.id]} mensajes nuevos`}
-                              className="grid min-w-5 place-items-center rounded-full bg-primary px-1.5 text-[11px] font-semibold leading-5 text-primary-foreground"
-                            >
-                              {noLeidos[o.id]}
+          <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
+            <div className="min-w-0 space-y-4">
+              {conversaciones.length > 0 ? (
+                <ul aria-label="Conversaciones por pedido" className="space-y-2.5">
+                  {conversaciones.map((p) => {
+                    const activo = actual?.id === p.id;
+                    return (
+                      <li key={p.id} className="min-w-0">
+                        <button
+                          type="button"
+                          onClick={() => seleccionar(p.id)}
+                          aria-current={activo ? "true" : undefined}
+                          className={cn(
+                            "min-h-11 w-full rounded-xl border bg-card p-3.5 text-left transition-colors hover:bg-surface",
+                            activo && "border-primary/40 bg-primary/5",
+                          )}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <span className="font-display text-base font-semibold">
+                              Pedido #{p.id}
                             </span>
-                          ) : null}
-                        </span>
-                        <OrderStatusBadge estado={o.estado} />
-                      </div>
-                      <p className="mt-1 line-clamp-1 text-sm">{nombreProducto(o.productoId)}</p>
-                      <p className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <MessageSquare className="size-3.5" aria-hidden="true" />
-                        {formatDate(o.creadoEn)}
-                      </p>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                            <EstadoPedidoBadge estado={p.estado} />
+                          </div>
+                          <p className="mt-1.5 break-words text-sm font-medium">
+                            {resumenLineas(p)}
+                          </p>
+                          <p className="mt-1 break-words text-xs text-muted-foreground">
+                            {contraparte(p, recibido)} · {mostrarImporte(p.total)}
+                          </p>
+                          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <MessageSquare className="size-3.5 shrink-0" aria-hidden="true" />
+                            <span>Confirmado el {formatDate(p.confirmadoEn)}</span>
+                          </p>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+                  No hay otros pedidos confirmados en esta página.
+                </p>
+              )}
+              {pedidosQuery.data ? (
+                <ListPagination
+                  page={page}
+                  totalPages={pedidosQuery.data.totalPages}
+                  onPage={setPage}
+                  busy={pedidosQuery.isPlaceholderData}
+                />
+              ) : null}
+            </div>
 
-            <div className="space-y-3">
-              {actual ? (
+            <div className="min-w-0 space-y-4">
+              {parametroInvalido ? (
+                <section
+                  aria-labelledby="pedido-invalido-titulo"
+                  className="rounded-xl border bg-card p-5 space-y-3"
+                >
+                  <h2 id="pedido-invalido-titulo" className="font-display text-lg font-semibold">
+                    Enlace de conversación no válido
+                  </h2>
+                  <p className="break-words text-sm text-muted-foreground">
+                    El identificador de pedido indicado en la dirección no es válido. Selecciona una
+                    conversación de la lista para abrir sus mensajes.
+                  </p>
+                  {conversaciones.length > 0 ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={limpiarSeleccion}
+                      className="min-h-11 touch-target"
+                    >
+                      Abrir primera conversación disponible
+                    </Button>
+                  ) : null}
+                </section>
+              ) : pedidoSolicitado !== undefined && !enPagina && detalleQuery.isPending ? (
+                <LoadingState label="Abriendo conversación del pedido…" />
+              ) : pedidoSolicitado !== undefined && !enPagina && detalleQuery.isError ? (
+                <ErrorState
+                  mensaje={mensajeDominio(detalleQuery.error)}
+                  onRetry={() => void detalleQuery.refetch()}
+                />
+              ) : actual ? (
                 <>
-                  <div className="rounded-xl border bg-card px-4 py-3">
-                    <h2 className="font-display text-lg font-semibold">
-                      {actual.codigo} · {nombreProducto(actual.productoId)}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">
-                      {rol === "artesano"
-                        ? actual.compradorNombre
-                        : (taller.data?.nombreTaller ?? "Taller artesanal")}
-                    </p>
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3.5">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <h2 className="font-display text-lg font-semibold">
+                          Pedido #{actual.id} · {resumenLineas(actual)}
+                        </h2>
+                        <EstadoPedidoBadge estado={actual.estado} />
+                      </div>
+                      <p className="break-words text-sm text-muted-foreground">
+                        {recibido
+                          ? `Comprador: ${contraparte(actual, true)}`
+                          : `Taller: ${contraparte(actual, false)}`}{" "}
+                        · Total acordado: {mostrarImporte(actual.total)}
+                      </p>
+                    </div>
+                    <Button asChild variant="outline" size="sm" className="min-h-11 touch-target">
+                      <Link to={`${rutaBasePedidos}/${actual.id}`}>Ver detalle del pedido</Link>
+                    </Button>
                   </div>
-                  <OrderChatDemo pedidoId={actual.id} estado={actual.estado} />
+                  <OrderChat key={actual.id} pedido={actual.id} estado={actual.estado} />
                 </>
               ) : null}
             </div>

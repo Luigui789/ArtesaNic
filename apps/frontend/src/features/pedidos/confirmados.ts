@@ -148,6 +148,10 @@ export async function consultarPedidoConfirmado(
   signal?: AbortSignal,
 ) {
   return aPedido(
-    await solicitar<PedidoDTO>(`${base(recibido)}${id}/`, { autenticada: true, signal }),
+    await solicitar<PedidoDTO>(`${base(recibido)}${id}/`, {
+      autenticada: true,
+      signal,
+      mensajes: { 404: "No encontramos este pedido." },
+    }),
   );
 }

@@ -52,6 +52,12 @@ export function aPerfilTaller(t: TallerPublicoDTO): PerfilTaller {
   };
 }
 
+/** `GET /api/v1/talleres/`: talleres aprobados visibles públicamente. */
+export async function listPerfilesTalleres(): Promise<PerfilTaller[]> {
+  const lista = await solicitar<TallerPublicoDTO[]>("/talleres/");
+  return lista.map(aPerfilTaller);
+}
+
 /** `GET /api/v1/talleres/{id}/`: solo talleres aprobados; los demás responden 404. */
 export async function getPerfilTaller(id: number): Promise<PerfilTaller> {
   return aPerfilTaller(

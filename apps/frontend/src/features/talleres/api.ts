@@ -7,13 +7,12 @@
  * servidor simulado, que usan el panel, pedidos y mensajes.
  */
 import { catalogoReal } from "@/features/catalogo/api";
-import { getArtisan } from "@/mocks/talleres";
+import { getArtisan, listArtisans } from "@/mocks/talleres";
+import type { Artisan } from "@/types";
 import * as http from "./http";
 import type { PerfilTaller } from "./types";
 
-/** Adapta el taller de la demo al perfil público del contrato. */
-async function getPerfilTallerDemo(id: number): Promise<PerfilTaller> {
-  const a = await getArtisan(id);
+function aPerfilTallerDemo(a: Artisan): PerfilTaller {
   return {
     id: a.id,
     nombre: a.nombreTaller,
@@ -34,6 +33,15 @@ async function getPerfilTallerDemo(id: number): Promise<PerfilTaller> {
     },
   };
 }
+
+/** Adapta el taller de la demo al perfil público del contrato. */
+async function getPerfilTallerDemo(id: number): Promise<PerfilTaller> {
+  return aPerfilTallerDemo(await getArtisan(id));
+}
+
+export const listPerfilesTalleres: () => Promise<PerfilTaller[]> = catalogoReal
+  ? http.listPerfilesTalleres
+  : async () => (await listArtisans()).map(aPerfilTallerDemo);
 
 export const getPerfilTaller: (id: number) => Promise<PerfilTaller> = catalogoReal
   ? http.getPerfilTaller

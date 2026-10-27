@@ -60,12 +60,16 @@ const artesano = (pagina: React.ReactNode) => (
 );
 const demo = (pagina: React.ReactNode) => <SoloDemo>{pagina}</SoloDemo>;
 
+function ProveedorNotificacionesSegunModo({ children }: { children: React.ReactNode }) {
+  return authReal ? <>{children}</> : <NotificationsProvider>{children}</NotificationsProvider>;
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <CurrencyProvider>
-          <NotificationsProvider>
+          <ProveedorNotificacionesSegunModo>
             <BrowserRouter>
               <AppErrorBoundary>
                 <ScrollToTop />
@@ -117,7 +121,18 @@ export function App() {
                         authReal ? comprador(<DetallePedidoConfirmado />) : demo(<PedidosDetalle />)
                       }
                     />
-                    <Route path="/mensajes" element={demo(<Mensajes />)} />
+                    <Route
+                      path="/mensajes"
+                      element={
+                        authReal ? (
+                          <RequiereSesion>
+                            <Mensajes />
+                          </RequiereSesion>
+                        ) : (
+                          demo(<Mensajes />)
+                        )
+                      }
+                    />
                     <Route
                       path="/notificaciones"
                       element={
@@ -171,7 +186,7 @@ export function App() {
               </AppErrorBoundary>
             </BrowserRouter>
             <Toaster richColors position="top-center" />
-          </NotificationsProvider>
+          </ProveedorNotificacionesSegunModo>
         </CurrencyProvider>
       </SessionProvider>
     </QueryClientProvider>

@@ -1,17 +1,17 @@
 /**
  * API de catálogo, categorías y productos que consume la interfaz.
  *
- * `VITE_CATALOGO_API=real` conecta el catálogo con Django (`http.ts`, AUD-04); por
- * defecto sigue el servidor simulado, porque pedidos, solicitudes y mensajes todavía
- * son simulados y resuelven sus productos con `getProduct`/`listProducts` del mock.
- * La gestión real del artesano necesita además la sesión real (AUD-18).
+ * Por defecto (`VITE_CATALOGO_API=real`) conecta el catálogo y los productos propios
+ * con Django (`http.ts`, AUD-04 y AUD-18). El modo `VITE_CATALOGO_API=mock` queda
+ * aislado únicamente para las pruebas de regresión de la demo.
  */
 import * as http from "./http";
+import { catalogoReal } from "@/features/auth/modo";
 import * as mock from "@/mocks/catalogo";
 import { listArtisans } from "@/mocks/talleres";
 import type { TallerResumen } from "./types";
 
-export const catalogoReal = import.meta.env["VITE_CATALOGO_API"] === "real";
+export { catalogoReal };
 
 // ---------- Catálogo con la forma del contrato V1 ----------
 

@@ -22,12 +22,12 @@ src/
 
 Dentro de un dominio:
 
-| Archivo | Contenido |
-|---|---|
-| `api.ts` | Las funciones de datos del dominio. **Es lo único que la interfaz importa para obtener o cambiar datos.** |
-| `types.ts` | Entradas del contrato (`ProductInput`, `OrderRequestInput`, …). Las entidades viven en `@/types`. |
-| `pages/` | Componentes de página, uno por ruta, exportados por defecto. |
-| `components/` | Componentes que solo tienen sentido en ese dominio. |
+| Archivo       | Contenido                                                                                                 |
+| ------------- | --------------------------------------------------------------------------------------------------------- |
+| `api.ts`      | Las funciones de datos del dominio. **Es lo único que la interfaz importa para obtener o cambiar datos.** |
+| `types.ts`    | Entradas del contrato (`ProductInput`, `OrderRequestInput`, …). Las entidades viven en `@/types`.         |
+| `pages/`      | Componentes de página, uno por ruta, exportados por defecto.                                              |
+| `components/` | Componentes que solo tienen sentido en ese dominio.                                                       |
 
 ## Reglas
 
@@ -58,15 +58,15 @@ Para agregar una ruta:
    <Route path="/mi-ruta" element={<MiPagina />} />;
    ```
 
-| Necesidad                       | Cómo se hace                                                       |
-| ------------------------------- | ------------------------------------------------------------------ |
-| Parámetro dinámico              | `<Route path="/producto/:id" …>` + `useParams<{ id: string }>()`   |
+| Necesidad                       | Cómo se hace                                                                            |
+| ------------------------------- | --------------------------------------------------------------------------------------- |
+| Parámetro dinámico              | `<Route path="/producto/:id" …>` + `useParams<{ id: string }>()`                        |
 | Parámetros de búsqueda (query)  | `useSearchParams()` — ver `catalogo/pages/catalogo.tsx` y `mensajes/pages/mensajes.tsx` |
-| Navegación programática         | `useNavigate()` de `react-router`                                  |
-| Enlaces                         | `<Link to="/ruta">`; usar `<NavLink>` si se necesita estado activo |
-| Metadatos (`<title>`, `<meta>`) | hook `useDocumentHead` de `@/hooks/use-document-head`              |
-| Página 404                      | `src/app/not-found.tsx`, registrada como `<Route path="*">`        |
-| Errores de render               | `src/app/error-boundary.tsx`                                       |
+| Navegación programática         | `useNavigate()` de `react-router`                                                       |
+| Enlaces                         | `<Link to="/ruta">`; usar `<NavLink>` si se necesita estado activo                      |
+| Metadatos (`<title>`, `<meta>`) | hook `useDocumentHead` de `@/hooks/use-document-head`                                   |
+| Página 404                      | `src/app/not-found.tsx`, registrada como `<Route path="*">`                             |
+| Errores de render               | `src/app/error-boundary.tsx`                                                            |
 
 ## Conectar un dominio a Django
 
@@ -77,11 +77,11 @@ Hoy cada `api.ts` reexporta funciones de `src/mocks/`. Para integrar un dominio:
 3. Las páginas no cambian; si una firma tiene que cambiar (por ejemplo, ya no se envía el rol porque lo deriva el token), TypeScript señala cada lugar afectado.
 4. Cuando ningún `api.ts` use un archivo de `src/mocks/`, eliminarlo junto con su parte de `scripts/check-demo.mjs`.
 
-**Catálogo (AUD-04):** `catalogo/api.ts` elige entre el servidor simulado y `catalogo/http.ts` con `VITE_CATALOGO_API` (`mock` por defecto, `real`). Sus firmas cambiaron a la forma V1 del contrato (modalidades, publicación, paginación del listado propio); las lecturas `getProduct`/`listProducts` del mock se conservan para los dominios todavía simulados. Ver [catálogo](../../../../docs/api/catalogo.md#10-frontend).
+**Catálogo (AUD-04):** `catalogo/api.ts` elige entre `catalogo/http.ts` y el servidor simulado con `VITE_CATALOGO_API` (`real` por defecto, `mock` aislado para pruebas). Sus firmas siguen la forma V1 del contrato (modalidades, publicación, moderación y paginación del listado propio); las lecturas `getProduct`/`listProducts` del mock se conservan únicamente para pantallas demo aisladas bajo `SoloDemo`. Ver [catálogo](../../../../docs/api/catalogo.md#10-frontend).
 
-**Solicitudes (AUD-05):** `solicitudes/` define composición de varios productos, lista y detalle privados de las partes. Sus tipos no usan `Order` ni `OrderOption`. `solicitudes/api.ts` comparte la fuente del catálogo; `http.ts` transforma el contrato y reutiliza el proveedor Bearer sin inventar sesión real. La demo guarda `store.solicitudes`, separado de `store.orders`, sin pagos, reservas ni chat. Las rutas `/pedidos` y `/panel/pedidos` conservan la demo anterior, rotulada como legacy. Ver [contrato de solicitudes](../../../../docs/api/solicitudes.md).
+**Solicitudes (AUD-05):** `solicitudes/` define composición de varios productos, lista y detalle privados de las partes. Sus tipos no usan `Order` ni `OrderOption`. `solicitudes/api.ts` comparte la fuente del catálogo; `http.ts` transforma el contrato y reutiliza el proveedor Bearer. Ver [contrato de solicitudes](../../../../docs/api/solicitudes.md).
 
-El mock comparte un único almacén entre dominios legacy (aceptar un pedido de esa demo reserva unidades del producto); las nuevas solicitudes no invocan ese ciclo. Mientras un dominio siga simulado, sus datos no conocen los del dominio ya conectado; la integración completa de sesión pertenece a AUD-18.
+El mock comparte un único almacén entre dominios legacy para las pruebas de regresión en modo `mock`; en el modo `real` (por defecto tras el cierre de AUD-18), todas las rutas activas consumen exclusivamente los contratos reales de Django.
 
 **Pagos (AUD-10):** `pagos/api.ts` es la frontera: en modo real usa `pagos/http.ts` (DTO `snake_case` → contratos `camelCase`, multipart con `Idempotency-Key`); en demo el contrato real responde `501` y las pantallas legacy siguen con `PaymentPanel` simulado. `pagos/comprobante.ts` refleja la whitelist del servidor (JPG, JPEG, PNG, WebP, PDF; 10 MB). Los comprobantes se descargan como `Blob` en memoria y su URL temporal se revoca; no se usan DataURL, `localStorage` ni IndexedDB. Ver [contrato de pagos](../../../../docs/api/pagos.md).
 
@@ -89,4 +89,4 @@ El mock comparte un único almacén entre dominios legacy (aceptar un pedido de 
 
 **Cumplimiento (AUD-12):** `pedidos/cumplimiento.ts` es el cliente real de seguimiento por renglón, entregas y recepción (DTO `snake_case` → `camelCase`, `Idempotency-Key` con `crearIntentoSeguro()`, `claves.cumplimiento(usuario, recibido, pedido)`); `pedidos/components/cumplimiento-pedido.tsx` lo muestra dentro del detalle existente (`/pedidos/:id`, `/panel/pedidos/:id`). Tras cada mutación se usa la respuesta del servidor y se invalidan pedido, listado e inventario/movimientos cuando hubo consumo. Ver [contrato de cumplimiento](../../../../docs/api/cumplimiento.md).
 
-**Sesión (AUD-18):** `auth/api.ts` elige con `VITE_AUTH_API` (`mock` por defecto, `real`) entre la sesión simulada de `src/mocks/sesion.ts` y `auth/http.ts`. Todos los dominios HTTP usan el cliente común `src/lib/http/` (Bearer, CSRF, renovación y errores). En modo real, las pantallas que siguen simuladas con la identidad de la demo se envuelven en `SoloDemo`. Ver [arquitectura del frontend](../../../../docs/arquitectura/frontend.md).
+**Sesión y cierre de integración (AUD-18):** `auth/api.ts` elige con `VITE_AUTH_API` (`real` por defecto, `mock` aislado para pruebas) entre `auth/http.ts` y la sesión simulada de `src/mocks/sesion.ts`. Todos los dominios HTTP usan el cliente común `src/lib/http/` (Bearer, CSRF, renovación y errores). `/mensajes` lista los pedidos confirmados de la sesión real (`listarPedidosConfirmados` / `consultarPedidoConfirmado`) y monta un único `OrderChat` activo para la conversación seleccionada (`?pedido=<id>`). `/descubrir` consulta `GET /api/v1/talleres/`. En modo real no se monta `NotificationsProvider` de la demo y las pantallas legacy quedan bloqueadas tras `SoloDemo`. Ver [arquitectura del frontend](../../../../docs/arquitectura/frontend.md).

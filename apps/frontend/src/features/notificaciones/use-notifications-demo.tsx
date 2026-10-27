@@ -145,8 +145,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
 }
 
+const SIN_NOTIFICACIONES_DEMO: NotificationsContextValue = {
+  noLeidos: {},
+  total: 0,
+  recientes: [],
+  marcarLeido: () => undefined,
+  marcarTodoLeido: () => undefined,
+};
+
 export function useNotifications() {
-  const ctx = useContext(NotificationsContext);
-  if (!ctx) throw new Error("useNotifications debe usarse dentro de NotificationsProvider");
-  return ctx;
+  return useContext(NotificationsContext) ?? SIN_NOTIFICACIONES_DEMO;
 }
