@@ -428,6 +428,14 @@ await verificar(
         `${ruta} no debe importar artefactos de demo`,
       );
     }
+    assert.doesNotMatch(
+      fuente("features/solicitudes/pages/preparar.tsx"),
+      /El inicio de sesión real todavía no está disponible/,
+    );
+    assert.match(
+      fuente("features/solicitudes/pages/preparar.tsx"),
+      /Tu solicitud se enviará al taller artesanal para su revisión y emisión de propuesta\./,
+    );
     const app = fuente("app/App.tsx");
     assert.match(
       app,

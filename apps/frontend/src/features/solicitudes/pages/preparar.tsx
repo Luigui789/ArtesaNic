@@ -47,7 +47,406 @@ export default function PrepararSolicitud() {
   return <Composicion key={id ?? "nueva"} productoId={id} />;
 }
 
-function Composicion({ productoId }: { productoId: number | undefined }) {
+function maxCantidadRenglon(r: RenglonBorrador): number {
+  if (
+    r.modalidad === "stock" &&
+    typeof r.producto.disponibleStock === "number" &&
+    r.producto.disponibleStock > 0
+  ) {
+    return r.producto.disponibleStock;
+  }
+  return 2147483647;
+}
+
+function AvisoStockRenglon({ disponible, cantidad }: { disponible: number; cantidad: number }) {
+  const textoDisponibles =
+    disponible === 0
+      ? "Sin unidades disponibles actualmente"
+      : `Disponibles actualmente: ${disponible} ${disponible === 1 ? "unidad" : "unidades"}`;
+  const mensajeExceso =
+    disponible === 0
+      ? "No hay unidades disponibles en stock para solicitar en este momento."
+      : `La cantidad solicitada supera las unidades disponibles actualmente (${disponible}).`;
+  return (
+    <div role="status" className="rounded-lg border bg-surface/50 px-3 py-2 text-sm">
+      <p className="font-medium">{textoDisponibles}</p>
+      {cantidad > disponible ? (
+        <p role="alert" className="mt-1 text-xs text-destructive">
+          {mensajeExceso}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function CamposModalidadRenglon({
+  renglon: r,
+  indice: i,
+  onCambiar,
+}: {
+  renglon: RenglonBorrador;
+  indice: number;
+  onCambiar: (indice: number, cambios: Partial<RenglonBorrador>) => void;
+}) {
+  if (r.modalidad === "stock" && typeof r.producto.disponibleStock === "number") {
+    return <AvisoStockRenglon disponible={r.producto.disponibleStock} cantidad={r.cantidad} />;
+  }
+  if (r.modalidad === "produccion") {
+    return (
+      <label className="block space-y-1 text-sm">
+        Fecha solicitada
+        <Input
+          aria-label={`Fecha solicitada del producto ${i + 1}`}
+          type="date"
+          min={fechaLocalISO()}
+          value={r.fechaSolicitada}
+          onChange={(e) => onCambiar(i, { fechaSolicitada: e.target.value })}
+        />
+      </label>
+    );
+  }
+  if (r.modalidad === "personalizacion") {
+    return (
+      <>
+        <label className="block space-y-1 text-sm">
+          Características solicitadas
+          <Textarea
+            aria-label={`Características del producto ${i + 1}`}
+            value={r.caracteristicas}
+            onChange={(e) => onCambiar(i, { caracteristicas: e.target.value })}
+          />
+        </label>
+        <label className="block space-y-1 text-sm">
+          Origen de la personalización
+          <select
+            aria-label={`Origen del producto ${i + 1}`}
+            className="block min-h-11 w-full rounded-md border bg-background px-3"
+            value={r.origenPersonalizacion}
+            onChange={(e) =>
+              onCambiar(i, {
+                origenPersonalizacion: e.target.value as RenglonBorrador["origenPersonalizacion"],
+              })
+            }
+          >
+            <option value="">Selecciona una opción</option>
+            <option value="desde_cero">Fabricar desde cero</option>
+            <option value="unidad_estandar">Usar una unidad estándar como base</option>
+          </select>
+        </label>
+      </>
+    );
+  }
+  return null;
+}
+
+function RenglonEditable({
+  renglon: r,
+  indice: i,
+  totalRenglones,
+  deshabilitado,
+  onCambiar,
+  onQuitar,
+}: {
+  renglon: RenglonBorrador;
+  indice: number;
+  totalRenglones: number;
+  deshabilitado: boolean;
+  onCambiar: (indice: number, cambios: Partial<RenglonBorrador>) => void;
+  onQuitar: (indice: number) => void;
+}) {
+  return (
+    <fieldset className="space-y-4 rounded-xl border p-4" disabled={deshabilitado}>
+      <legend className="px-2 font-semibold">Producto {i + 1}</legend>
+      <div className="grid gap-4 sm:grid-cols-[minmax(0,12rem)_1fr] sm:items-start">
+        <ProductImage
+          src={r.producto.imagen}
+          alt={r.producto.nombre}
+          className="aspect-[4/3] rounded-md"
+        />
+        <div>
+          <h2 className="font-semibold">{r.producto.nombre}</h2>
+          <p className="text-sm text-muted-foreground">{r.producto.taller.nombre}</p>
+        </div>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="space-y-1 text-sm">
+          Modalidad
+          <select
+            aria-label={`Modalidad del producto ${i + 1}`}
+            className="block min-h-11 w-full rounded-md border bg-background px-3"
+            value={r.modalidad}
+            onChange={(e) =>
+              onCambiar(i, {
+                modalidad: e.target.value as RenglonBorrador["modalidad"],
+                fechaSolicitada: "",
+                caracteristicas: "",
+                origenPersonalizacion: "",
+              })
+            }
+          >
+            {r.producto.modalidades.map((m) => (
+              <option key={m} value={m}>
+                {MODALIDAD_LABELS[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1 text-sm">
+          Cantidad
+          <Input
+            aria-label={`Cantidad del producto ${i + 1}`}
+            type="number"
+            min={1}
+            max={maxCantidadRenglon(r)}
+            step={1}
+            value={Number.isNaN(r.cantidad) ? "" : r.cantidad}
+            onChange={(e) => onCambiar(i, { cantidad: Number(e.target.value) })}
+          />
+        </label>
+      </div>
+      <CamposModalidadRenglon renglon={r} indice={i} onCambiar={onCambiar} />
+      {totalRenglones > 1 ? (
+        <Button type="button" variant="outline" onClick={() => onQuitar(i)}>
+          Quitar producto {i + 1}
+        </Button>
+      ) : null}
+    </fieldset>
+  );
+}
+
+function SeccionAgregarProductos({
+  tallerNombre,
+  renglones,
+  avisoTaller,
+  catalogo,
+  page,
+  deshabilitado,
+  onAgregar,
+  onPage,
+}: {
+  tallerNombre: string | undefined;
+  renglones: RenglonBorrador[];
+  avisoTaller: string;
+  catalogo: {
+    isPending: boolean;
+    isError: boolean;
+    error: Error | null;
+    isPlaceholderData: boolean;
+    data: { items: CatalogProduct[]; totalPages: number } | undefined;
+    refetch: () => unknown;
+  };
+  page: number;
+  deshabilitado: boolean;
+  onAgregar: (producto: CatalogProduct) => void;
+  onPage: (nueva: number) => void;
+}) {
+  return (
+    <section aria-labelledby="agregar-productos" className="space-y-4">
+      <h2 id="agregar-productos" className="text-xl font-semibold">
+        {tallerNombre ? `Más productos de ${tallerNombre}` : "Elegí un producto para comenzar"}
+      </h2>
+      {renglones[0] ? (
+        <p className="text-sm">
+          Agregá otro producto de este taller o repetí uno para solicitarlo con otra modalidad.
+        </p>
+      ) : null}
+      {avisoTaller ? <p role="alert">{avisoTaller}</p> : null}
+      {catalogo.isPending ? (
+        <p role="status">Cargando productos…</p>
+      ) : catalogo.isError ? (
+        <ErrorState
+          mensaje={catalogo.error?.message ?? "No se pudieron cargar los productos."}
+          onRetry={() => void catalogo.refetch()}
+        />
+      ) : !catalogo.data || catalogo.data.items.length === 0 ? (
+        <p>No hay productos publicados para solicitar.</p>
+      ) : (
+        <ul className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+          {catalogo.data.items.map((p) => {
+            const permitido = puedeAgregarProducto(renglones, p);
+            return (
+              <li key={p.id} className="overflow-hidden rounded-lg border">
+                <ProductImage src={p.imagen} alt={p.nombre} className="aspect-[4/3]" />
+                <div className="space-y-2 p-3">
+                  <p className="break-words font-medium">{p.nombre}</p>
+                  {!tallerNombre ? <p className="text-sm">{p.taller.nombre}</p> : null}
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    disabled={!permitido || deshabilitado}
+                    onClick={() => onAgregar(p)}
+                    aria-label={`Agregar ${p.nombre}`}
+                  >
+                    Agregar producto
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {catalogo.data && catalogo.data.totalPages > 1 ? (
+        <nav aria-label="Productos para agregar" className="flex items-center gap-4">
+          <Button
+            type="button"
+            variant="outline"
+            disabled={page <= 1 || catalogo.isPlaceholderData}
+            onClick={() => onPage(page - 1)}
+          >
+            Anterior
+          </Button>
+          <span>
+            {page} / {catalogo.data.totalPages}
+          </span>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={page >= catalogo.data.totalPages || catalogo.isPlaceholderData}
+            onClick={() => onPage(page + 1)}
+          >
+            Siguiente
+          </Button>
+        </nav>
+      ) : null}
+    </section>
+  );
+}
+
+function ResumenProductosSolicitud({
+  renglones,
+  entrega,
+}: {
+  renglones: RenglonBorrador[];
+  entrega: EntregaPreferidaBorrador;
+}) {
+  return (
+    <section aria-label="Productos incluidos en la solicitud" className="space-y-4">
+      {renglones.map((r, i) => (
+        <article
+          key={i}
+          className="grid gap-4 rounded-xl border p-4 sm:grid-cols-[minmax(0,12rem)_1fr]"
+        >
+          <ProductImage
+            src={r.producto.imagen}
+            alt={r.producto.nombre}
+            className="aspect-[4/3] rounded-md"
+          />
+          <div className="space-y-2">
+            <h2 className="font-semibold">
+              Producto {i + 1}: {r.producto.nombre}
+            </h2>
+            <p className="text-sm text-muted-foreground">{r.producto.taller.nombre}</p>
+            <p>
+              {MODALIDAD_LABELS[r.modalidad]} · Cantidad: {r.cantidad}
+            </p>
+            {r.modalidad === "stock" && typeof r.producto.disponibleStock === "number" ? (
+              <p className="text-sm text-muted-foreground">
+                Disponibles actualmente: {r.producto.disponibleStock}{" "}
+                {r.producto.disponibleStock === 1 ? "unidad" : "unidades"}
+              </p>
+            ) : null}
+            {r.modalidad === "produccion" ? (
+              <p>
+                Fecha solicitada:{" "}
+                {r.fechaSolicitada ? formatCalendarDate(r.fechaSolicitada) : "Sin definir"}
+              </p>
+            ) : null}
+            {r.modalidad === "personalizacion" ? (
+              <>
+                <p>Características: {r.caracteristicas || "Sin definir"}</p>
+                <p>
+                  Origen:{" "}
+                  {r.origenPersonalizacion === "desde_cero"
+                    ? "Fabricar desde cero"
+                    : r.origenPersonalizacion === "unidad_estandar"
+                      ? "Usar una unidad estándar como base"
+                      : "Sin definir"}
+                </p>
+              </>
+            ) : null}
+          </div>
+        </article>
+      ))}
+      <p>
+        Entrega preferida: {ENTREGA_LABELS[entrega.modalidad]}
+        {entrega.descripcion.trim() ? ` — ${entrega.descripcion.trim()}` : ""}
+      </p>
+      <p className="rounded-lg border p-4 text-sm">
+        Este envío inicia una solicitud de revisión. Todavía no confirma un pedido ni reserva
+        unidades.
+      </p>
+    </section>
+  );
+}
+
+function FieldsetEntregaPreferida({
+  entrega,
+  deshabilitado,
+  onChange,
+}: {
+  entrega: EntregaPreferidaBorrador;
+  deshabilitado: boolean;
+  onChange: (nueva: EntregaPreferidaBorrador) => void;
+}) {
+  return (
+    <fieldset className="space-y-4 rounded-xl border p-4" disabled={deshabilitado}>
+      <legend className="px-2 font-semibold">Entrega preferida (opcional)</legend>
+      <p className="text-sm text-muted-foreground">
+        El taller definirá el plan y el costo de entrega en su propuesta.
+      </p>
+      <label className="block space-y-1 text-sm">
+        Modalidad preferida
+        <select
+          aria-label="Modalidad de entrega preferida"
+          className="block min-h-11 w-full rounded-md border bg-background px-3"
+          value={entrega.modalidad}
+          onChange={(e) =>
+            onChange({
+              modalidad: e.target.value as EntregaPreferidaBorrador["modalidad"],
+              descripcion: e.target.value ? entrega.descripcion : "",
+            })
+          }
+        >
+          {(["", ...MODALIDADES_ENTREGA] as const).map((m) => (
+            <option key={m} value={m}>
+              {ENTREGA_LABELS[m]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {entrega.modalidad ? (
+        <label className="block space-y-1 text-sm">
+          {entrega.modalidad === "otra" ? "Describe la entrega" : "Detalle (opcional)"}
+          <Textarea
+            aria-label="Descripción de la entrega preferida"
+            maxLength={MAX_DESCRIPCION_ENTREGA}
+            value={entrega.descripcion}
+            onChange={(e) => onChange({ ...entrega, descripcion: e.target.value })}
+          />
+        </label>
+      ) : null}
+    </fieldset>
+  );
+}
+
+function ErrorEnvioSolicitud({ error }: { error: Error | null }) {
+  if (!error) return null;
+  return (
+    <div role="alert" className="space-y-1 text-destructive">
+      <p>{error.message}</p>
+      {error instanceof ApiError
+        ? Object.entries(error.campos).map(([campo, mensajes]) => (
+            <p key={campo}>
+              {campo}: {mensajes.join(" ")}
+            </p>
+          ))
+        : null}
+    </div>
+  );
+}
+
+function useEstadoComposicion(productoId: number | undefined) {
   const { usuario } = useSession();
   const navigate = useNavigate();
   const consultas = useQueryClient();
@@ -93,6 +492,7 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
   });
   const cambiar = (indice: number, cambios: Partial<RenglonBorrador>) =>
     setBorrador(renglones.map((r, i) => (i === indice ? { ...r, ...cambios } : r)));
+  const quitar = (indice: number) => setBorrador(renglones.filter((_, i) => i !== indice));
   const agregar = (p: CatalogProduct) => {
     if (!puedeAgregarProducto(renglones, p)) {
       setAvisoTaller(
@@ -124,6 +524,153 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
     }
     envio.mutate({ entrada: validada.data, clave: intento.current.clave(validada.data) });
   };
+
+  return {
+    paso,
+    setPaso,
+    entrega,
+    setEntrega,
+    errores,
+    avisoTaller,
+    producto,
+    renglones,
+    taller,
+    page,
+    setPage,
+    catalogo,
+    envio,
+    cambiar,
+    quitar,
+    agregar,
+    enviar,
+  };
+}
+
+function AccionesResumenSolicitud({
+  mostrar,
+  enviando,
+  onEditar,
+}: {
+  mostrar: boolean;
+  enviando: boolean;
+  onEditar: () => void;
+}) {
+  if (!mostrar) return null;
+  return (
+    <div className="flex flex-wrap gap-3">
+      <Button type="button" variant="outline" disabled={enviando} onClick={onEditar}>
+        Editar solicitud
+      </Button>
+      <Button className="touch-target" type="submit" disabled={enviando}>
+        {enviando ? "Enviando solicitud…" : "Enviar solicitud al taller"}
+      </Button>
+    </div>
+  );
+}
+
+function PasoEdicionSolicitud({
+  renglones,
+  entrega,
+  errores,
+  tallerNombre,
+  avisoTaller,
+  catalogo,
+  page,
+  deshabilitado,
+  onCambiar,
+  onQuitar,
+  onEntrega,
+  onAgregar,
+  onPage,
+}: {
+  renglones: RenglonBorrador[];
+  entrega: EntregaPreferidaBorrador;
+  errores: string[];
+  tallerNombre: string | undefined;
+  avisoTaller: string;
+  catalogo: {
+    isPending: boolean;
+    isError: boolean;
+    error: Error | null;
+    isPlaceholderData: boolean;
+    data: { items: CatalogProduct[]; totalPages: number } | undefined;
+    refetch: () => unknown;
+  };
+  page: number;
+  deshabilitado: boolean;
+  onCambiar: (indice: number, cambios: Partial<RenglonBorrador>) => void;
+  onQuitar: (indice: number) => void;
+  onEntrega: (nueva: EntregaPreferidaBorrador) => void;
+  onAgregar: (producto: CatalogProduct) => void;
+  onPage: (nueva: number) => void;
+}) {
+  return (
+    <>
+      {renglones.length === 0 ? <p>Selecciona un producto para comenzar.</p> : null}
+      {renglones.map((r, i) => (
+        <RenglonEditable
+          key={i}
+          renglon={r}
+          indice={i}
+          totalRenglones={renglones.length}
+          deshabilitado={deshabilitado}
+          onCambiar={onCambiar}
+          onQuitar={onQuitar}
+        />
+      ))}
+      <FieldsetEntregaPreferida
+        entrega={entrega}
+        deshabilitado={deshabilitado}
+        onChange={onEntrega}
+      />
+      {errores.length ? (
+        <ul role="alert" className="space-y-1 text-destructive">
+          {errores.map((e, i) => (
+            <li key={i}>{e}</li>
+          ))}
+        </ul>
+      ) : null}
+      <Button
+        className="touch-target"
+        type="submit"
+        disabled={deshabilitado || renglones.length === 0}
+      >
+        Revisar solicitud
+      </Button>
+      <SeccionAgregarProductos
+        tallerNombre={tallerNombre}
+        renglones={renglones}
+        avisoTaller={avisoTaller}
+        catalogo={catalogo}
+        page={page}
+        deshabilitado={deshabilitado}
+        onAgregar={onAgregar}
+        onPage={onPage}
+      />
+    </>
+  );
+}
+
+function Composicion({ productoId }: { productoId: number | undefined }) {
+  const {
+    paso,
+    setPaso,
+    entrega,
+    setEntrega,
+    errores,
+    avisoTaller,
+    producto,
+    renglones,
+    taller,
+    page,
+    setPage,
+    catalogo,
+    envio,
+    cambiar,
+    quitar,
+    agregar,
+    enviar,
+  } = useEstadoComposicion(productoId);
 
   // No ofrecer el catálogo editable antes de cargar el producto de la ruta:
   // agregar otro en ese intervalo descartaría silenciosamente el renglón inicial.
@@ -158,361 +705,36 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
         </p>
         <p className="rounded-lg border p-4 text-sm">
           {solicitudesReales
-            ? "El inicio de sesión real todavía no está disponible. El selector Demo solo cambia la vista y no permite enviar solicitudes reales."
+            ? "Tu solicitud se enviará al taller artesanal para su revisión y emisión de propuesta."
             : "Demostración local: esta solicitud se guarda en este navegador, separada de los pedidos de la demo anterior."}{" "}
           Enviar no confirma un pedido, fija precios ni reserva unidades.
         </p>
         <form onSubmit={enviar} noValidate className="space-y-6">
           {paso === "edicion" ? (
-            <>
-              {renglones.length === 0 ? <p>Selecciona un producto para comenzar.</p> : null}
-              {renglones.map((r, i) => (
-                <fieldset
-                  key={i}
-                  className="space-y-4 rounded-xl border p-4"
-                  disabled={envio.isPending}
-                >
-                  <legend className="px-2 font-semibold">Producto {i + 1}</legend>
-                  <div className="grid gap-4 sm:grid-cols-[minmax(0,12rem)_1fr] sm:items-start">
-                    <ProductImage
-                      src={r.producto.imagen}
-                      alt={r.producto.nombre}
-                      className="aspect-[4/3] rounded-md"
-                    />
-                    <div>
-                      <h2 className="font-semibold">{r.producto.nombre}</h2>
-                      <p className="text-sm text-muted-foreground">{r.producto.taller.nombre}</p>
-                    </div>
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <label className="space-y-1 text-sm">
-                      Modalidad
-                      <select
-                        aria-label={`Modalidad del producto ${i + 1}`}
-                        className="block min-h-11 w-full rounded-md border bg-background px-3"
-                        value={r.modalidad}
-                        onChange={(e) =>
-                          cambiar(i, {
-                            modalidad: e.target.value as RenglonBorrador["modalidad"],
-                            fechaSolicitada: "",
-                            caracteristicas: "",
-                            origenPersonalizacion: "",
-                          })
-                        }
-                      >
-                        {r.producto.modalidades.map((m) => (
-                          <option key={m} value={m}>
-                            {MODALIDAD_LABELS[m]}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    <label className="space-y-1 text-sm">
-                      Cantidad
-                      <Input
-                        aria-label={`Cantidad del producto ${i + 1}`}
-                        type="number"
-                        min={1}
-                        max={
-                          r.modalidad === "stock" &&
-                          typeof r.producto.disponibleStock === "number" &&
-                          r.producto.disponibleStock > 0
-                            ? r.producto.disponibleStock
-                            : 2147483647
-                        }
-                        step={1}
-                        value={Number.isNaN(r.cantidad) ? "" : r.cantidad}
-                        onChange={(e) => cambiar(i, { cantidad: Number(e.target.value) })}
-                      />
-                    </label>
-                  </div>
-                  {r.modalidad === "stock" && typeof r.producto.disponibleStock === "number" ? (
-                    <div
-                      role="status"
-                      className="rounded-lg border bg-surface/50 px-3 py-2 text-sm"
-                    >
-                      <p className="font-medium">
-                        {r.producto.disponibleStock === 0
-                          ? "Sin unidades disponibles actualmente"
-                          : `Disponibles actualmente: ${r.producto.disponibleStock} ${
-                              r.producto.disponibleStock === 1 ? "unidad" : "unidades"
-                            }`}
-                      </p>
-                      {r.cantidad > r.producto.disponibleStock ? (
-                        <p role="alert" className="mt-1 text-xs text-destructive">
-                          {r.producto.disponibleStock === 0
-                            ? "No hay unidades disponibles en stock para solicitar en este momento."
-                            : `La cantidad solicitada supera las unidades disponibles actualmente (${r.producto.disponibleStock}).`}
-                        </p>
-                      ) : null}
-                    </div>
-                  ) : null}
-                  {r.modalidad === "produccion" ? (
-                    <label className="block space-y-1 text-sm">
-                      Fecha solicitada
-                      <Input
-                        aria-label={`Fecha solicitada del producto ${i + 1}`}
-                        type="date"
-                        min={fechaLocalISO()}
-                        value={r.fechaSolicitada}
-                        onChange={(e) => cambiar(i, { fechaSolicitada: e.target.value })}
-                      />
-                    </label>
-                  ) : null}
-                  {r.modalidad === "personalizacion" ? (
-                    <>
-                      <label className="block space-y-1 text-sm">
-                        Características solicitadas
-                        <Textarea
-                          aria-label={`Características del producto ${i + 1}`}
-                          value={r.caracteristicas}
-                          onChange={(e) => cambiar(i, { caracteristicas: e.target.value })}
-                        />
-                      </label>
-                      <label className="block space-y-1 text-sm">
-                        Origen de la personalización
-                        <select
-                          aria-label={`Origen del producto ${i + 1}`}
-                          className="block min-h-11 w-full rounded-md border bg-background px-3"
-                          value={r.origenPersonalizacion}
-                          onChange={(e) =>
-                            cambiar(i, {
-                              origenPersonalizacion: e.target
-                                .value as RenglonBorrador["origenPersonalizacion"],
-                            })
-                          }
-                        >
-                          <option value="">Selecciona una opción</option>
-                          <option value="desde_cero">Fabricar desde cero</option>
-                          <option value="unidad_estandar">
-                            Usar una unidad estándar como base
-                          </option>
-                        </select>
-                      </label>
-                    </>
-                  ) : null}
-                  {renglones.length > 1 ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setBorrador(renglones.filter((_, indice) => indice !== i))}
-                    >
-                      Quitar producto {i + 1}
-                    </Button>
-                  ) : null}
-                </fieldset>
-              ))}
-              <fieldset className="space-y-4 rounded-xl border p-4" disabled={envio.isPending}>
-                <legend className="px-2 font-semibold">Entrega preferida (opcional)</legend>
-                <p className="text-sm text-muted-foreground">
-                  El taller definirá el plan y el costo de entrega en su propuesta.
-                </p>
-                <label className="block space-y-1 text-sm">
-                  Modalidad preferida
-                  <select
-                    aria-label="Modalidad de entrega preferida"
-                    className="block min-h-11 w-full rounded-md border bg-background px-3"
-                    value={entrega.modalidad}
-                    onChange={(e) =>
-                      setEntrega({
-                        modalidad: e.target.value as EntregaPreferidaBorrador["modalidad"],
-                        descripcion: e.target.value ? entrega.descripcion : "",
-                      })
-                    }
-                  >
-                    {(["", ...MODALIDADES_ENTREGA] as const).map((m) => (
-                      <option key={m} value={m}>
-                        {ENTREGA_LABELS[m]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {entrega.modalidad ? (
-                  <label className="block space-y-1 text-sm">
-                    {entrega.modalidad === "otra" ? "Describe la entrega" : "Detalle (opcional)"}
-                    <Textarea
-                      aria-label="Descripción de la entrega preferida"
-                      maxLength={MAX_DESCRIPCION_ENTREGA}
-                      value={entrega.descripcion}
-                      onChange={(e) => setEntrega({ ...entrega, descripcion: e.target.value })}
-                    />
-                  </label>
-                ) : null}
-              </fieldset>
-              {errores.length ? (
-                <ul role="alert" className="space-y-1 text-destructive">
-                  {errores.map((e, i) => (
-                    <li key={i}>{e}</li>
-                  ))}
-                </ul>
-              ) : null}
-              <Button
-                className="touch-target"
-                type="submit"
-                disabled={
-                  envio.isPending ||
-                  renglones.length === 0 ||
-                  (productoId !== undefined && !producto.data)
-                }
-              >
-                Revisar solicitud
-              </Button>
-              <section aria-labelledby="agregar-productos" className="space-y-4">
-                <h2 id="agregar-productos" className="text-xl font-semibold">
-                  {taller ? `Más productos de ${taller.nombre}` : "Elegí un producto para comenzar"}
-                </h2>
-                {renglones[0] ? (
-                  <p className="text-sm">
-                    Agregá otro producto de este taller o repetí uno para solicitarlo con otra
-                    modalidad.
-                  </p>
-                ) : null}
-                {avisoTaller ? <p role="alert">{avisoTaller}</p> : null}
-                {catalogo.isPending ? (
-                  <p role="status">Cargando productos…</p>
-                ) : catalogo.isError ? (
-                  <ErrorState
-                    mensaje={catalogo.error.message}
-                    onRetry={() => void catalogo.refetch()}
-                  />
-                ) : catalogo.data.items.length === 0 ? (
-                  <p>No hay productos publicados para solicitar.</p>
-                ) : (
-                  <ul className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-                    {catalogo.data.items.map((p) => {
-                      const permitido = puedeAgregarProducto(renglones, p);
-                      return (
-                        <li key={p.id} className="overflow-hidden rounded-lg border">
-                          <ProductImage src={p.imagen} alt={p.nombre} className="aspect-[4/3]" />
-                          <div className="space-y-2 p-3">
-                            <p className="break-words font-medium">{p.nombre}</p>
-                            {!taller ? <p className="text-sm">{p.taller.nombre}</p> : null}
-                            <Button
-                              type="button"
-                              variant="outline"
-                              className="w-full"
-                              disabled={!permitido || envio.isPending}
-                              onClick={() => agregar(p)}
-                              aria-label={`Agregar ${p.nombre}`}
-                            >
-                              Agregar producto
-                            </Button>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-                {catalogo.data && catalogo.data.totalPages > 1 ? (
-                  <nav aria-label="Productos para agregar" className="flex items-center gap-4">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={page <= 1 || catalogo.isPlaceholderData}
-                      onClick={() => setPage(page - 1)}
-                    >
-                      Anterior
-                    </Button>
-                    <span>
-                      {page} / {catalogo.data.totalPages}
-                    </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      disabled={page >= catalogo.data.totalPages || catalogo.isPlaceholderData}
-                      onClick={() => setPage(page + 1)}
-                    >
-                      Siguiente
-                    </Button>
-                  </nav>
-                ) : null}
-              </section>
-            </>
+            <PasoEdicionSolicitud
+              renglones={renglones}
+              entrega={entrega}
+              errores={errores}
+              tallerNombre={taller?.nombre}
+              avisoTaller={avisoTaller}
+              catalogo={catalogo}
+              page={page}
+              deshabilitado={envio.isPending}
+              onCambiar={cambiar}
+              onQuitar={quitar}
+              onEntrega={setEntrega}
+              onAgregar={agregar}
+              onPage={setPage}
+            />
           ) : (
-            <section aria-label="Productos incluidos en la solicitud" className="space-y-4">
-              {renglones.map((r, i) => (
-                <article
-                  key={i}
-                  className="grid gap-4 rounded-xl border p-4 sm:grid-cols-[minmax(0,12rem)_1fr]"
-                >
-                  <ProductImage
-                    src={r.producto.imagen}
-                    alt={r.producto.nombre}
-                    className="aspect-[4/3] rounded-md"
-                  />
-                  <div className="space-y-2">
-                    <h2 className="font-semibold">
-                      Producto {i + 1}: {r.producto.nombre}
-                    </h2>
-                    <p className="text-sm text-muted-foreground">{r.producto.taller.nombre}</p>
-                    <p>
-                      {MODALIDAD_LABELS[r.modalidad]} · Cantidad: {r.cantidad}
-                    </p>
-                    {r.modalidad === "stock" && typeof r.producto.disponibleStock === "number" ? (
-                      <p className="text-sm text-muted-foreground">
-                        Disponibles actualmente: {r.producto.disponibleStock}{" "}
-                        {r.producto.disponibleStock === 1 ? "unidad" : "unidades"}
-                      </p>
-                    ) : null}
-                    {r.modalidad === "produccion" ? (
-                      <p>
-                        Fecha solicitada:{" "}
-                        {r.fechaSolicitada ? formatCalendarDate(r.fechaSolicitada) : "Sin definir"}
-                      </p>
-                    ) : null}
-                    {r.modalidad === "personalizacion" ? (
-                      <>
-                        <p>Características: {r.caracteristicas || "Sin definir"}</p>
-                        <p>
-                          Origen:{" "}
-                          {r.origenPersonalizacion === "desde_cero"
-                            ? "Fabricar desde cero"
-                            : r.origenPersonalizacion === "unidad_estandar"
-                              ? "Usar una unidad estándar como base"
-                              : "Sin definir"}
-                        </p>
-                      </>
-                    ) : null}
-                  </div>
-                </article>
-              ))}
-              <p>
-                Entrega preferida: {ENTREGA_LABELS[entrega.modalidad]}
-                {entrega.descripcion.trim() ? ` — ${entrega.descripcion.trim()}` : ""}
-              </p>
-              <p className="rounded-lg border p-4 text-sm">
-                Este envío inicia una solicitud de revisión. Todavía no confirma un pedido ni
-                reserva unidades.
-              </p>
-            </section>
+            <ResumenProductosSolicitud renglones={renglones} entrega={entrega} />
           )}
-          {envio.isError ? (
-            <div role="alert" className="space-y-1 text-destructive">
-              <p>{envio.error.message}</p>
-              {envio.error instanceof ApiError
-                ? Object.entries(envio.error.campos).map(([campo, mensajes]) => (
-                    <p key={campo}>
-                      {campo}: {mensajes.join(" ")}
-                    </p>
-                  ))
-                : null}
-            </div>
-          ) : null}
-          {paso === "resumen" ? (
-            <div className="flex flex-wrap gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={envio.isPending}
-                onClick={() => setPaso("edicion")}
-              >
-                Editar solicitud
-              </Button>
-              <Button className="touch-target" type="submit" disabled={envio.isPending}>
-                {envio.isPending ? "Enviando solicitud…" : "Enviar solicitud al taller"}
-              </Button>
-            </div>
-          ) : null}
+          <ErrorEnvioSolicitud error={envio.isError ? envio.error : null} />
+          <AccionesResumenSolicitud
+            mostrar={paso === "resumen"}
+            enviando={envio.isPending}
+            onEditar={() => setPaso("edicion")}
+          />
         </form>
       </PageContainer>
     </SiteLayout>
