@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "@/features/auth/use-session";
 import { claves } from "@/lib/query-keys";
 import { consultarResumen } from "./http";
+import { useNotifications } from "./use-notifications-demo";
 
 export function useResumenNotificaciones() {
   const { modo, usuario } = useSession();
@@ -12,4 +13,11 @@ export function useResumenNotificaciones() {
     refetchInterval: 30000,
     refetchOnWindowFocus: true,
   });
+}
+
+export function useTotalNotificaciones() {
+  const { modo } = useSession();
+  const demo = useNotifications();
+  const resumen = useResumenNotificaciones();
+  return modo === "real" ? (resumen.data ?? 0) : demo.total;
 }
