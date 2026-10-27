@@ -7,7 +7,7 @@ import { PublicLayout } from "@/components/layout/public-layout";
 import { ProductCard, ProductCardSkeleton } from "@/features/catalogo/components/product-card";
 import { ArtisanCard } from "@/features/talleres/components/artisan-card";
 import { ErrorState } from "@/components/common/states";
-import { listArtisans } from "@/features/talleres/api";
+import { listPerfilesTalleres } from "@/features/talleres/api";
 import { listCatalog, listCategories } from "@/features/catalogo/api";
 import { useDocumentHead } from "@/hooks/use-document-head";
 
@@ -37,7 +37,10 @@ export default function Index() {
     queryKey: ["catalogo", "portada"],
     queryFn: () => listCatalog({ orden: "recientes", pageSize: 8 }),
   });
-  const artesanos = useQuery({ queryKey: ["artesanos"], queryFn: listArtisans });
+  const artesanos = useQuery({
+    queryKey: ["talleres-publicos"],
+    queryFn: ({ signal }) => listPerfilesTalleres(signal),
+  });
 
   return (
     <PublicLayout>

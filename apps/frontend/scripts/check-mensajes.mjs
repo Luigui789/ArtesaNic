@@ -429,7 +429,6 @@ await verificar("demo aislada: mocks directos, sin fallback real → mock", () =
     /from "@\/mocks\/mensajes"/,
   );
   for (const demo of [
-    "features/mensajes/pages/mensajes.tsx",
     "features/pedidos/pages/pedido-detalle.tsx",
     "features/pedidos/pages/panel-pedido-detalle.tsx",
   ]) {
@@ -437,8 +436,16 @@ await verificar("demo aislada: mocks directos, sin fallback real → mock", () =
     assert.match(codigo, /<OrderChatDemo /, demo);
     assert.doesNotMatch(codigo, /components\/order-chat"/, demo);
   }
-  // /mensajes sigue siendo la ruta demo: sin inbox real nuevo.
-  assert.match(fuente("app/App.tsx"), /path="\/mensajes" element=\{demo\(<Mensajes \/>\)\}/);
+  const paginaMensajes = fuente("features/mensajes/pages/mensajes.tsx");
+  assert.match(
+    paginaMensajes,
+    /<OrderChat key=\{actual\.id\} pedido=\{actual\.id\} estado=\{actual\.estado\} \/>/,
+  );
+  assert.doesNotMatch(paginaMensajes, /OrderChatDemo|DEMO_ARTISAN_ID|listOrders|useNotifications/);
+  assert.match(
+    fuente("app/App.tsx"),
+    /path="\/mensajes"[\s\S]*?<RequiereSesion>\s*<Mensajes \/>\s*<\/RequiereSesion>/,
+  );
 });
 
 console.log(`check-mensajes: ${grupos} grupos OK`);

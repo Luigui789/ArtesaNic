@@ -1,7 +1,8 @@
 /**
  * Solicitudes V1: mismo origen que el catálogo para no mezclar identificadores.
- * El usuario local sirve solo al servidor simulado; la API real identifica las
- * partes con el Bearer que integrará la sesión de AUD-18.
+ * En modo real, las partes se identifican con la sesión autenticada y el Bearer
+ * administrado por el cliente HTTP común; el usuario local existe únicamente para
+ * el modo mock/demo y no debe mezclarse con datos reales.
  */
 import type { SesionUsuario } from "@/features/auth/use-session";
 import { catalogoReal } from "@/features/catalogo/api";

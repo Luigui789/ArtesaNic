@@ -59,119 +59,142 @@ const artesano = (pagina: React.ReactNode) => (
   <RequiereSesion rol="artesano">{pagina}</RequiereSesion>
 );
 const demo = (pagina: React.ReactNode) => <SoloDemo>{pagina}</SoloDemo>;
+const conNotificacionesDemo = (contenido: React.ReactNode) =>
+  authReal ? contenido : <NotificationsProvider>{contenido}</NotificationsProvider>;
 
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <SessionProvider>
         <CurrencyProvider>
-          <NotificationsProvider>
-            <BrowserRouter>
-              <AppErrorBoundary>
-                <ScrollToTop />
-                <Suspense
-                  fallback={
-                    <div className="mx-auto max-w-5xl px-4 py-12">
-                      <LoadingState label="Abriendo página…" />
-                    </div>
-                  }
-                >
-                  <Routes>
-                    <Route path="/" element={<Home />} />
-                    <Route path="/descubrir" element={<Index />} />
-                    <Route path="/ayuda" element={<Ayuda />} />
-                    <Route path="/auth" element={<Auth />} />
-                    {/* Cuenta personal, de cualquier rol; distinta del perfil del taller. */}
-                    <Route
-                      path="/cuenta"
-                      element={
-                        <RequiereSesion>
-                          <Cuenta />
-                        </RequiereSesion>
-                      }
-                    />
-                    <Route path="/catalogo" element={<Catalogo />} />
-                    <Route path="/producto/:id" element={<Producto />} />
-                    <Route path="/artesano/:id" element={<Artesano />} />
-                    <Route path="/solicitar/:productId" element={comprador(<Solicitar />)} />
-                    <Route path="/solicitudes/nueva" element={comprador(<Solicitar />)} />
-                    <Route path="/solicitudes" element={comprador(<ListadoSolicitudes />)} />
-                    <Route path="/solicitudes/:id" element={comprador(<DetalleSolicitud />)} />
-                    <Route
-                      path="/panel/solicitudes"
-                      element={artesano(<ListadoSolicitudes recibidas />)}
-                    />
-                    <Route
-                      path="/panel/solicitudes/:id"
-                      element={artesano(<DetalleSolicitud recibidas />)}
-                    />
-                    <Route
-                      path="/pedidos"
-                      element={
-                        authReal ? comprador(<ListadoPedidosConfirmados />) : demo(<PedidosIndex />)
-                      }
-                    />
-                    <Route
-                      path="/pedidos/:id"
-                      element={
-                        authReal ? comprador(<DetallePedidoConfirmado />) : demo(<PedidosDetalle />)
-                      }
-                    />
-                    <Route path="/mensajes" element={demo(<Mensajes />)} />
-                    <Route
-                      path="/notificaciones"
-                      element={
-                        authReal ? (
+          {conNotificacionesDemo(
+            <>
+              <BrowserRouter>
+                <AppErrorBoundary>
+                  <ScrollToTop />
+                  <Suspense
+                    fallback={
+                      <div className="mx-auto max-w-5xl px-4 py-12">
+                        <LoadingState label="Abriendo página…" />
+                      </div>
+                    }
+                  >
+                    <Routes>
+                      <Route path="/" element={<Home />} />
+                      <Route path="/descubrir" element={<Index />} />
+                      <Route path="/ayuda" element={<Ayuda />} />
+                      <Route path="/auth" element={<Auth />} />
+                      {/* Cuenta personal, de cualquier rol; distinta del perfil del taller. */}
+                      <Route
+                        path="/cuenta"
+                        element={
                           <RequiereSesion>
-                            <Notificaciones />
+                            <Cuenta />
                           </RequiereSesion>
-                        ) : (
-                          demo(<NotificacionesDemo />)
-                        )
-                      }
-                    />
-                    <Route
-                      path="/panel"
-                      element={artesano(authReal ? <PanelResumen /> : <PanelIndex />)}
-                    />
-                    <Route
-                      path="/panel/perfil"
-                      element={
-                        authReal ? artesano(<PanelTaller editarAlAbrir />) : demo(<PanelPerfil />)
-                      }
-                    />
-                    <Route
-                      path="/panel/inventario"
-                      element={artesano(authReal ? <ListadoInventario /> : <InventarioSoloReal />)}
-                    />
-                    <Route
-                      path="/panel/inventario/:productoId"
-                      element={artesano(authReal ? <DetalleInventario /> : <InventarioSoloReal />)}
-                    />
-                    <Route path="/panel/productos" element={artesano(<PanelProductos />)} />
-                    <Route
-                      path="/panel/pedidos"
-                      element={
-                        authReal
-                          ? artesano(<ListadoPedidosConfirmados recibidos />)
-                          : demo(<PanelPedidosIndex />)
-                      }
-                    />
-                    <Route
-                      path="/panel/pedidos/:id"
-                      element={
-                        authReal
-                          ? artesano(<DetallePedidoConfirmado recibido />)
-                          : demo(<PanelPedidosDetalle />)
-                      }
-                    />
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </Suspense>
-              </AppErrorBoundary>
-            </BrowserRouter>
-            <Toaster richColors position="top-center" />
-          </NotificationsProvider>
+                        }
+                      />
+                      <Route path="/catalogo" element={<Catalogo />} />
+                      <Route path="/producto/:id" element={<Producto />} />
+                      <Route path="/artesano/:id" element={<Artesano />} />
+                      <Route path="/solicitar/:productId" element={comprador(<Solicitar />)} />
+                      <Route path="/solicitudes/nueva" element={comprador(<Solicitar />)} />
+                      <Route path="/solicitudes" element={comprador(<ListadoSolicitudes />)} />
+                      <Route path="/solicitudes/:id" element={comprador(<DetalleSolicitud />)} />
+                      <Route
+                        path="/panel/solicitudes"
+                        element={artesano(<ListadoSolicitudes recibidas />)}
+                      />
+                      <Route
+                        path="/panel/solicitudes/:id"
+                        element={artesano(<DetalleSolicitud recibidas />)}
+                      />
+                      <Route
+                        path="/pedidos"
+                        element={
+                          authReal
+                            ? comprador(<ListadoPedidosConfirmados />)
+                            : demo(<PedidosIndex />)
+                        }
+                      />
+                      <Route
+                        path="/pedidos/:id"
+                        element={
+                          authReal
+                            ? comprador(<DetallePedidoConfirmado />)
+                            : demo(<PedidosDetalle />)
+                        }
+                      />
+                      <Route
+                        path="/mensajes"
+                        element={
+                          authReal ? (
+                            <RequiereSesion>
+                              <Mensajes />
+                            </RequiereSesion>
+                          ) : (
+                            demo(<Mensajes />)
+                          )
+                        }
+                      />
+                      <Route
+                        path="/notificaciones"
+                        element={
+                          authReal ? (
+                            <RequiereSesion>
+                              <Notificaciones />
+                            </RequiereSesion>
+                          ) : (
+                            demo(<NotificacionesDemo />)
+                          )
+                        }
+                      />
+                      <Route
+                        path="/panel"
+                        element={artesano(authReal ? <PanelResumen /> : <PanelIndex />)}
+                      />
+                      <Route
+                        path="/panel/perfil"
+                        element={
+                          authReal ? artesano(<PanelTaller editarAlAbrir />) : demo(<PanelPerfil />)
+                        }
+                      />
+                      <Route
+                        path="/panel/inventario"
+                        element={artesano(
+                          authReal ? <ListadoInventario /> : <InventarioSoloReal />,
+                        )}
+                      />
+                      <Route
+                        path="/panel/inventario/:productoId"
+                        element={artesano(
+                          authReal ? <DetalleInventario /> : <InventarioSoloReal />,
+                        )}
+                      />
+                      <Route path="/panel/productos" element={artesano(<PanelProductos />)} />
+                      <Route
+                        path="/panel/pedidos"
+                        element={
+                          authReal
+                            ? artesano(<ListadoPedidosConfirmados recibidos />)
+                            : demo(<PanelPedidosIndex />)
+                        }
+                      />
+                      <Route
+                        path="/panel/pedidos/:id"
+                        element={
+                          authReal
+                            ? artesano(<DetallePedidoConfirmado recibido />)
+                            : demo(<PanelPedidosDetalle />)
+                        }
+                      />
+                      <Route path="*" element={<NotFound />} />
+                    </Routes>
+                  </Suspense>
+                </AppErrorBoundary>
+              </BrowserRouter>
+              <Toaster richColors position="top-center" />
+            </>,
+          )}
         </CurrencyProvider>
       </SessionProvider>
     </QueryClientProvider>

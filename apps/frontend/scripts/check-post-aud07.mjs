@@ -240,9 +240,10 @@ verificar("navegación real por rol y demo aislada", () => {
   const a = m.nav.navigationFor("artesano", true);
   assert.ok(a.some((n) => n.to === "/panel/inventario"));
   assert.ok(a.some((n) => n.to === "/panel/pedidos"));
-  assert.ok(!a.some((n) => n.to === "/mensajes"));
+  assert.ok(a.some((n) => n.to === "/mensajes"));
   const b = m.nav.navigationFor("comprador", true);
   assert.ok(b.some((n) => n.to === "/pedidos"));
+  assert.ok(b.some((n) => n.to === "/mensajes"));
   assert.ok(!b.some((n) => n.to.startsWith("/panel")));
 });
 verificar("presentación exacta de decimales", () => {
