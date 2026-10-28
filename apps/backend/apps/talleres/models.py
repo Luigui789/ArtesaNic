@@ -1,9 +1,16 @@
 """Taller del artesano y su aprobación administrativa (RF-008, RF-013, RN-002, RN-006)."""
 
+from decimal import Decimal
 from uuid import uuid4
 
 from django.conf import settings
-from django.core.validators import RegexValidator, URLValidator
+from django.core.exceptions import ValidationError
+from django.core.validators import (
+    MaxValueValidator,
+    MinValueValidator,
+    RegexValidator,
+    URLValidator,
+)
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
@@ -68,6 +75,32 @@ PATRON_NO_EN_BLANCO = r"\S"
 validar_url_web = URLValidator(schemes=["http", "https"])
 _validar_telefono = RegexValidator(PATRON_TELEFONO_NORMALIZADO, MENSAJE_FORMATO)
 
+# Posición del taller en el mapa (FEAT-GEO-01). Grados decimales WGS 84; seis
+# decimales equivalen a unos 11 cm, más que suficiente para ubicar un taller.
+LATITUD_MAXIMA = Decimal("90")
+LONGITUD_MAXIMA = Decimal("180")
+DECIMALES_COORDENADA = 6
+
+MENSAJE_FALTA_LATITUD = "Indica también la latitud: las coordenadas van juntas."
+MENSAJE_FALTA_LONGITUD = "Indica también la longitud: las coordenadas van juntas."
+MENSAJE_PUBLICA_SIN_COORDENADAS = "No se puede publicar la ubicación sin coordenadas."
+
+
+def errores_ubicacion(latitud, longitud, ubicacion_publica) -> dict[str, list[str]]:
+    """Coherencia de la ubicación final: coordenadas en pareja y publicables solo si existen.
+
+    La comparten el modelo y los serializers, que la aplican al estado resultante
+    (valores enviados más los actuales en una edición parcial).
+    """
+    errores = {}
+    if latitud is None and longitud is not None:
+        errores["latitud"] = [MENSAJE_FALTA_LATITUD]
+    elif longitud is None and latitud is not None:
+        errores["longitud"] = [MENSAJE_FALTA_LONGITUD]
+    elif ubicacion_publica and latitud is None:
+        errores["ubicacion_publica"] = [MENSAJE_PUBLICA_SIN_COORDENADAS]
+    return errores
+
 
 class TallerQuerySet(models.QuerySet):
     def publicos(self):
@@ -116,6 +149,30 @@ class Taller(models.Model):
         blank=True,
         max_length=200,
         validators=[validar_fotografia],
+    )
+
+    # Sin coordenadas el taller no aparece en el mapa. Publicarlas es decisión
+    # expresa del artesano: nunca ocurre por defecto.
+    latitud = models.DecimalField(
+        "latitud",
+        max_digits=9,
+        decimal_places=DECIMALES_COORDENADA,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-LATITUD_MAXIMA), MaxValueValidator(LATITUD_MAXIMA)],
+    )
+    longitud = models.DecimalField(
+        "longitud",
+        max_digits=10,
+        decimal_places=DECIMALES_COORDENADA,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(-LONGITUD_MAXIMA), MaxValueValidator(LONGITUD_MAXIMA)],
+    )
+    ubicacion_publica = models.BooleanField(
+        "ubicación pública",
+        default=False,
+        help_text="Si el artesano autoriza mostrar la posición del taller en el mapa público.",
     )
 
     estado = models.CharField(
@@ -180,10 +237,40 @@ class Taller(models.Model):
                 name="taller_motivo_solo_si_rechazado",
                 violation_error_message="Solo un taller rechazado tiene motivo de rechazo.",
             ),
+            models.CheckConstraint(
+                condition=Q(latitud__isnull=True)
+                | Q(latitud__gte=-LATITUD_MAXIMA, latitud__lte=LATITUD_MAXIMA),
+                name="taller_latitud_en_rango",
+                violation_error_message="La latitud debe estar entre -90 y 90.",
+            ),
+            models.CheckConstraint(
+                condition=Q(longitud__isnull=True)
+                | Q(longitud__gte=-LONGITUD_MAXIMA, longitud__lte=LONGITUD_MAXIMA),
+                name="taller_longitud_en_rango",
+                violation_error_message="La longitud debe estar entre -180 y 180.",
+            ),
+            models.CheckConstraint(
+                condition=Q(latitud__isnull=True, longitud__isnull=True)
+                | Q(latitud__isnull=False, longitud__isnull=False),
+                name="taller_coordenadas_completas",
+                violation_error_message="La latitud y la longitud se guardan juntas.",
+            ),
+            models.CheckConstraint(
+                condition=Q(ubicacion_publica=False)
+                | Q(latitud__isnull=False, longitud__isnull=False),
+                name="taller_ubicacion_publica_con_coordenadas",
+                violation_error_message=MENSAJE_PUBLICA_SIN_COORDENADAS,
+            ),
         ]
 
     def __str__(self):
         return self.nombre
+
+    def clean(self):
+        # Errores por campo; full_clean() omite entonces las restricciones equivalentes.
+        errores = errores_ubicacion(self.latitud, self.longitud, self.ubicacion_publica)
+        if errores:
+            raise ValidationError(errores)
 
     @property
     def es_publico(self) -> bool:
