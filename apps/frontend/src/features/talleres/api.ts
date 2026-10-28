@@ -54,7 +54,13 @@ export const getMiTaller = http.getMiTaller;
 export const actualizarMiTaller = http.actualizarMiTaller;
 
 /** Selector de ubicación (FEAT-GEO-02): búsqueda explícita y posición del dispositivo. */
-export { buscarLugar, ErrorGeocodificacion, type ResultadoLugar } from "./geocoding";
+export {
+  busquedaDisponible,
+  buscarLugar,
+  ErrorGeocodificacion,
+  MENSAJE_SIN_PROVEEDOR,
+  type ResultadoLugar,
+} from "./geocoding";
 export {
   MENSAJES_GEOLOCALIZACION,
   obtenerUbicacionActual,

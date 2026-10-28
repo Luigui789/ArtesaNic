@@ -24,9 +24,13 @@ El selector de ubicación del taller del panel (FEAT-GEO-02, `src/features/talle
 | Variable | Por defecto | Uso |
 |---|---|---|
 | `VITE_MAP_TILE_URL` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Capa base del mapa. Siempre con atribución visible de OpenStreetMap. |
-| `VITE_GEOCODING_URL` | `https://nominatim.openstreetmap.org/search` | Búsqueda de lugares (API `search` de Nominatim). |
+| `VITE_GEOCODING_URL` | En desarrollo, `https://nominatim.openstreetmap.org/search`; en producción, ninguno | Búsqueda de lugares (API `search` compatible con Nominatim). |
 
-Ninguna requiere clave. Los servidores públicos de OSM son un servicio limitado, sin garantía de disponibilidad: para producción conviene apuntar estas variables a un proveedor propio o contratado. Según las [políticas de tiles](https://operations.osmfoundation.org/policies/tiles/) y de [Nominatim](https://operations.osmfoundation.org/policies/nominatim/), `geocoding.ts` solo busca con acción explícita (botón o Enter, sin autocompletado), espacia las peticiones a un máximo de 1 por segundo y guarda en memoria los resultados por consulta; Leaflet pide solo los tiles visibles. La ubicación del dispositivo se pide una vez al pulsar «Usar mi ubicación actual» y requiere HTTPS (o `localhost`).
+Ninguna requiere clave. Los servidores públicos de OSM son un servicio limitado, sin garantía de disponibilidad. Según las [políticas de tiles](https://operations.osmfoundation.org/policies/tiles/) y de [Nominatim](https://operations.osmfoundation.org/policies/nominatim/), `geocoding.ts` solo busca con acción explícita (botón o Enter, sin autocompletado), espacia las peticiones de cada navegador a un máximo de 1 por segundo y guarda en memoria los resultados por consulta; Leaflet pide solo los tiles visibles.
+
+El límite de 1 petición/s del Nominatim público es para toda la aplicación, sumando a todos sus usuarios. El espaciado de `geocoding.ts` es por navegador y no lo garantiza con varios usuarios a la vez, así que el Nominatim público es solo un respaldo de desarrollo (`vite dev`, también con Docker Compose). Un build de producción sin `VITE_GEOCODING_URL` oculta la búsqueda de lugares; el mapa manual y «Usar mi ubicación actual» siguen funcionando. Para producción, `VITE_GEOCODING_URL` debe apuntar a un proveedor propio o administrado, idealmente detrás de un proxy con caché.
+
+La ubicación del dispositivo se pide una vez al pulsar «Usar mi ubicación actual» y requiere HTTPS (o `localhost`).
 
 Leaflet usa `window` al importarse: `mapa-ubicacion-leaflet.tsx` se carga con `lazy` solo en el navegador, y `scripts/check-geolocalizacion-taller.mjs` comprueba que el formulario se renderiza en Node sin él.
 

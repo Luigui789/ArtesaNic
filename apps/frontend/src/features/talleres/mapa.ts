@@ -1,8 +1,11 @@
 /**
  * Proveedores externos del mapa del taller (FEAT-GEO-02): único lugar con sus URLs.
- * Cambiar de proveedor es cambiar `VITE_MAP_TILE_URL` o `VITE_GEOCODING_URL`; sin ellas
- * se usan los servidores públicos de OpenStreetMap, que exigen atribución visible y son
- * un servicio limitado, sin garantía de disponibilidad para producción.
+ * Cambiar de proveedor es cambiar `VITE_MAP_TILE_URL` o `VITE_GEOCODING_URL`. Sin ellas
+ * los tiles usan los servidores públicos de OpenStreetMap (atribución visible; servicio
+ * limitado, sin garantía de disponibilidad). El Nominatim público solo se usa como
+ * respaldo en desarrollo: su límite de 1 petición/s es para toda la aplicación, y el
+ * espaciado de `geocoding.ts` es por navegador, así que no lo garantiza con varios
+ * usuarios. En un build de producción la búsqueda exige `VITE_GEOCODING_URL`.
  * Políticas: https://operations.osmfoundation.org/policies/tiles/ y
  * https://operations.osmfoundation.org/policies/nominatim/.
  */
@@ -24,8 +27,22 @@ export const CAPA_MAPA = {
   zoomMaximo: 19,
 } as const;
 
-/** Endpoint de búsqueda compatible con la API `search` de Nominatim. */
-export const URL_GEOCODIFICACION = variable("VITE_GEOCODING_URL") ?? NOMINATIM_OSM;
+/**
+ * Endpoint de búsqueda compatible con la API `search` de Nominatim, o null si no hay
+ * proveedor: en producción sin `VITE_GEOCODING_URL` la búsqueda queda deshabilitada
+ * (el mapa manual y la ubicación actual siguen funcionando).
+ */
+export function resolverUrlGeocodificacion(
+  configurada: string | undefined,
+  desarrollo: boolean,
+): string | null {
+  return configurada ?? (desarrollo ? NOMINATIM_OSM : null);
+}
+
+export const URL_GEOCODIFICACION = resolverUrlGeocodificacion(
+  variable("VITE_GEOCODING_URL"),
+  import.meta.env.DEV,
+);
 
 /**
  * Centro del mapa cuando el taller aún no tiene ubicación. Solo encuadra la vista:

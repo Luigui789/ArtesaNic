@@ -7,6 +7,8 @@
  * iniciadas por el usuario, sin autocompletado, como máximo 1 petición por segundo,
  * atribución y caché de resultados. Por eso aquí no hay búsqueda al escribir: solo
  * `buscar()` con acción explícita (botón o Enter), espaciada y en caché por consulta.
+ * El espaciado y la caché son por navegador: no limitan el tráfico total de todos los
+ * usuarios, por eso el Nominatim público es solo el respaldo de desarrollo (`mapa.ts`).
  */
 import { URL_GEOCODIFICACION } from "./mapa";
 import type { UbicacionTaller } from "./types";
@@ -28,6 +30,9 @@ const MAXIMO_EN_CACHE = 30;
 const COORDENADA = /^-?\d{1,3}(\.\d+)?$/;
 export const MENSAJE_ERROR_BUSQUEDA =
   "No pudimos buscar ese lugar. Puedes intentarlo nuevamente o seleccionarlo manualmente en el mapa.";
+
+export const MENSAJE_SIN_PROVEEDOR =
+  "La búsqueda de lugares no está disponible. Selecciona tu taller en el mapa o usa tu ubicación actual.";
 
 /** Clave de caché: sin mayúsculas, tildes ni espacios repetidos. */
 export function normalizarConsulta(consulta: string): string {
@@ -56,7 +61,8 @@ function aResultados(datos: unknown): ResultadoLugar[] {
 }
 
 interface Dependencias {
-  url?: string;
+  /** null: sin proveedor configurado; `buscar` rechaza sin hacer peticiones. */
+  url?: string | null;
   fetch?: typeof globalThis.fetch;
   ahora?: () => number;
   esperar?: (ms: number) => Promise<void>;
@@ -75,6 +81,7 @@ export function crearGeocodificador({
   async function buscar(consulta: string, signal?: AbortSignal): Promise<ResultadoLugar[]> {
     const clave = normalizarConsulta(consulta);
     if (!clave) return [];
+    if (!url) throw new ErrorGeocodificacion(MENSAJE_SIN_PROVEEDOR);
     const guardado = cache.get(clave);
     if (guardado) return guardado;
 
@@ -115,8 +122,11 @@ export function crearGeocodificador({
     return resultados;
   }
 
-  return { buscar };
+  return { buscar, disponible: url !== null };
 }
 
 /** Instancia de la aplicación: una sola caché y un solo turno para toda la sesión. */
-export const buscarLugar = crearGeocodificador().buscar;
+const geocodificador = crearGeocodificador();
+export const buscarLugar = geocodificador.buscar;
+/** false en producción sin `VITE_GEOCODING_URL`: la interfaz oculta la búsqueda. */
+export const busquedaDisponible = geocodificador.disponible;

@@ -39,7 +39,23 @@ const m = await cargarModulos(
     moneda: "@/hooks/use-currency",
     notificaciones: "@/features/notificaciones/use-notifications-demo",
   },
-  { VITE_AUTH_API: "real", VITE_CATALOGO_API: "real" },
+  // Proveedor de búsqueda configurado, como exige un build de producción.
+  {
+    VITE_AUTH_API: "real",
+    VITE_CATALOGO_API: "real",
+    VITE_GEOCODING_URL: "https://geo.test/search",
+  },
+);
+// Build de producción sin VITE_GEOCODING_URL: la búsqueda queda deshabilitada.
+const sinProveedor = await cargarModulos(
+  {
+    React: "react",
+    servidor: "react-dom/server",
+    mapa: "@/features/talleres/mapa",
+    geocoding: "@/features/talleres/geocoding",
+    selector: "@/features/talleres/components/selector-ubicacion-taller",
+  },
+  { VITE_AUTH_API: "real", VITE_CATALOGO_API: "real", VITE_GEOCODING_URL: "" },
 );
 
 // ---------- Backend simulado (contrato GEO-01) ----------
@@ -247,7 +263,21 @@ await verificar("configuración del mapa centralizada", () => {
   assert.equal(m.mapa.CAPA_MAPA.url, "https://tile.openstreetmap.org/{z}/{x}/{y}.png");
   assert.match(m.mapa.CAPA_MAPA.atribucion, /OpenStreetMap/);
   assert.match(m.mapa.CAPA_MAPA.atribucion, /openstreetmap\.org\/copyright/);
-  assert.equal(m.mapa.URL_GEOCODIFICACION, "https://nominatim.openstreetmap.org/search");
+  assert.equal(m.mapa.URL_GEOCODIFICACION, "https://geo.test/search");
+  assert.equal(m.geocoding.busquedaDisponible, true);
+  // Nominatim público solo como respaldo de desarrollo; en producción hace falta proveedor.
+  const { resolverUrlGeocodificacion } = m.mapa;
+  assert.equal(
+    resolverUrlGeocodificacion(undefined, true),
+    "https://nominatim.openstreetmap.org/search",
+  );
+  assert.equal(resolverUrlGeocodificacion(undefined, false), null);
+  assert.equal(
+    resolverUrlGeocodificacion("https://geo.propio/search", false),
+    "https://geo.propio/search",
+  );
+  assert.equal(sinProveedor.mapa.URL_GEOCODIFICACION, null);
+  assert.equal(sinProveedor.geocoding.busquedaDisponible, false);
   const { latitud, longitud } = m.mapa.CENTRO_INICIAL_MASAYA;
   assert.ok(latitud > 11.9 && latitud < 12.05 && longitud > -86.15 && longitud < -86.05);
 });
@@ -484,7 +514,7 @@ await verificar("geocodificación: como máximo 1 petición por segundo", async 
 await verificar("geocodificación: sin autocompletado", async () => {
   // La API del módulo solo expone `buscar` (acción explícita): no hay debounce ni
   // suscripción a lo que se escribe.
-  assert.deepEqual(Object.keys(m.geocoding.crearGeocodificador()), ["buscar"]);
+  assert.deepEqual(Object.keys(m.geocoding.crearGeocodificador()), ["buscar", "disponible"]);
   // Renderizar el selector con texto escrito no dispara búsquedas.
   const antes = peticiones.length;
   await renderizar((h) =>
@@ -500,6 +530,35 @@ await verificar("geocodificación: sin autocompletado", async () => {
   assert.doesNotMatch(fuente, /\bfetch\(/);
   assert.equal(fuente.match(/buscarLugar\(/g)?.length, 1);
   assert.match(fuente, /onChange=\{\(e\) => setConsulta\(e\.target\.value\)\}/);
+});
+
+await verificar("producción sin proveedor: búsqueda deshabilitada, mapa y GPS siguen", async () => {
+  let llamadas = 0;
+  const g = sinProveedor.geocoding.crearGeocodificador({
+    url: null,
+    fetch: async () => {
+      llamadas++;
+      return json(200, NOMINATIM);
+    },
+  });
+  assert.equal(g.disponible, false);
+  await assert.rejects(g.buscar("Masaya"), (e) => {
+    assert.equal(e.name, "ErrorGeocodificacion");
+    assert.equal(e.message, sinProveedor.geocoding.MENSAJE_SIN_PROVEEDOR);
+    return true;
+  });
+  assert.equal(llamadas, 0, "sin proveedor no se llama a ningún servicio");
+  const html = sinProveedor.servidor.renderToStaticMarkup(
+    sinProveedor.React.createElement(sinProveedor.selector.SelectorUbicacionTaller, {
+      value: null,
+      onChange: () => undefined,
+    }),
+  );
+  const t = texto(html);
+  assert.doesNotMatch(html, /id="ubicacion-busqueda"/);
+  assert.match(t, /La búsqueda de lugares no está disponible/);
+  assert.match(t, /Usar mi ubicación actual/);
+  assert.match(html, /aria-label="Mapa para seleccionar la ubicación del taller"/);
 });
 
 // ---------- Geolocalización (navigator.geolocation mockeado) ----------
