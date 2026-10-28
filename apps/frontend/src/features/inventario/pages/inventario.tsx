@@ -95,9 +95,7 @@ export function ListadoInventario() {
                   </div>
                   <CantidadesInventario inventario={i} />
                   <Button asChild variant="outline">
-                    <Link to={`/panel/inventario/${i.producto.id}`}>
-                      Gestionar existencias y movimientos
-                    </Link>
+                    <Link to={`/panel/inventario/${i.producto.id}`}>Ver y ajustar inventario</Link>
                   </Button>
                 </li>
               ))}
@@ -136,8 +134,8 @@ export function DetalleInventario() {
     <SiteLayout>
       <PageContainer>
         <PageHeader
-          title={producto.data?.nombre ?? "Existencias del producto"}
-          description="Las reservas de pedidos confirmados se reflejan aquí. Solo puedes ajustar unidades disponibles."
+          title="Inventario del producto"
+          description={producto.data?.nombre ?? "Consultá las unidades y sus movimientos."}
           back={{ to: "/panel/inventario", label: "Volver al inventario" }}
         />
         {!id ? (
@@ -162,17 +160,34 @@ export function DetalleInventario() {
               {sinInicializar ? "Sin existencia inicial" : "Inventario registrado"}
             </StatusBadge>
             {inventario.data ? <CantidadesInventario inventario={inventario.data} /> : null}
-            <Section
-              title={sinInicializar ? "Establecer existencia inicial" : "Actualizar existencias"}
-              description="Cada operación queda en el historial. Los movimientos anteriores se conservan sin editar ni borrar."
-            >
-              <FormularioInventario
-                key={`${id}-${sinInicializar}`}
-                producto={id}
-                inicial={!inventario.data}
-              />
-            </Section>
-            {inventario.data ? <HistorialMovimientos producto={id} /> : null}
+            <p className="text-sm text-muted-foreground">
+              Físicas: todas las unidades que tenés. Reservadas: comprometidas en pedidos.
+              Disponibles: las que todavía podés ofrecer. Las reservas de pedidos confirmados se
+              reflejan aquí; solo podés ajustar unidades disponibles.
+            </p>
+            <details open={sinInicializar} className="rounded-xl border bg-card p-4">
+              <summary className="list-item min-h-11 cursor-pointer py-3 font-semibold text-primary">
+                {sinInicializar ? "Registrar unidades iniciales" : "Actualizar existencias"}
+              </summary>
+              <Section
+                title={sinInicializar ? "Establecer existencia inicial" : "Actualizar existencias"}
+                description="Cada operación queda en el historial. Los movimientos anteriores se conservan sin editar ni borrar."
+              >
+                <FormularioInventario
+                  key={`${id}-${sinInicializar}`}
+                  producto={id}
+                  inicial={!inventario.data}
+                />
+              </Section>
+            </details>
+            {inventario.data ? (
+              <details className="rounded-xl border bg-card p-4">
+                <summary className="list-item min-h-11 cursor-pointer py-3 font-semibold">
+                  Consultar historial de movimientos
+                </summary>
+                <HistorialMovimientos producto={id} />
+              </details>
+            ) : null}
           </>
         )}
       </PageContainer>
@@ -217,7 +232,7 @@ export function FormularioInventario({
       client.setQueryData([...claves.inventario(usuario?.id), producto], data);
       void client.invalidateQueries({ queryKey: claves.inventario(usuario?.id) });
       void client.invalidateQueries({ queryKey: claves.movimientos(usuario?.id, producto) });
-      toast.success("Existencias actualizadas");
+      toast.success("Existencias actualizadas. Revisá las cantidades y el historial.");
       form.reset({ accion: "entradas", cantidad: 1, direccion: "sumar", motivo: "" });
     },
     onError: (error) => {
@@ -274,8 +289,8 @@ export function FormularioInventario({
               className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-base"
               {...form.register("accion")}
             >
-              <option value="entradas">Registrar entrada</option>
-              <option value="ajustes">Corregir existencias con un ajuste</option>
+              <option value="entradas">Agregar unidades recién elaboradas</option>
+              <option value="ajustes">Corregir la cantidad registrada</option>
             </select>
           </FormField>
         ) : null}
@@ -286,8 +301,8 @@ export function FormularioInventario({
               className="min-h-11 w-full rounded-md border border-input bg-background px-3"
               {...form.register("direccion")}
             >
-              <option value="sumar">Sumar unidades</option>
-              <option value="restar">Restar unidades</option>
+              <option value="sumar">Aumentar unidades</option>
+              <option value="restar">Reducir unidades</option>
             </select>
           </FormField>
         ) : null}
@@ -310,7 +325,14 @@ export function FormularioInventario({
         {accion !== "inicial" ? (
           <FormField
             id="inv-motivo"
-            label={accion === "ajustes" ? "Motivo del ajuste *" : "Observación (opcional)"}
+            label={
+              accion === "ajustes" ? "¿Por qué corregís la cantidad? *" : "Observación (opcional)"
+            }
+            help={
+              accion === "ajustes"
+                ? "El motivo permite entender el cambio cuando consultés el historial."
+                : "Por ejemplo, piezas recién terminadas."
+            }
             error={form.formState.errors.motivo?.message}
           >
             <Textarea
