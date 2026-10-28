@@ -33,6 +33,7 @@ const MODULOS = {
   notificaciones: "@/features/notificaciones/use-notifications-demo",
   descubrir: "@/features/catalogo/pages/inicio",
   seccion: "@/features/talleres/components/talleres-descubrir",
+  artesano: "@/features/talleres/pages/artesano",
 };
 const m = await cargarModulos(MODULOS, { VITE_AUTH_API: "real", VITE_CATALOGO_API: "real" });
 const demo = await cargarModulos(
@@ -425,6 +426,122 @@ await verificar("14. la lista conserva los talleres sin ubicación pública", ()
   const html = seccion(SEIS, "lista");
   assert.deepEqual(enlacesTaller(html), [1, 2, 3, 4]);
   assert.match(texto(html), /Ver mapa/);
+});
+
+// ---------- /artesano/:id: mapa individual y «Cómo llegar» ----------
+
+await verificar("15. urlComoLlegar: solo coordenadas públicas, URL válida", () => {
+  const url = m.mapa.urlComoLlegar({ latitud: 11.971234, longitud: -86.095678 });
+  assert.equal(url, "https://www.google.com/maps/search/?api=1&query=11.971234%2C-86.095678");
+  const u = new URL(url);
+  assert.equal(u.protocol, "https:");
+  assert.equal(u.searchParams.get("query"), "11.971234,-86.095678");
+  assert.deepEqual([...u.searchParams.keys()].sort(), ["api", "query"]);
+  assert.doesNotMatch(url, /\s|Masaya|Taller|key=/i);
+  // Formato estable aunque el número tenga menos decimales o sea negativo/cero.
+  assert.match(
+    m.mapa.urlComoLlegar({ latitud: 12, longitud: -0 }),
+    /query=12\.000000%2C-?0\.000000$/,
+  );
+});
+
+const SIN_PRODUCTOS = { items: [], total: 0, page: 1, pageSize: 12, totalPages: 0 };
+async function perfil(taller) {
+  return renderizarPagina(
+    (hh) =>
+      hh(
+        m.router.Routes,
+        null,
+        hh(m.router.Route, { path: "/artesano/:id", element: hh(m.artesano.default) }),
+      ),
+    {
+      ruta: `/artesano/${taller.id}`,
+      datos: [
+        [["perfil-taller", taller.id], taller],
+        [["productos-artesano", taller.id], SIN_PRODUCTOS],
+      ],
+    },
+  );
+}
+
+await verificar(
+  "16. perfil con ubicación pública: «Dónde encontrarnos», mapa y «Cómo llegar»",
+  async () => {
+    const html = await perfil(m.http.aPerfilTaller(dto(5, MONIMBO)));
+    assert.match(texto(html), /Dónde encontrarnos/);
+    assert.match(html, /role="region" aria-label="Mapa con la ubicación del taller Taller 5"/);
+    const enlace = html.match(/<a [^>]*href="https:\/\/www\.google\.com\/maps[^"]*"[^>]*>/)?.[0];
+    assert.ok(enlace, "Cómo llegar");
+    assert.match(enlace, /target="_blank"/);
+    assert.match(enlace, /rel="noreferrer"/);
+    assert.match(texto(html), /Cómo llegar \(se abre en otra pestaña\)/);
+    // Orden: información del taller → ubicación → productos publicados.
+    const i = (s) => html.indexOf(s);
+    assert.ok(i('id="contacto"') < i('id="ubicacion-taller"'));
+    assert.ok(i('id="ubicacion-taller"') < i('id="productos-taller"'));
+    // La dirección textual sigue en el perfil y las coordenadas no se muestran como texto.
+    assert.match(texto(html), /Dirección 5, Masaya/);
+    assert.doesNotMatch(texto(html), /11\.971234|-86\.095678|Lat|Lng/);
+    // Sin red para el mapa: los datos vienen de ["perfil-taller", id].
+    assert.deepEqual(peticiones, []);
+  },
+);
+
+await verificar("17. perfil privado: sin mapa, sin «Cómo llegar» y con dirección", async () => {
+  const html = await perfil(m.http.aPerfilTaller(dto(6, null)));
+  assert.doesNotMatch(texto(html), /Dónde encontrarnos|Cómo llegar/);
+  assert.doesNotMatch(html, /role="region"|google\.com\/maps|data-(lat|lng)/i);
+  assert.match(texto(html), /Información del taller Dirección 6, Masaya/);
+  assert.match(texto(html), /Productos publicados/);
+});
+
+await verificar(
+  "18. privacidad: ubicación inválida o privada no deja coordenadas en el HTML",
+  async () => {
+    // Aunque el DTO trajera coordenadas fuera de ubicacion_mapa, no salen al HTML.
+    const html = await perfil(
+      m.http.aPerfilTaller(dto(8, null, { latitud: "11.961111", longitud: "-86.081111" })),
+    );
+    sinCoordenadas(html, "11.961111", "-86.081111");
+    const invalido = await perfil(
+      m.http.aPerfilTaller(dto(9, { latitud: "abc", longitud: "-86.081111" })),
+    );
+    sinCoordenadas(invalido, "-86.081111");
+    assert.doesNotMatch(invalido, /Cómo llegar|role="region"/);
+  },
+);
+
+await verificar("19. modo demo: el perfil renderiza normalmente sin mapa", async () => {
+  const [primero] = await demo.api.listPerfilesTalleres();
+  const html = await perfil(primero);
+  assert.match(texto(html), /Información del taller/);
+  assert.doesNotMatch(texto(html), /Dónde encontrarnos|Cómo llegar/);
+});
+
+await verificar("20. fuente: mapa público de solo lectura, sin GPS, geocodificación ni SDK", () => {
+  const leer = (ruta) => readFileSync(new URL(`../src/${ruta}`, import.meta.url), "utf8");
+  const publicos = [
+    "features/talleres/components/mapa-talleres-publico.tsx",
+    "features/talleres/components/mapa-talleres-publico-leaflet.tsx",
+    "features/talleres/components/talleres-descubrir.tsx",
+    "features/talleres/components/ubicacion-publica-taller.tsx",
+    "features/talleres/components/popup-taller.tsx",
+    "features/catalogo/pages/inicio.tsx",
+    "features/talleres/pages/artesano.tsx",
+  ];
+  for (const ruta of publicos) {
+    const fuente = leer(ruta);
+    assert.doesNotMatch(fuente, /geolocation|geocoding|buscarLugar|obtenerUbicacionActual/, ruta);
+    assert.doesNotMatch(fuente, /maps\.googleapis|google\.maps|apiKey/i, ruta);
+    assert.doesNotMatch(fuente, /tile\.openstreetmap\.org/, ruta);
+    assert.doesNotMatch(fuente, /window\.location|localStorage/, ruta);
+    // Solo el módulo diferido importa Leaflet.
+    if (!ruta.endsWith("-leaflet.tsx"))
+      assert.doesNotMatch(fuente, /from "(leaflet|react-leaflet)"/, ruta);
+  }
+  const leaflet = leer("features/talleres/components/mapa-talleres-publico-leaflet.tsx");
+  assert.doesNotMatch(leaflet, /draggable|dragend|useMapEvents|onSeleccionar/);
+  assert.match(leaflet, /CAPA_MAPA\.url/);
 });
 
 console.log(`OK (${grupos.length} grupos): ${grupos.join(" · ")}`);

@@ -83,3 +83,15 @@ export function encuadreDeUbicaciones(ubicaciones: readonly UbicacionTaller[]): 
     ],
   };
 }
+
+/**
+ * «Cómo llegar»: navegación externa en Google Maps solo con las coordenadas públicas
+ * (sin nombre, dirección ni teléfono). Es un enlace, no el SDK: no hay API key.
+ */
+export function urlComoLlegar(ubicacion: UbicacionTaller): string {
+  const params = new URLSearchParams({
+    api: "1",
+    query: `${ubicacion.latitud.toFixed(6)},${ubicacion.longitud.toFixed(6)}`,
+  });
+  return `https://www.google.com/maps/search/?${params.toString()}`;
+}

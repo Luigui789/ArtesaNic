@@ -34,6 +34,8 @@ La ubicación del dispositivo se pide una vez al pulsar «Usar mi ubicación act
 
 Leaflet usa `window` al importarse: `mapa-ubicacion-leaflet.tsx` se carga con `lazy` solo en el navegador, y `scripts/check-geolocalizacion-taller.mjs` comprueba que el formulario se renderiza en Node sin él.
 
+Los mapas públicos (FEAT-GEO-04) son de solo lectura: `/descubrir` ofrece «Ver talleres» / «Ver mapa» (la lista es la vista inicial) y `/artesano/:id` muestra «Dónde encontrarnos» con «Cómo llegar», un enlace externo construido solo con las coordenadas. La única fuente de la posición pública es `ubicacion_mapa` del perfil público; sin ella no hay marcador, mapa ni enlace. Reutilizan la capa de `mapa.ts` y no piden la ubicación del comprador ni usan geocodificación. `mapa-talleres-publico-leaflet.tsx` también se carga con `lazy`, y `scripts/check-geolocalizacion-publica.mjs` cubre el contrato, la privacidad y el render en Node.
+
 ## Capas
 
 ```text
