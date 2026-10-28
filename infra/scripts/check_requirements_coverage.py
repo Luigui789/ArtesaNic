@@ -10,6 +10,12 @@ Verifica además que todas las rutas de implementación y evidencia existan en e
 que los símbolos de prueba referenciados existan realmente en sus archivos, que las pruebas
 exclusivas del modo demo no se utilicen como evidencia del sistema real y que los estados de
 cobertura cumplan las invariantes de honestidad de AUD-19.
+
+``roadmap_auditorias`` debe replicar el título y la línea RF/RN de cada ticket del backlog de
+la auditoría técnica. Todo ``pendiente_en`` y ``ticket_posterior`` debe usar un ticket de ese
+roadmap, y un RNF solo puede derivarse a tickets que lo declaren. El backlog no enumera RF ni
+RN, así que para ellos solo se valida que el ticket exista: su asignación semántica sigue
+siendo revisión humana del backlog.
 """
 
 from __future__ import annotations
@@ -86,6 +92,11 @@ RE_FILA_ALCANCE = re.compile(
 RE_FILA_RN = re.compile(r"^\|\s*\[(?P<id>RN-\d{3})\]\(#[^)]+\)\s*\|\s*(?P<nombre>[^|]+?)\s*\|$")
 RE_ENCABEZADO_REQ = re.compile(r"^##\s+(?P<id>(?:RF|RNF|RN)-\d{3})\s*$", re.MULTILINE)
 RE_TICKET_PENDIENTE = re.compile(r"^AUD-\d{2}$")
+RE_ENCABEZADO_TICKET = re.compile(
+    r"^###\s+(?P<id>AUD-\d{2})\s+—\s+(?P<titulo>.+?)\s*$", re.MULTILINE
+)
+RE_LINEA_RF_RN = re.compile(r"^\*\*RF/RN:\*\*\s*(?P<lista>.+)$", re.MULTILINE)
+RE_GRUPO_IDS = re.compile(r"\b(?P<tipo>RF|RNF|RN)-(?P<primero>\d{3})(?P<resto>(?:/\d{3})*)")
 
 
 def extraer_requisitos_canonicos(
@@ -209,6 +220,75 @@ def verificar_simbolo_en_archivo(ruta_archivo: Path, simbolo: str) -> bool:
     return simbolo in contenido
 
 
+def extraer_backlog_auditoria(ruta_auditoria: Path) -> dict[str, dict[str, Any]]:
+    """Extrae título y RF/RN declarados por cada ticket ``### AUD-NN — ...`` de la auditoría.
+
+    La línea ``**RF/RN:**`` usa abreviaturas como ``RNF-004/006/012``; se expanden a IDs
+    completos. Texto libre como "RF críticos" no aporta identificadores.
+    """
+    texto = ruta_auditoria.read_text(encoding="utf-8")
+    encabezados = list(RE_ENCABEZADO_TICKET.finditer(texto))
+    backlog: dict[str, dict[str, Any]] = {}
+    for idx, m in enumerate(encabezados):
+        fin = encabezados[idx + 1].start() if idx + 1 < len(encabezados) else len(texto)
+        seccion = texto[m.end() : fin]
+        requisitos: set[str] = set()
+        linea = RE_LINEA_RF_RN.search(seccion)
+        if linea:
+            for grupo in RE_GRUPO_IDS.finditer(linea.group("lista")):
+                numeros = [grupo.group("primero"), *grupo.group("resto").split("/")[1:]]
+                requisitos.update(f"{grupo.group('tipo')}-{n}" for n in numeros)
+        backlog[m.group("id")] = {"titulo": m.group("titulo"), "requisitos": requisitos}
+    return backlog
+
+
+def validar_roadmap_auditorias(
+    datos: dict[str, Any], repo_root: Path
+) -> tuple[dict[str, set[str]], list[str]]:
+    """Valida ``roadmap_auditorias`` contra el backlog de la auditoría que declara como fuente.
+
+    Devuelve los tickets declarados con sus RF/RN y la lista de errores. Solo garantiza que el
+    roadmap replica el backlog; no decide qué ticket corresponde a cada deuda.
+    """
+    errores: list[str] = []
+    roadmap = datos.get("roadmap_auditorias")
+    if not isinstance(roadmap, dict) or not isinstance(roadmap.get("tickets"), dict):
+        return {}, ["El JSON debe incluir 'roadmap_auditorias' con un objeto 'tickets'."]
+
+    fuente = roadmap.get("fuente")
+    if not isinstance(fuente, str) or not (repo_root / fuente).is_file():
+        return {}, [f"'roadmap_auditorias.fuente' no apunta a un archivo existente: {fuente!r}"]
+    backlog = extraer_backlog_auditoria(repo_root / fuente)
+
+    tickets: dict[str, set[str]] = {}
+    for ticket_id, ticket in roadmap["tickets"].items():
+        if not RE_TICKET_PENDIENTE.match(ticket_id) or not isinstance(ticket, dict):
+            errores.append(f"roadmap_auditorias: entrada inválida {ticket_id!r}.")
+            continue
+        requisitos = ticket.get("requisitos")
+        if not isinstance(requisitos, list) or not all(isinstance(r, str) for r in requisitos):
+            errores.append(f"roadmap_auditorias[{ticket_id}] requiere 'requisitos' como lista.")
+            continue
+        tickets[ticket_id] = set(requisitos)
+
+        oficial = backlog.get(ticket_id)
+        if oficial is None:
+            errores.append(f"roadmap_auditorias[{ticket_id}] no existe en el backlog de {fuente}.")
+            continue
+        if ticket.get("titulo") != oficial["titulo"]:
+            errores.append(
+                f"roadmap_auditorias[{ticket_id}] título {ticket.get('titulo')!r} no coincide "
+                f"con {fuente}: {oficial['titulo']!r}."
+            )
+        if set(requisitos) != oficial["requisitos"]:
+            errores.append(
+                f"roadmap_auditorias[{ticket_id}] requisitos {sorted(requisitos)} no coinciden "
+                f"con la línea RF/RN de {fuente}: {sorted(oficial['requisitos'])}."
+            )
+
+    return tickets, errores
+
+
 def es_ruta_demo(ruta_relativa: str) -> bool:
     normalizada = ruta_relativa.replace("\\", "/").strip()
     return any(patron in normalizada for patron in PATRONES_DEMO_PROHIBIDOS)
@@ -318,7 +398,11 @@ def validar_cobertura(
             + ", ".join(faltantes_no_activos)
         )
 
-    # 3. Validar cada requisito activo en detalle
+    # 3. Validar el roadmap de auditorías posteriores contra el backlog oficial
+    tickets_roadmap, errores_roadmap = validar_roadmap_auditorias(datos, repo_root)
+    errores.extend(errores_roadmap)
+
+    # 4. Validar cada requisito activo en detalle
     cache_textos: dict[Path, str] = {}
 
     for req_id, item in mapa_activos_json.items():
@@ -452,6 +536,17 @@ def validar_cobertura(
                 "de auditoría (ej. 'AUD-20')."
             )
             pendiente_en = []
+        for ticket in pendiente_en:
+            if tickets_roadmap and ticket not in tickets_roadmap:
+                errores.append(
+                    f"[{req_id}] 'pendiente_en' usa {ticket}, que no está en 'roadmap_auditorias'."
+                )
+            elif tipo == "RNF" and req_id not in tickets_roadmap.get(ticket, {req_id}):
+                # El backlog enumera los RNF de cada ticket; para RF/RN no los enumera.
+                errores.append(
+                    f"[{req_id}] 'pendiente_en' deriva a {ticket}, pero ese ticket no declara "
+                    f"{req_id} en el backlog de auditorías."
+                )
 
         observaciones = item.get("observaciones")
         if not isinstance(observaciones, str):
@@ -498,7 +593,7 @@ def validar_cobertura(
             if not observaciones.strip():
                 errores.append(f"[{req_id}] Estado {estado} exige explicación en 'observaciones'.")
 
-    # 4. Validar foco obligatorio de AUD-19
+    # 5. Validar foco obligatorio de AUD-19
     foco = datos.get("foco_aud19")
     if not isinstance(foco, list):
         errores.append(
@@ -525,8 +620,14 @@ def validar_cobertura(
                     or not item_foco.get(campo_foco, "").strip()
                 ):
                     errores.append(f"foco_aud19[{fid}] requiere el campo '{campo_foco}' no vacío.")
+            posterior = item_foco.get("ticket_posterior")
+            if tickets_roadmap and posterior not in tickets_roadmap:
+                errores.append(
+                    f"foco_aud19[{fid}] 'ticket_posterior' {posterior!r} no está en "
+                    "'roadmap_auditorias'."
+                )
 
-    # 5. Validar bloque resumen del JSON
+    # 6. Validar bloque resumen del JSON
     resumen = datos.get("resumen")
     if not isinstance(resumen, dict):
         errores.append("El archivo JSON debe incluir el objeto 'resumen'.")
@@ -564,7 +665,7 @@ def validar_cobertura(
                     f"resumen.por_estado.{e} ({por_estado_json.get(e, 0)}) != {cant} calculado."
                 )
 
-    # 6. Validar sincronización con docs/trazabilidad/cobertura-v1.md
+    # 7. Validar sincronización con docs/trazabilidad/cobertura-v1.md
     texto_md = ruta_md.read_text(encoding="utf-8")
     for req_id, item in sorted(mapa_activos_json.items()):
         estado = item.get("estado_cobertura", "")

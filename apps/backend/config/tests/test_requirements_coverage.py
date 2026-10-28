@@ -206,6 +206,48 @@ class TrazabilidadRequisitosTests(SimpleTestCase):
             errores,
         )
 
+    def _requisito(self, datos: dict, req_id: str) -> dict:
+        return next(r for r in datos["requisitos"] if r["id"] == req_id)
+
+    def test_detecta_ticket_pendiente_fuera_del_roadmap(self) -> None:
+        datos = copy.deepcopy(self.datos_base)
+        self._requisito(datos, "RF-001")["pendiente_en"] = ["AUD-99"]
+        datos["foco_aud19"][0]["ticket_posterior"] = "AUD-98"
+        errores = self._ejecutar_con_mutacion(datos)
+        self.assertTrue(
+            any("[RF-001]" in e and "AUD-99" in e and "roadmap_auditorias" in e for e in errores),
+            errores,
+        )
+        self.assertTrue(
+            any("ticket_posterior" in e and "AUD-98" in e for e in errores),
+            errores,
+        )
+
+    def test_detecta_rnf_derivado_a_ticket_que_no_lo_declara(self) -> None:
+        datos = copy.deepcopy(self.datos_base)
+        self._requisito(datos, "RNF-003")["pendiente_en"] = ["AUD-25"]
+        errores = self._ejecutar_con_mutacion(datos)
+        self.assertTrue(
+            any("[RNF-003]" in e and "AUD-25" in e and "no declara" in e for e in errores),
+            errores,
+        )
+
+    def test_detecta_roadmap_desalineado_con_backlog_de_auditoria(self) -> None:
+        datos = copy.deepcopy(self.datos_base)
+        datos["roadmap_auditorias"]["tickets"]["AUD-25"]["requisitos"].append("RNF-003")
+        errores = self._ejecutar_con_mutacion(datos)
+        self.assertTrue(
+            any("roadmap_auditorias[AUD-25]" in e and "no coinciden" in e for e in errores),
+            errores,
+        )
+
+    def test_extrae_rnf_abreviados_del_backlog(self) -> None:
+        backlog = checker.extraer_backlog_auditoria(
+            REPO_ROOT / self.datos_base["roadmap_auditorias"]["fuente"]
+        )
+        self.assertEqual(backlog["AUD-24"]["requisitos"], {"RNF-004", "RNF-006", "RNF-012"})
+        self.assertEqual(backlog["AUD-23"]["requisitos"], {"RNF-003", "RNF-007"})
+
     def test_detecta_desincronizacion_con_markdown(self) -> None:
         md_corrupto = self.md_base.replace(
             "| `accounts / talleres` | `AUTOMATED` |",
