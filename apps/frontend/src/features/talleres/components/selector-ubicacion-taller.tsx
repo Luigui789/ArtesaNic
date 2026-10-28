@@ -1,14 +1,4 @@
-import {
-  Component,
-  Suspense,
-  lazy,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactNode,
-} from "react";
+import { Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { LocateFixed, MapPin, Search, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,39 +15,10 @@ import {
   type UbicacionTaller,
 } from "@/features/talleres/api";
 import { crearUbicacion } from "@/features/talleres/ubicacion";
+import { LimiteErrorMapa, useEnNavegador } from "./mapa-diferido";
 
 // Leaflet necesita `window` al importarse: se carga aparte y solo en el navegador.
 const MapaUbicacionLeaflet = lazy(() => import("./mapa-ubicacion-leaflet"));
-
-const sinSuscripcion = () => () => undefined;
-/** true en el navegador, false al renderizar en Node (pruebas con react-dom/server). */
-function useEnNavegador(): boolean {
-  return useSyncExternalStore(
-    sinSuscripcion,
-    () => typeof window !== "undefined",
-    () => false,
-  );
-}
-
-/** Si Leaflet no carga, el resto del formulario sigue funcionando. */
-class LimiteErrorMapa extends Component<{ children: ReactNode }, { fallo: boolean }> {
-  override state = { fallo: false };
-
-  static getDerivedStateFromError() {
-    return { fallo: true };
-  }
-
-  override render() {
-    if (this.state.fallo)
-      return (
-        <p role="alert" className="p-4 text-sm text-destructive">
-          No pudimos mostrar el mapa. Puedes buscar un lugar, usar tu ubicación actual o seguir
-          editando el resto del perfil.
-        </p>
-      );
-    return this.props.children;
-  }
-}
 
 type Aviso = { tipo: "estado" | "error"; texto: string } | null;
 
@@ -126,7 +87,7 @@ export function SelectorUbicacionTaller({ value, onChange, disabled = false }: P
         className="relative z-0 h-72 w-full overflow-hidden rounded-xl border bg-surface sm:h-96"
       >
         {enNavegador ? (
-          <LimiteErrorMapa>
+          <LimiteErrorMapa mensaje="No pudimos mostrar el mapa. Puedes buscar un lugar, usar tu ubicación actual o seguir editando el resto del perfil.">
             <Suspense fallback={<Skeleton className="h-full w-full rounded-none" />}>
               <MapaUbicacionLeaflet
                 ubicacion={value}

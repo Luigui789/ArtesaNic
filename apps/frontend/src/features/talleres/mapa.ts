@@ -52,3 +52,34 @@ export const CENTRO_INICIAL_MASAYA: UbicacionTaller = { latitud: 11.9744, longit
 export const ZOOM_INICIAL = 14;
 /** Zoom al mostrar una ubicación concreta (guardada, buscada o detectada). */
 export const ZOOM_UBICACION = 17;
+
+// ---------- Mapa público (FEAT-GEO-04) ----------
+
+/** Zoom de un solo taller y tope al encuadrar varios: evita acercarse de más. */
+export const ZOOM_TALLER_PUBLICO = 16;
+/** Margen en píxeles alrededor de los marcadores al encuadrar varios. */
+export const MARGEN_ENCUADRE = 40;
+
+export type Encuadre =
+  | { tipo: "centro"; centro: UbicacionTaller; zoom: number }
+  | { tipo: "limites"; limites: [[number, number], [number, number]] };
+
+/**
+ * Vista inicial del mapa público: sin marcadores, Masaya; con uno, centrado en él; con
+ * varios, los límites que los contienen (Leaflet los ajusta con margen y zoom máximo).
+ */
+export function encuadreDeUbicaciones(ubicaciones: readonly UbicacionTaller[]): Encuadre {
+  const [primera] = ubicaciones;
+  if (!primera) return { tipo: "centro", centro: CENTRO_INICIAL_MASAYA, zoom: ZOOM_INICIAL };
+  if (ubicaciones.length === 1)
+    return { tipo: "centro", centro: primera, zoom: ZOOM_TALLER_PUBLICO };
+  const lats = ubicaciones.map((u) => u.latitud);
+  const lngs = ubicaciones.map((u) => u.longitud);
+  return {
+    tipo: "limites",
+    limites: [
+      [Math.min(...lats), Math.min(...lngs)],
+      [Math.max(...lats), Math.max(...lngs)],
+    ],
+  };
+}

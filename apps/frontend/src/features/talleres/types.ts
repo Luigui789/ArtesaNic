@@ -20,6 +20,11 @@ export interface PerfilTaller {
   /** URL persistida de la imagen horizontal de portada del taller (cuando existe). */
   imagenPortada?: string | undefined;
   /**
+   * Posición pública del taller (`ubicacion_mapa`, FEAT-GEO-04): solo existe si el taller
+   * está aprobado y el artesano autorizó publicarla. null: sin mapa ni «Cómo llegar».
+   */
+  ubicacionMapa: UbicacionTaller | null;
+  /**
    * Datos que solo tiene el servidor simulado. La API pública no publica al
    * responsable.
    */
@@ -44,8 +49,20 @@ export interface UbicacionTaller {
   longitud: number;
 }
 
-/** Taller del artesano autenticado (`GET /api/v1/talleres/mi-taller/`). */
-export interface TallerPropio extends PerfilTaller {
+/** Un marcador del mapa público: solo lo que muestra su popup y su posición. */
+export interface MarcadorTaller {
+  id: number;
+  nombre: string;
+  rubro: string;
+  direccion: string;
+  ubicacion: UbicacionTaller;
+}
+
+/**
+ * Taller del artesano autenticado (`GET /api/v1/talleres/mi-taller/`). No trae
+ * `ubicacion_mapa`: su ubicación (pública o privada) está en `latitud`/`longitud`.
+ */
+export interface TallerPropio extends Omit<PerfilTaller, "ubicacionMapa"> {
   estado: EstadoTaller;
   motivoRechazo: string;
   revisadoEn: string | null;

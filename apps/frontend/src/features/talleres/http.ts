@@ -5,12 +5,13 @@
 import { z } from "zod";
 import { solicitar } from "@/features/catalogo/http";
 import { solicitar as solicitarComun } from "@/lib/http";
-import { redondearCoordenada } from "./ubicacion";
+import { redondearCoordenada, ubicacionDesdeDecimales } from "./ubicacion";
 import type {
   ActualizarPerfilTallerInput,
   PerfilTaller,
   PerfilTallerEntrada,
   TallerPropio,
+  UbicacionTaller,
 } from "./types";
 
 interface TallerPublicoDTO {
@@ -27,6 +28,8 @@ interface TallerPublicoDTO {
   sitio_web: string;
   imagen_perfil_url?: string | null | undefined;
   imagen_portada_url?: string | null | undefined;
+  /** UbicacionMapaSerializer: texto decimal, o null si el taller no la publica. */
+  ubicacion_mapa?: { latitud: string; longitud: string } | null | undefined;
 }
 
 function resolverImagenTaller(url: string): string {
@@ -35,7 +38,22 @@ function resolverImagenTaller(url: string): string {
   return url;
 }
 
-export function aPerfilTaller(t: TallerPublicoDTO): PerfilTaller {
+/**
+ * `ubicacion_mapa` → `ubicacionMapa`. Única autoridad de la posición pública: sin ella
+ * no hay marcador. Datos inesperados (texto no numérico, una coordenada, fuera de rango
+ * o con otra forma) se tratan como sin ubicación pública, igual que en el panel.
+ */
+export function aUbicacionMapa(dto: unknown): UbicacionTaller | null {
+  if (typeof dto !== "object" || dto === null) return null;
+  const { latitud, longitud } = dto as Record<string, unknown>;
+  if (typeof latitud !== "string" || typeof longitud !== "string") return null;
+  return ubicacionDesdeDecimales(latitud, longitud);
+}
+
+/** Campos comunes del perfil público y del taller propio. */
+function camposPerfil(
+  t: Omit<TallerPublicoDTO, "ubicacion_mapa">,
+): Omit<PerfilTaller, "ubicacionMapa"> {
   return {
     id: t.id,
     nombre: t.nombre,
@@ -51,6 +69,10 @@ export function aPerfilTaller(t: TallerPublicoDTO): PerfilTaller {
     ...(t.imagen_perfil_url ? { imagenPerfil: resolverImagenTaller(t.imagen_perfil_url) } : {}),
     ...(t.imagen_portada_url ? { imagenPortada: resolverImagenTaller(t.imagen_portada_url) } : {}),
   };
+}
+
+export function aPerfilTaller(t: TallerPublicoDTO): PerfilTaller {
+  return { ...camposPerfil(t), ubicacionMapa: aUbicacionMapa(t.ubicacion_mapa) };
 }
 
 /** `GET /api/v1/talleres/`: talleres aprobados visibles públicamente. */
@@ -100,7 +122,7 @@ const MENSAJES_TALLER_PROPIO = {
 
 function aTallerPropio(t: z.infer<typeof esquemaTallerPropio>): TallerPropio {
   return {
-    ...aPerfilTaller(t),
+    ...camposPerfil(t),
     estado: t.estado,
     motivoRechazo: t.motivo_rechazo,
     revisadoEn: t.revisado_en,

@@ -54,6 +54,8 @@ const tallerDTO = {
   facebook_url: "",
   instagram_url: "https://instagram.com/barroysombra",
   sitio_web: "",
+  // GEO-01: el perfil público siempre incluye la posición publicada o null.
+  ubicacion_mapa: null,
 };
 const productoDTO = {
   id: 15,
@@ -83,6 +85,7 @@ assert.deepEqual(taller, {
   facebook: "",
   instagram: "https://instagram.com/barroysombra",
   sitioWeb: "",
+  ubicacionMapa: null,
 });
 assert.equal("demo" in taller, false, "La API pública no trae datos de la demo.");
 
