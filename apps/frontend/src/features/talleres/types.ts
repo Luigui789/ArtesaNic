@@ -34,11 +34,26 @@ export interface PerfilTaller {
 /** Estados de aprobación del taller (D-AUD02-01). Los decide la administración. */
 export type EstadoTaller = "pendiente" | "aprobado" | "rechazado";
 
+/**
+ * Posición del taller en el mapa del panel, en grados decimales (WGS 84). Es el estado
+ * de la interfaz: la API la entrega como texto decimal (`TallerPropio.latitud`) y la
+ * conversión ocurre solo en `ubicacionDeTaller` (FEAT-GEO-02).
+ */
+export interface UbicacionTaller {
+  latitud: number;
+  longitud: number;
+}
+
 /** Taller del artesano autenticado (`GET /api/v1/talleres/mi-taller/`). */
 export interface TallerPropio extends PerfilTaller {
   estado: EstadoTaller;
   motivoRechazo: string;
   revisadoEn: string | null;
+  /** Texto decimal tal como lo serializa DRF (`"11.971234"`), o null sin ubicación. */
+  latitud: string | null;
+  longitud: string | null;
+  /** El artesano autorizó mostrar la posición en el mapa público (FEAT-GEO-01). */
+  ubicacionPublica: boolean;
 }
 
 /** Perfil editable por el artesano: exactamente `CAMPOS_PERFIL` del backend. */
@@ -59,4 +74,7 @@ export interface PerfilTallerEntrada {
 export interface ActualizarPerfilTallerInput extends Partial<PerfilTallerEntrada> {
   imagenPerfil?: File | undefined;
   imagenPortada?: File | undefined;
+  /** Las coordenadas viajan juntas; `null` quita la ubicación. */
+  ubicacion?: UbicacionTaller | null | undefined;
+  ubicacionPublica?: boolean | undefined;
 }

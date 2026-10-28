@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { solicitar } from "@/features/catalogo/http";
 import { solicitar as solicitarComun } from "@/lib/http";
+import { redondearCoordenada } from "./ubicacion";
 import type {
   ActualizarPerfilTallerInput,
   PerfilTaller,
@@ -82,6 +83,10 @@ const esquemaTallerPropio = z.object({
   sitio_web: z.string(),
   imagen_perfil_url: z.string().nullable().optional(),
   imagen_portada_url: z.string().nullable().optional(),
+  // DRF serializa los DecimalField como texto ("11.971234"); ver `ubicacionDeTaller`.
+  latitud: z.string().nullable(),
+  longitud: z.string().nullable(),
+  ubicacion_publica: z.boolean(),
   estado: z.enum(["pendiente", "aprobado", "rechazado"]),
   motivo_rechazo: z.string(),
   revisado_en: z.string().nullable(),
@@ -99,6 +104,9 @@ function aTallerPropio(t: z.infer<typeof esquemaTallerPropio>): TallerPropio {
     estado: t.estado,
     motivoRechazo: t.motivo_rechazo,
     revisadoEn: t.revisado_en,
+    latitud: t.latitud,
+    longitud: t.longitud,
+    ubicacionPublica: t.ubicacion_publica,
   };
 }
 
@@ -132,22 +140,36 @@ export const CAMPOS_PERFIL_API = {
   sitioWeb: "sitio_web",
 } as const satisfies Record<keyof PerfilTallerEntrada, string>;
 
+type ValorPerfil = string | number | boolean | null;
+
 /**
- * Cuerpo del `PATCH` con lista cerrada: solo campos del perfil. Estado, propietario,
- * revisión e `id` no existen aquí, así que no pueden viajar. `""` retira un opcional.
- * Cuando se incluyen archivos reales (`imagenPerfil` o `imagenPortada`), devuelve `FormData`.
+ * Cuerpo del `PATCH` con lista cerrada: solo campos del perfil y la ubicación. Estado,
+ * propietario, revisión e `id` no existen aquí, así que no pueden viajar. `""` retira un
+ * opcional. Las coordenadas viajan juntas y redondeadas a 6 decimales; `ubicacion: null`
+ * envía `latitud` y `longitud` en null.
+ * Cuando se incluyen archivos reales (`imagenPerfil` o `imagenPortada`), devuelve `FormData`
+ * con todos los campos en el mismo `PATCH`: ahí null viaja como `""`, que DRF convierte en
+ * null para los campos que lo admiten (`Field.get_value` con formularios HTML), y los
+ * booleanos como `"true"`/`"false"`.
  */
 export function cuerpoPerfilTaller(
   cambios: ActualizarPerfilTallerInput,
-): Record<string, string> | FormData {
-  const cuerpo: Record<string, string> = {};
+): Record<string, ValorPerfil> | FormData {
+  const cuerpo: Record<string, ValorPerfil> = {};
   for (const [campo, api] of Object.entries(CAMPOS_PERFIL_API)) {
     const valor = cambios[campo as keyof PerfilTallerEntrada];
     if (typeof valor === "string") cuerpo[api] = valor;
   }
+  if (cambios.ubicacion !== undefined) {
+    cuerpo["latitud"] = cambios.ubicacion ? redondearCoordenada(cambios.ubicacion.latitud) : null;
+    cuerpo["longitud"] = cambios.ubicacion ? redondearCoordenada(cambios.ubicacion.longitud) : null;
+  }
+  if (typeof cambios.ubicacionPublica === "boolean")
+    cuerpo["ubicacion_publica"] = cambios.ubicacionPublica;
   if (!cambios.imagenPerfil && !cambios.imagenPortada) return cuerpo;
   const form = new FormData();
-  for (const [api, valor] of Object.entries(cuerpo)) form.set(api, valor);
+  for (const [api, valor] of Object.entries(cuerpo))
+    form.set(api, valor === null ? "" : String(valor));
   if (cambios.imagenPerfil) form.set("imagen_perfil", cambios.imagenPerfil);
   if (cambios.imagenPortada) form.set("imagen_portada", cambios.imagenPortada);
   return form;

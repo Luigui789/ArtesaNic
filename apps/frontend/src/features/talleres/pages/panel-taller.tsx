@@ -12,6 +12,7 @@ import { getMiTaller, type TallerPropio } from "@/features/talleres/api";
 import { reintentarSalvoErrorDelCliente } from "@/features/catalogo/api";
 import { FormularioPerfilTaller } from "@/features/talleres/components/formulario-perfil-taller";
 import { claveMiTaller } from "@/features/talleres/perfil-propio";
+import { estadoUbicacionDe } from "@/features/talleres/ubicacion";
 import { formatDate } from "@/lib/format";
 import { useDocumentHead } from "@/hooks/use-document-head";
 
@@ -156,10 +157,18 @@ function EstadoDelTaller({
   );
 }
 
+/** Resumen de texto de la ubicación (FEAT-GEO-02); el mapa solo aparece al editar. */
+function textoUbicacion(taller: TallerPropio): string {
+  const { ubicacion, publica } = estadoUbicacionDe(taller);
+  if (!ubicacion) return "Sin ubicación en el mapa";
+  return publica ? "Registrada, visible en el mapa público" : "Registrada, privada";
+}
+
 function DatosDelTaller({ taller, onEditar }: { taller: TallerPropio; onEditar: () => void }) {
   const filas: [string, string][] = [
     ["Rubro", taller.rubro],
     ["Dirección", taller.direccion],
+    ["Ubicación del taller", textoUbicacion(taller)],
     ["Horario", taller.horario],
     ["Teléfono público", taller.telefono],
     ["WhatsApp público", taller.whatsapp],
