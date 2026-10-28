@@ -25,7 +25,7 @@ Tras cambiar endpoints implementados, desde `apps/backend` regenerar:
 uv run python manage.py spectacular --validate --fail-on-warn --file ../../docs/api/openapi.yaml
 ```
 
-Comprobar enlaces con `python infra/scripts/check-doc-links.py` y patrones de credenciales con `python infra/scripts/check-secrets.py`. No registrar `.env`, entornos virtuales, cachés ni archivos de usuarios. Las plantillas contienen exclusivamente valores de ejemplo.
+Comprobar enlaces con `python infra/scripts/check-doc-links.py`, patrones de credenciales con `python infra/scripts/check-secrets.py` y la [matriz de trazabilidad y cobertura V1](docs/trazabilidad/cobertura-v1.md) con `python infra/scripts/check_requirements_coverage.py`. No registrar `.env`, entornos virtuales, cachés ni archivos de usuarios. Las plantillas contienen exclusivamente valores de ejemplo.
 
 ## Documentación y decisiones
 

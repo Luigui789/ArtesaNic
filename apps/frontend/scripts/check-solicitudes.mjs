@@ -1,4 +1,4 @@
-// AUD-05: composición y servidor de demostración. No verifica sesión real (AUD-18).
+// AUD-05: validación pura de composición de solicitudes V1 (src/features/solicitudes/validacion.ts) y regresión [DEMO_ONLY] del servidor de demostración.
 import assert from "node:assert/strict";
 import { build } from "vite";
 import { fileURLToPath } from "node:url";
