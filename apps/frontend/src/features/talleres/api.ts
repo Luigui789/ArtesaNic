@@ -26,6 +26,8 @@ function aPerfilTallerDemo(a: Artisan): PerfilTaller {
     facebook: a.redes.facebook ?? "",
     instagram: a.redes.instagram ?? "",
     sitioWeb: "",
+    // La demo no inventa posiciones: sus talleres no publican ubicación en el mapa.
+    ubicacionMapa: null,
     demo: {
       responsable: a.responsable,
       descripcion: a.descripcion,

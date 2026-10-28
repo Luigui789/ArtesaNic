@@ -5,7 +5,7 @@ import { CATEGORY_IMAGE } from "@/lib/category-images";
 import { Button } from "@/components/ui/button";
 import { PublicLayout } from "@/components/layout/public-layout";
 import { ProductCard, ProductCardSkeleton } from "@/features/catalogo/components/product-card";
-import { ArtisanCard } from "@/features/talleres/components/artisan-card";
+import { TalleresDescubrir } from "@/features/talleres/components/talleres-descubrir";
 import { ErrorState } from "@/components/common/states";
 import { listPerfilesTalleres } from "@/features/talleres/api";
 import { listCatalog, listCategories } from "@/features/catalogo/api";
@@ -176,13 +176,16 @@ export default function Index() {
           <div className="mt-6">
             <ErrorState onRetry={() => void artesanos.refetch()} />
           </div>
-        ) : (
+        ) : artesanos.isPending ? (
           <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {artesanos.isPending
-              ? Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-64 animate-pulse rounded-xl bg-surface" />
-                ))
-              : artesanos.data.slice(0, 4).map((a) => <ArtisanCard key={a.id} artisan={a} />)}
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-64 animate-pulse rounded-xl bg-surface" />
+            ))}
+          </div>
+        ) : (
+          // Lista (inicial) o mapa con todos los talleres de la respuesta (FEAT-GEO-04).
+          <div className="mt-6">
+            <TalleresDescubrir talleres={artesanos.data} />
           </div>
         )}
       </section>

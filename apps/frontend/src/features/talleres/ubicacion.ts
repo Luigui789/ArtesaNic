@@ -3,7 +3,13 @@
  * La API entrega las coordenadas como texto decimal y admite hasta 6 decimales
  * (docs/api/talleres.md, FEAT-GEO-01); el mapa trabaja con números.
  */
-import type { ActualizarPerfilTallerInput, TallerPropio, UbicacionTaller } from "./types";
+import type {
+  ActualizarPerfilTallerInput,
+  MarcadorTaller,
+  PerfilTaller,
+  TallerPropio,
+  UbicacionTaller,
+} from "./types";
 
 export const DECIMALES_COORDENADA = 6;
 const FACTOR = 10 ** DECIMALES_COORDENADA;
@@ -30,19 +36,30 @@ function numeroDecimal(texto: string): number | null {
 }
 
 /**
- * Única conversión API → mapa. `invalida` indica datos inesperados del servidor
- * (una sola coordenada, texto no numérico o fuera de rango): se tratan como sin
- * ubicación en vez de romper el panel.
+ * Única conversión de texto decimal de la API (`"11.971234"`) a ubicación del mapa,
+ * para el taller propio y para `ubicacion_mapa` del perfil público (FEAT-GEO-04).
+ * null si falta una coordenada, no es numérica o está fuera de rango.
+ */
+export function ubicacionDesdeDecimales(
+  latitud: string | null,
+  longitud: string | null,
+): UbicacionTaller | null {
+  const lat = latitud === null ? null : numeroDecimal(latitud);
+  const lng = longitud === null ? null : numeroDecimal(longitud);
+  return lat === null || lng === null ? null : crearUbicacion(lat, lng);
+}
+
+/**
+ * Conversión API → mapa del taller propio. `invalida` indica datos inesperados del
+ * servidor (una sola coordenada, texto no numérico o fuera de rango): se tratan como
+ * sin ubicación en vez de romper el panel.
  */
 export function ubicacionDeTaller(t: Pick<TallerPropio, "latitud" | "longitud">): {
   ubicacion: UbicacionTaller | null;
   invalida: boolean;
 } {
   if (t.latitud === null && t.longitud === null) return { ubicacion: null, invalida: false };
-  const latitud = t.latitud === null ? null : numeroDecimal(t.latitud);
-  const longitud = t.longitud === null ? null : numeroDecimal(t.longitud);
-  const ubicacion =
-    latitud === null || longitud === null ? null : crearUbicacion(latitud, longitud);
+  const ubicacion = ubicacionDesdeDecimales(t.latitud, t.longitud);
   return { ubicacion, invalida: ubicacion === null };
 }
 
@@ -87,4 +104,15 @@ export function cambiosDeUbicacion(
   if (mismaUbicacion(original.ubicacion, editado.ubicacion) && original.publica === publica)
     return {};
   return { ubicacion: editado.ubicacion, ubicacionPublica: publica };
+}
+
+/**
+ * Marcadores del mapa público (FEAT-GEO-04): uno por taller con `ubicacionMapa`, que la
+ * API solo envía si el taller está aprobado y autorizó publicarla. Los demás talleres
+ * no generan marcador ni dejan rastro de su posición.
+ */
+export function marcadoresDeTalleres(talleres: readonly PerfilTaller[]): MarcadorTaller[] {
+  return talleres.flatMap(({ id, nombre, rubro, direccion, ubicacionMapa }) =>
+    ubicacionMapa ? [{ id, nombre, rubro, direccion, ubicacion: ubicacionMapa }] : [],
+  );
 }
