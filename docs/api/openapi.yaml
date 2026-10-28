@@ -3881,7 +3881,8 @@ paths:
     get:
       operationId: listar_talleres
       description: Perfiles públicos de los talleres aprobados, por nombre. Los pendientes
-        y los rechazados no aparecen.
+        y los rechazados no aparecen. `ubicacion_mapa` trae la posición solo si el
+        artesano autorizó publicarla; si no, es null.
       summary: Listar los talleres aprobados
       tags:
       - Talleres
@@ -3924,7 +3925,8 @@ paths:
     get:
       operationId: consultar_mi_taller
       description: Taller del artesano autenticado, en cualquier estado, con el resultado
-        de su revisión.
+        de su revisión. Incluye `latitud`, `longitud` y `ubicacion_publica` aunque
+        la ubicación sea privada.
       summary: Consultar el taller propio
       tags:
       - Talleres
@@ -3959,7 +3961,9 @@ paths:
       operationId: actualizar_mi_taller
       description: 'Modifica solo los campos enviados del perfil público (RF-008).
         Estado, propietario y revisión no son modificables: enviarlos responde 400.
-        Editar el perfil no cambia el estado de aprobación.'
+        Editar el perfil no cambia el estado de aprobación. `latitud` y `longitud`
+        van juntas: para quitar la ubicación se envían ambas en null con `ubicacion_publica`
+        en false; no se puede publicar sin coordenadas.'
       summary: Actualizar el perfil del taller propio
       tags:
       - Talleres
@@ -6021,6 +6025,25 @@ components:
             maxLength: 200
           - type: string
             maxLength: 0
+        latitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+          description: Latitud en grados decimales (WGS 84), de -90 a 90, con hasta
+            6 decimales.
+        longitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,6})?$
+          nullable: true
+          description: Longitud en grados decimales (WGS 84), de -180 a 180, con hasta
+            6 decimales.
+        ubicacion_publica:
+          type: boolean
+          title: Ubicación pública
+          description: Si el artesano autoriza mostrar la posición del taller en el
+            mapa público.
         imagen_perfil:
           type: string
           format: binary
@@ -6284,7 +6307,7 @@ components:
     PerfilTallerEntradaRequest:
       type: object
       description: |-
-        Datos del perfil que escribe el artesano (RF-008).
+        Datos del perfil y ubicación que escribe el artesano (RF-008, FEAT-GEO-01).
 
         Propietario, estado y revisión no son campos de entrada: enviarlos responde 400.
       properties:
@@ -6341,6 +6364,25 @@ components:
             maxLength: 200
           - type: string
             maxLength: 0
+        latitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+          description: Latitud en grados decimales (WGS 84), de -90 a 90, con hasta
+            6 decimales.
+        longitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,6})?$
+          nullable: true
+          description: Longitud en grados decimales (WGS 84), de -180 a 180, con hasta
+            6 decimales.
+        ubicacion_publica:
+          type: boolean
+          title: Ubicación pública
+          description: Si el artesano autoriza mostrar la posición del taller en el
+            mapa público.
       required:
       - direccion_completa
       - nombre
@@ -7400,8 +7442,8 @@ components:
       - renglones
     TallerPropio:
       type: object
-      description: 'Taller del artesano autenticado: el perfil y el resultado de su
-        revisión.'
+      description: 'Taller del artesano autenticado: perfil, ubicación (aunque sea
+        privada) y revisión.'
       properties:
         id:
           type: integer
@@ -7446,6 +7488,24 @@ components:
           type: string
           format: uri
           readOnly: true
+        latitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        longitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        ubicacion_publica:
+          type: boolean
+          readOnly: true
+          title: Ubicación pública
+          description: Si el artesano autoriza mostrar la posición del taller en el
+            mapa público.
         imagen_perfil_url:
           type: string
           format: uri
@@ -7489,17 +7549,23 @@ components:
       - imagen_perfil_url
       - imagen_portada_url
       - instagram_url
+      - latitud
+      - longitud
       - motivo_rechazo
       - nombre
       - revisado_en
       - rubro
       - sitio_web
       - telefono_publico
+      - ubicacion_publica
       - whatsapp_publico
     TallerPublico:
       type: object
-      description: Perfil público del taller aprobado. Sin propietario, estado ni
-        datos de la cuenta.
+      description: |-
+        Perfil público del taller aprobado. Sin propietario, estado ni datos de la cuenta.
+
+        Las coordenadas no se exponen sueltas: solo dentro de ``ubicacion_mapa`` y solo si
+        el artesano autorizó publicarlas.
       properties:
         id:
           type: integer
@@ -7554,6 +7620,13 @@ components:
           format: uri
           nullable: true
           readOnly: true
+        ubicacion_mapa:
+          allOf:
+          - $ref: '#/components/schemas/UbicacionMapa'
+          nullable: true
+          readOnly: true
+          description: Posición del taller en el mapa, o null si el artesano no autorizó
+            publicarla o no la ha registrado.
       required:
       - direccion_completa
       - facebook_url
@@ -7567,6 +7640,7 @@ components:
       - rubro
       - sitio_web
       - telefono_publico
+      - ubicacion_mapa
       - whatsapp_publico
     TallerResumen:
       type: object
@@ -7659,6 +7733,27 @@ components:
           description: Valor para la cabecera X-CSRFToken.
       required:
       - csrf_token
+    UbicacionMapa:
+      type: object
+      description: Posición pública del taller en el mapa.
+      properties:
+        latitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          description: Latitud en grados decimales (WGS 84), de -90 a 90, con hasta
+            6 decimales.
+        longitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,6})?$
+          readOnly: true
+          description: Longitud en grados decimales (WGS 84), de -180 a 180, con hasta
+            6 decimales.
+      required:
+      - latitud
+      - longitud
     Usuario:
       type: object
       description: Identidad autenticada. Sin contraseña, hash ni privilegios internos.
