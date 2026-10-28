@@ -5,32 +5,30 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useSession, type SesionUsuario } from "@/features/auth/use-session";
 import { interpretarFallo } from "@/features/auth/errores";
+import { UBICACION_REGISTRO_INICIAL, solicitudDeRegistro } from "@/features/auth/registro";
 import {
+  CAMPO_UBICACION_TALLER,
   TALLER_VACIO,
-  erroresDeValidacion,
-  esquemaRegistroArtesano,
-  esquemaRegistroComprador,
   type TallerFormulario,
 } from "@/features/auth/validacion";
+import { SeccionUbicacionTaller } from "@/features/talleres/components/seccion-ubicacion-taller";
+import type { EstadoUbicacion } from "@/features/talleres/ubicacion";
 import type { Role } from "@/types";
 import { Campo } from "./campo";
 
 const CAMPOS_CUENTA = ["nombre", "telefono", "password", "confirmacion"];
-
-/** La confirmación es solo de la interfaz: no viaja al servidor. */
-function cuentaSinConfirmacion<T extends { confirmacion: string }>({
-  confirmacion,
-  ...resto
-}: T): Omit<T, "confirmacion"> {
-  return resto;
-}
-const CAMPOS_TALLER = Object.keys(TALLER_VACIO).map((c) => `taller.${c}`);
+/** Inputs de texto del taller + el campo virtual de errores de la ubicación. */
+const CAMPOS_TALLER = [
+  ...Object.keys(TALLER_VACIO).map((c) => `taller.${c}`),
+  CAMPO_UBICACION_TALLER,
+];
 
 /**
  * Registro público. La intención elegida decide **qué endpoint** se usa
  * (`registro/comprador/` o `registro/artesano/`); el cuerpo nunca lleva `rol`. El
  * artesano envía además los datos iniciales de su taller, que queda pendiente de
- * aprobación. No existe registro de administradores.
+ * aprobación, y opcionalmente su ubicación (FEAT-GEO-03) en el mismo `POST`. No existe
+ * registro de administradores.
  */
 export function FormularioRegistro({
   onExito,
@@ -45,6 +43,10 @@ export function FormularioRegistro({
     defaultValues: { nombre: "", telefono: "", password: "", confirmacion: "" },
   });
   const tallerForm = useForm<TallerFormulario>({ defaultValues: TALLER_VACIO });
+  // Coordenadas fuera de React Hook Form: no son inputs de texto.
+  const [ubicacionTaller, setUbicacionTaller] = useState<EstadoUbicacion>(
+    UBICACION_REGISTRO_INICIAL,
+  );
   const cuenta = cuentaForm.watch();
   const taller = tallerForm.watch();
   const bloqueo = useRef(false);
@@ -62,11 +64,9 @@ export function FormularioRegistro({
     e.preventDefault();
     if (bloqueo.current) return;
     setGeneral(null);
-    const comprador = esquemaRegistroComprador.safeParse(cuenta);
-    const vendedor = artesano ? esquemaRegistroArtesano.safeParse({ ...cuenta, taller }) : null;
-    const invalido = vendedor ?? comprador;
-    if (!invalido.success) {
-      setErrores(erroresDeValidacion(invalido.error));
+    const solicitud = solicitudDeRegistro(intencion, cuenta, taller, ubicacionTaller);
+    if (!solicitud.valida) {
+      setErrores(solicitud.errores);
       return;
     }
     setErrores({});
@@ -74,9 +74,10 @@ export function FormularioRegistro({
     setEnviando(true);
     try {
       // El endpoint lo decide la intención; el cuerpo no lleva rol.
-      const usuario = vendedor?.success
-        ? await registrarArtesano(cuentaSinConfirmacion(vendedor.data))
-        : await registrarComprador(cuentaSinConfirmacion(comprador.data!));
+      const usuario =
+        solicitud.rol === "artesano"
+          ? await registrarArtesano(solicitud.entrada)
+          : await registrarComprador(solicitud.entrada);
       onExito(usuario);
     } catch (error) {
       const fallo = interpretarFallo(error, [...CAMPOS_CUENTA, ...CAMPOS_TALLER]);
@@ -189,6 +190,13 @@ export function FormularioRegistro({
               valor={taller.direccionCompleta}
               onCambio={campoTaller("direccionCompleta")}
               error={errores["taller.direccionCompleta"]}
+            />
+            <SeccionUbicacionTaller
+              contexto="registro"
+              value={ubicacionTaller}
+              onChange={setUbicacionTaller}
+              error={errores[CAMPO_UBICACION_TALLER]}
+              disabled={enviando}
             />
             <details className="rounded-lg border p-3">
               <summary className="cursor-pointer py-2 text-sm font-medium">

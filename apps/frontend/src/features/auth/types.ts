@@ -1,3 +1,4 @@
+import type { UbicacionTaller } from "@/features/talleres/types";
 import type { Role } from "@/types";
 
 /**
@@ -34,7 +35,11 @@ export interface ActualizarPerfilEntrada {
   passwordActual?: string;
 }
 
-/** Campos de `CAMPOS_PERFIL` del backend (PerfilTallerEntradaSerializer). */
+/**
+ * Campos de `CAMPOS_PERFIL` + `CAMPOS_UBICACION` del backend
+ * (PerfilTallerEntradaSerializer). La ubicación es opcional (FEAT-GEO-03): sin ella
+ * el cuerpo no lleva campos geográficos y el servidor aplica sus valores por defecto.
+ */
 export interface TallerEntrada {
   nombre: string;
   rubro: string;
@@ -46,6 +51,9 @@ export interface TallerEntrada {
   facebookUrl?: string;
   instagramUrl?: string;
   sitioWeb?: string;
+  ubicacion?: UbicacionTaller | null;
+  /** Solo cuenta si hay `ubicacion`: sin coordenadas nunca se publica. */
+  ubicacionPublica?: boolean;
 }
 
 export interface RegistroArtesanoEntrada extends RegistroCompradorEntrada {

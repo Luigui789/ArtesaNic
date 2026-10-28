@@ -117,6 +117,12 @@ export function erroresDeValidacion(error: z.ZodError): Record<string, string> {
   return errores;
 }
 
+/**
+ * Campo virtual de errores de «Ubicación del taller» (FEAT-GEO-03): no es un input
+ * de texto; reúne los errores de latitud, longitud y publicación en un solo mensaje.
+ */
+export const CAMPO_UBICACION_TALLER = "taller.ubicacion";
+
 /** Campos de la API (`snake_case`) → campos del formulario. */
 const CAMPOS_API: Record<string, string> = {
   "taller.direccion_completa": "taller.direccionCompleta",
@@ -125,6 +131,9 @@ const CAMPOS_API: Record<string, string> = {
   "taller.facebook_url": "taller.facebookUrl",
   "taller.instagram_url": "taller.instagramUrl",
   "taller.sitio_web": "taller.sitioWeb",
+  "taller.latitud": CAMPO_UBICACION_TALLER,
+  "taller.longitud": CAMPO_UBICACION_TALLER,
+  "taller.ubicacion_publica": CAMPO_UBICACION_TALLER,
 };
 
 /** Errores `400` del servidor por campo del formulario; el primer mensaje de cada uno. */
@@ -132,7 +141,7 @@ export function erroresDelServidor(campos: Record<string, string[]>): Record<str
   const errores: Record<string, string> = {};
   for (const [campo, mensajes] of Object.entries(campos)) {
     const mensaje = mensajes[0];
-    if (mensaje) errores[CAMPOS_API[campo] ?? campo] = mensaje;
+    if (mensaje) errores[CAMPOS_API[campo] ?? campo] ??= mensaje;
   }
   return errores;
 }
