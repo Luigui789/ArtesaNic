@@ -405,17 +405,19 @@ await verificar(
   "geocodificación: vacía, error HTTP, JSON inválido, coordenadas inválidas",
   async () => {
     assert.deepEqual(await geocodificador(() => json(200, [])).buscar("Nada"), []);
-    for (const respuesta of [
+    const fallidas = [
       () => json(503, { error: "ocupado" }),
       () => json(429, {}),
       () => new Response("<html>", { status: 200 }),
       () => json(200, { error: "Unable to geocode" }),
-    ])
-      await assert.rejects(geocodificador(respuesta).buscar("Masaya"), (e) => {
+    ].map((respuesta) =>
+      assert.rejects(geocodificador(respuesta).buscar("Masaya"), (e) => {
         assert.equal(e.name, "ErrorGeocodificacion");
         assert.match(e.message, /No pudimos buscar ese lugar/);
         return true;
-      });
+      }),
+    );
+    await Promise.all(fallidas);
     const red = geocodificador(() => {
       throw new TypeError("Failed to fetch");
     });
@@ -442,9 +444,9 @@ await verificar(
 
 await verificar("geocodificación: caché por consulta normalizada", async () => {
   const g = geocodificador();
+  // Secuencial a propósito: la segunda búsqueda debe encontrar la primera en caché.
   const a = await g.buscar("Mercado de Artesanías");
-  const b = await g.buscar("  mercado   de ARTESANIAS ");
-  assert.equal(b, a);
+  assert.equal(await g.buscar("  mercado   de ARTESANIAS "), a);
   assert.equal(g.llamadas.length, 1, "la búsqueda repetida no vuelve a llamar");
   assert.equal(m.geocoding.normalizarConsulta(" Monimbó  "), "monimbo");
   // Los errores no se guardan: reintentar vuelve a consultar.
@@ -521,17 +523,18 @@ await verificar(
     });
     assert.deepEqual(exito, { ok: true, ubicacion: { latitud: 11.971234, longitud: -86.095678 } });
     assert.equal(geo.opciones.timeout > 0, true);
-    for (const [code, fallo] of [
-      [1, "denegado"],
-      [2, "no-disponible"],
-      [3, "tiempo"],
-    ]) {
-      const r = await obtenerUbicacionActual({
-        geolocalizacion: geo((_, error) => error({ code })),
-        contextoSeguro: true,
-      });
-      assert.deepEqual(r, { ok: false, fallo });
-    }
+    const fallos = await Promise.all(
+      [1, 2, 3].map((code) =>
+        obtenerUbicacionActual({
+          geolocalizacion: geo((_, error) => error({ code })),
+          contextoSeguro: true,
+        }),
+      ),
+    );
+    assert.deepEqual(
+      fallos.map((r) => r.fallo),
+      ["denegado", "no-disponible", "tiempo"],
+    );
     assert.deepEqual(await obtenerUbicacionActual({ contextoSeguro: true }), {
       ok: false,
       fallo: "no-soportado",
@@ -598,6 +601,145 @@ await verificar(
     assert.equal(typeof globalThis.window, "undefined");
   },
 );
+
+// ---------- Integración en el perfil del artesano ----------
+
+const PUBLICA = { latitud: "11.971234", longitud: "-86.095678", ubicacion_publica: true };
+const editar = async () =>
+  renderizar((h) => h(m.panel.default, { editarAlAbrir: true }), await conTaller());
+/** Atributos del switch de publicación en el HTML renderizado. */
+const switchPublico = (html) => {
+  const etiqueta = html.match(/<button[^>]*id="perfil-ubicacion-publica"[^>]*>/)?.[0];
+  assert.ok(etiqueta, "existe el switch de publicación");
+  return {
+    activo: /aria-checked="true"/.test(etiqueta),
+    deshabilitado: /\sdisabled=""/.test(etiqueta),
+  };
+};
+
+await verificar("perfil sin ubicación: switch apagado y deshabilitado", async () => {
+  const html = await editar();
+  const t = texto(html);
+  assert.match(t, /Ubicación del taller/);
+  assert.match(t, /Busca un lugar o selecciona tu taller en el mapa/);
+  assert.match(t, /Mostrar mi ubicación en el mapa público/);
+  assert.match(t, /Primero selecciona la ubicación de tu taller\./);
+  assert.deepEqual(switchPublico(html), { activo: false, deshabilitado: true });
+  assert.doesNotMatch(t, /Quitar ubicación/);
+  // La sección va después de «Dirección completa» y no pide números.
+  assert.ok(html.indexOf("perfil-direccion") < html.indexOf("perfil-ubicacion-titulo"));
+  assert.doesNotMatch(html, /name="(latitud|longitud)"|>Latitud|>Longitud/);
+});
+
+await verificar("perfil con ubicación pública: switch según el servidor y aviso", async () => {
+  reiniciar(PUBLICA);
+  const html = await editar();
+  const t = texto(html);
+  assert.deepEqual(switchPublico(html), { activo: true, deshabilitado: false });
+  assert.match(t, /los compradores podrán ver la posición exacta que selecciones/);
+  assert.match(t, /Quitar ubicación/);
+  assert.match(t, /Ubicación seleccionada/);
+  reiniciar({ ...PUBLICA, ubicacion_publica: false });
+  assert.deepEqual(switchPublico(await editar()), { activo: false, deshabilitado: false });
+});
+
+await verificar("datos inválidos del servidor: aviso sin romper el formulario", async () => {
+  reiniciar({ latitud: "11.97", longitud: null, ubicacion_publica: true });
+  const html = await editar();
+  assert.match(texto(html), /No pudimos leer la ubicación guardada/);
+  assert.deepEqual(switchPublico(html), { activo: false, deshabilitado: true });
+  assert.match(html, /aria-label="Editar perfil del taller"/);
+});
+
+await verificar("vista «Mi taller»: resumen de texto, sin mapa", async () => {
+  const resumen = async () => texto(await renderizar((h) => h(m.panel.default), await conTaller()));
+  assert.match(await resumen(), /Ubicación del taller Sin ubicación en el mapa/);
+  reiniciar(PUBLICA);
+  assert.match(await resumen(), /Registrada, visible en el mapa público/);
+  reiniciar({ ...PUBLICA, ubicacion_publica: false });
+  const privada = await resumen();
+  assert.match(privada, /Registrada, privada/);
+  assert.doesNotMatch(privada, /11\.971234/, "las coordenadas no se muestran");
+});
+
+await verificar("guardar actualiza la caché de mi-taller e invalida lo público", async () => {
+  const qc = await conTaller();
+  qc.setQueryData(["perfil-taller", 7], { id: 7 });
+  const original = m.ubicacion.estadoUbicacionDe(qc.getQueryData(m.propio.claveMiTaller(42)));
+  const editado = m.ubicacion.conUbicacion(original, { latitud: 11.971234, longitud: -86.095678 });
+  const cambios = m.ubicacion.cambiosDeUbicacion(original, { ...editado, publica: true });
+  const actualizado = await m.api.actualizarMiTaller(cambios);
+  m.propio.aplicarTallerActualizado(qc, 42, actualizado);
+  const enCache = qc.getQueryData(m.propio.claveMiTaller(42));
+  assert.equal(enCache.latitud, "11.971234");
+  assert.equal(enCache.ubicacionPublica, true);
+  assert.equal(qc.getQueryState(["perfil-taller", 7]).isInvalidated, true);
+  // El render tras guardar parte de la ubicación nueva.
+  assert.deepEqual(
+    switchPublico(await renderizar((h) => h(m.panel.default, { editarAlAbrir: true }), qc)),
+    {
+      activo: true,
+      deshabilitado: false,
+    },
+  );
+});
+
+await verificar("cancelar o mover sin guardar no genera PATCH", async () => {
+  // El estado de la sección es local: sin cambios respecto a lo guardado no hay campos
+  // de ubicación en el payload; cancelar desmonta el formulario sin enviar nada.
+  reiniciar(PUBLICA);
+  const guardado = m.ubicacion.estadoUbicacionDe(await m.api.getMiTaller());
+  assert.deepEqual(m.ubicacion.cambiosDeUbicacion(guardado, { ...guardado }), {});
+  await editar();
+  assert.equal(patches().length, 0, "abrir el formulario y el mapa no hace PATCH");
+});
+
+await verificar("payload del formulario: perfil + ubicación + imagen juntos", async () => {
+  const t = await m.api.getMiTaller();
+  const original = m.propio.perfilEditableDe(t);
+  const ubicacionGuardada = m.ubicacion.estadoUbicacionDe(t);
+  const imagenPerfil = new File([new Uint8Array([1])], "logo.png", { type: "image/png" });
+  assert.deepEqual(
+    m.propio.cambiosDelFormulario({
+      original,
+      editado: original,
+      ubicacionGuardada,
+      ubicacion: ubicacionGuardada,
+    }),
+    {},
+    "sin cambios no hay PATCH (Cancelar o pin sin mover)",
+  );
+  const payload = m.propio.cambiosDelFormulario({
+    original,
+    editado: { ...original, historia: "Nueva" },
+    ubicacionGuardada,
+    ubicacion: { ubicacion: { latitud: 11.97, longitud: -86.09 }, publica: false },
+    imagenPerfil,
+  });
+  assert.deepEqual(payload, {
+    historia: "Nueva",
+    ubicacion: { latitud: 11.97, longitud: -86.09 },
+    ubicacionPublica: false,
+    imagenPerfil,
+  });
+  const form = m.http.cuerpoPerfilTaller(payload);
+  assert.deepEqual([...form.keys()].sort(), [
+    "historia",
+    "imagen_perfil",
+    "latitud",
+    "longitud",
+    "ubicacion_publica",
+  ]);
+});
+
+await verificar("errores 400 de ubicación se muestran en su sección", async () => {
+  await assert.rejects(m.api.actualizarMiTaller({ ubicacionPublica: true }), (error) => {
+    assert.equal(error.status, 400);
+    const fallo = m.propio.erroresDelPerfil(error.campos);
+    assert.equal(fallo.campos.ubicacion, "No se puede publicar sin coordenadas.");
+    return true;
+  });
+});
 
 console.log(`OK (${grupos.length} grupos): ${grupos.join(" · ")}`);
 // El runtime de react-dom/server (build de navegador) deja canales abiertos.

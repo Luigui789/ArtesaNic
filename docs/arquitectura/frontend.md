@@ -17,6 +17,19 @@ pnpm -C apps/frontend dev
 
 El proxy de Vite envía `/api` al backend, así que las cookies `csrftoken` y `refresh` son del mismo origen que la SPA.
 
+## Mapa y geocodificación
+
+El selector de ubicación del taller del panel (FEAT-GEO-02, `src/features/talleres/`) usa Leaflet con React Leaflet y dos servicios externos, cuyas URL solo aparecen en `mapa.ts`:
+
+| Variable | Por defecto | Uso |
+|---|---|---|
+| `VITE_MAP_TILE_URL` | `https://tile.openstreetmap.org/{z}/{x}/{y}.png` | Capa base del mapa. Siempre con atribución visible de OpenStreetMap. |
+| `VITE_GEOCODING_URL` | `https://nominatim.openstreetmap.org/search` | Búsqueda de lugares (API `search` de Nominatim). |
+
+Ninguna requiere clave. Los servidores públicos de OSM son un servicio limitado, sin garantía de disponibilidad: para producción conviene apuntar estas variables a un proveedor propio o contratado. Según las [políticas de tiles](https://operations.osmfoundation.org/policies/tiles/) y de [Nominatim](https://operations.osmfoundation.org/policies/nominatim/), `geocoding.ts` solo busca con acción explícita (botón o Enter, sin autocompletado), espacia las peticiones a un máximo de 1 por segundo y guarda en memoria los resultados por consulta; Leaflet pide solo los tiles visibles. La ubicación del dispositivo se pide una vez al pulsar «Usar mi ubicación actual» y requiere HTTPS (o `localhost`).
+
+Leaflet usa `window` al importarse: `mapa-ubicacion-leaflet.tsx` se carga con `lazy` solo en el navegador, y `scripts/check-geolocalizacion-taller.mjs` comprueba que el formulario se renderiza en Node sin él.
+
 ## Capas
 
 ```text

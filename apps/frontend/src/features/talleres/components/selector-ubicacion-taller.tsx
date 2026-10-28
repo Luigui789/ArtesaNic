@@ -82,15 +82,9 @@ export function SelectorUbicacionTaller({ value, onChange, disabled = false }: P
   const [localizando, setLocalizando] = useState(false);
   const [aviso, setAviso] = useState<Aviso>(null);
   const busqueda = useRef<AbortController | null>(null);
-  const montado = useRef(true);
 
-  useEffect(() => {
-    montado.current = true;
-    return () => {
-      montado.current = false;
-      busqueda.current?.abort();
-    };
-  }, []);
+  // Al desmontar (p. ej. «Cancelar») se aborta la búsqueda en curso.
+  useEffect(() => () => busqueda.current?.abort(), []);
 
   const seleccionar = useCallback(
     (latitud: number, longitud: number) => {
@@ -118,7 +112,6 @@ export function SelectorUbicacionTaller({ value, onChange, disabled = false }: P
     setAviso({ tipo: "estado", texto: "Buscando lugares…" });
     try {
       const encontrados = await buscarLugar(texto, control.signal);
-      if (!montado.current) return;
       setResultados(encontrados);
       setAviso(
         encontrados.length
@@ -133,7 +126,7 @@ export function SelectorUbicacionTaller({ value, onChange, disabled = false }: P
             },
       );
     } catch (error) {
-      if (!montado.current || control.signal.aborted) return;
+      if (control.signal.aborted) return;
       setResultados(null);
       setAviso({
         tipo: "error",
@@ -143,7 +136,7 @@ export function SelectorUbicacionTaller({ value, onChange, disabled = false }: P
             : "No pudimos buscar ese lugar. Puedes intentarlo nuevamente o seleccionarlo manualmente en el mapa.",
       });
     } finally {
-      if (montado.current) setBuscando(false);
+      setBuscando(false);
     }
   };
 
@@ -152,7 +145,6 @@ export function SelectorUbicacionTaller({ value, onChange, disabled = false }: P
     setLocalizando(true);
     setAviso({ tipo: "estado", texto: "Obteniendo tu ubicación…" });
     const resultado = await obtenerUbicacionActual();
-    if (!montado.current) return;
     setLocalizando(false);
     if (resultado.ok)
       llevarA(
