@@ -12,6 +12,7 @@ import { FormularioPropuesta, RevisionRenglon } from "../components/revision";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { Button } from "@/components/ui/button";
+import { mensajeDominio } from "@/lib/errores-dominio";
 import { useSession } from "@/features/auth/use-session";
 import { MODALIDAD_LABELS } from "@/lib/labels";
 import { parseRouteId } from "@/lib/route-id";
@@ -83,7 +84,7 @@ export function ListadoSolicitudes({ recibidas = false }: { recibidas?: boolean 
           <LoadingState label="Cargando solicitudes…" />
         ) : solicitudes.isError ? (
           <ErrorState
-            mensaje={solicitudes.error.message}
+            mensaje={mensajeDominio(solicitudes.error)}
             onRetry={() => void solicitudes.refetch()}
           />
         ) : solicitudes.data.items.length === 0 ? (
@@ -113,6 +114,13 @@ export function ListadoSolicitudes({ recibidas = false }: { recibidas?: boolean 
                 <StatusBadge tone={s.estado === "rechazada" ? "danger" : "pending"}>
                   {ESTADO[s.estado]}
                 </StatusBadge>
+                {recibidas ? (
+                  <div className="mt-3">
+                    <Button asChild variant="outline">
+                      <Link to={`${base}/${s.id}`}>Ver solicitud</Link>
+                    </Button>
+                  </div>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -146,31 +154,88 @@ export function DetalleSolicitud({ recibidas = false }: { recibidas?: boolean })
   if (id === undefined || (solicitud.error instanceof ApiError && solicitud.error.status === 404))
     return <NotFound />;
   const s = solicitud.data;
+  const metadata = s ? (
+    <>
+      {" "}
+      <p>
+        {s.taller.nombre} · {ESTADO[s.estado]}
+      </p>
+      {"comprador" in s ? <p>Comprador: {s.comprador.nombre}</p> : null}
+      <p>
+        Entrega preferida: {ENTREGA[s.modalidadEntregaPreferida]}
+        {s.descripcionEntregaPreferida ? ` — ${s.descripcionEntregaPreferida}` : ""}
+      </p>
+      <p className="rounded-lg border p-4 text-sm">{AVISO[s.estado]}</p>
+    </>
+  ) : null;
   return (
     <SiteLayout>
       <PageContainer>
-        <Link
-          to={recibidas ? "/panel/solicitudes" : "/solicitudes"}
-          className="inline-flex min-h-11 items-center text-primary"
-        >
-          Volver a solicitudes
-        </Link>
-        <h1 className="font-display text-3xl font-bold">Solicitud #{id}</h1>
+        {recibidas ? (
+          <PageHeader
+            title={`Solicitud #${id}`}
+            back={{
+              to: recibidas ? "/panel/solicitudes" : "/solicitudes",
+              label: "Volver a solicitudes",
+            }}
+            description={
+              recibidas && s && "comprador" in s
+                ? `${s.comprador.nombre} · ${formatDate(s.creadoEn)}`
+                : ""
+            }
+          />
+        ) : (
+          <>
+            <Link to="/solicitudes" className="inline-flex min-h-11 items-center text-primary">
+              Volver a solicitudes
+            </Link>
+            <h1 className="font-display text-3xl font-bold">Solicitud #{id}</h1>
+          </>
+        )}
         {solicitud.isPending ? (
           <LoadingState label="Cargando solicitud…" />
         ) : solicitud.isError ? (
-          <ErrorState mensaje={solicitud.error.message} onRetry={() => void solicitud.refetch()} />
+          <ErrorState
+            mensaje={mensajeDominio(solicitud.error)}
+            onRetry={() => void solicitud.refetch()}
+          />
         ) : s ? (
           <>
-            <p>
-              {s.taller.nombre} · {ESTADO[s.estado]}
-            </p>
-            {"comprador" in s ? <p>Comprador: {s.comprador.nombre}</p> : null}
-            <p>
-              Entrega preferida: {ENTREGA[s.modalidadEntregaPreferida]}
-              {s.descripcionEntregaPreferida ? ` — ${s.descripcionEntregaPreferida}` : ""}
-            </p>
-            <p className="rounded-lg border p-4 text-sm">{AVISO[s.estado]}</p>
+            {recibidas && solicitudesReales ? (
+              <section
+                aria-label="Próximo paso de la solicitud"
+                className="space-y-2 rounded-xl border bg-card p-4"
+              >
+                <h2 className="font-semibold">
+                  {s.estado === "pendiente_revision"
+                    ? "Revisá cada producto solicitado"
+                    : s.estado === "lista_propuesta"
+                      ? "Prepará la propuesta para el comprador"
+                      : s.estado === "propuesta_emitida"
+                        ? "Consultá la propuesta y la decisión del comprador"
+                        : "Solicitud finalizada"}
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  {s.estado === "pendiente_revision"
+                    ? "Aceptá o rechazá cada producto. Después preparás la propuesta."
+                    : s.estado === "lista_propuesta"
+                      ? "Definí precios y entrega. El comprador confirma el pedido al aceptar tu propuesta."
+                      : s.estado === "propuesta_emitida"
+                        ? "Consultá las condiciones enviadas y la respuesta del comprador."
+                        : "Conservamos los productos y sus motivos de rechazo."}
+                </p>
+              </section>
+            ) : null}
+            {recibidas ? (
+              <details className="rounded-lg border p-4">
+                <summary className="list-item min-h-11 cursor-pointer py-3 font-medium">
+                  Entrega y condiciones de la solicitud
+                </summary>
+                <div className="space-y-3">{metadata}</div>
+              </details>
+            ) : (
+              metadata
+            )}
             <ol className="space-y-4">
               {s.renglones.map((r) => (
                 <li key={r.id} className="space-y-2 rounded-xl border p-4">
