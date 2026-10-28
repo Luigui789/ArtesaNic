@@ -46,7 +46,8 @@ class TalleresView(_VistaPublica):
         operation_id="listar_talleres",
         summary="Listar los talleres aprobados",
         description="Perfiles públicos de los talleres aprobados, por nombre. Los pendientes "
-        "y los rechazados no aparecen.",
+        "y los rechazados no aparecen. `ubicacion_mapa` trae la posición solo si el artesano "
+        "autorizó publicarla; si no, es null.",
         auth=[],
         responses={200: TallerPublicoSerializer(many=True)},
     )
@@ -87,7 +88,8 @@ class MiTallerView(APIView):
         operation_id="consultar_mi_taller",
         summary="Consultar el taller propio",
         description="Taller del artesano autenticado, en cualquier estado, con el resultado "
-        "de su revisión.",
+        "de su revisión. Incluye `latitud`, `longitud` y `ubicacion_publica` aunque la "
+        "ubicación sea privada.",
         responses={
             200: TallerPropioSerializer,
             401: OpenApiResponse(ErrorSerializer, description="Sin token o token no válido."),
@@ -104,7 +106,9 @@ class MiTallerView(APIView):
         summary="Actualizar el perfil del taller propio",
         description="Modifica solo los campos enviados del perfil público (RF-008). Estado, "
         "propietario y revisión no son modificables: enviarlos responde 400. Editar el perfil "
-        "no cambia el estado de aprobación.",
+        "no cambia el estado de aprobación. `latitud` y `longitud` van juntas: para quitar la "
+        "ubicación se envían ambas en null con `ubicacion_publica` en false; no se puede "
+        "publicar sin coordenadas.",
         request=ActualizarPerfilTallerSerializer(partial=True),
         responses={
             200: TallerPropioSerializer,

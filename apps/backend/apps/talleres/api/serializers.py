@@ -8,7 +8,18 @@ from apps.accounts.api.serializers import (
 )
 from apps.catalogo.imagenes import validar_fotografia
 
-from ..models import CAMPOS_ACTUALIZABLES_PERFIL, CAMPOS_PERFIL, Taller, validar_url_web
+from ..models import (
+    CAMPOS_ACTUALIZABLES_PERFIL,
+    CAMPOS_PERFIL,
+    CAMPOS_UBICACION,
+    DECIMALES_COORDENADA,
+    Taller,
+    errores_ubicacion,
+    validar_url_web,
+)
+
+AYUDA_LATITUD = "Latitud en grados decimales (WGS 84), de -90 a 90, con hasta 6 decimales."
+AYUDA_LONGITUD = "Longitud en grados decimales (WGS 84), de -180 a 180, con hasta 6 decimales."
 
 
 class TelefonoPublicoField(TelefonoField):
@@ -21,7 +32,7 @@ class TelefonoPublicoField(TelefonoField):
 
 
 class PerfilTallerEntradaSerializer(SinCamposDesconocidosMixin, serializers.ModelSerializer):
-    """Datos del perfil que escribe el artesano (RF-008).
+    """Datos del perfil y ubicación que escribe el artesano (RF-008, FEAT-GEO-01).
 
     Propietario, estado y revisión no son campos de entrada: enviarlos responde 400.
     """
@@ -34,12 +45,33 @@ class PerfilTallerEntradaSerializer(SinCamposDesconocidosMixin, serializers.Mode
 
     class Meta:
         model = Taller
-        fields = list(CAMPOS_PERFIL)
+        fields = [*CAMPOS_PERFIL, *CAMPOS_UBICACION]
         # DRF descarta los URLValidator del modelo y aplica el suyo, que admite ftp://.
         extra_kwargs = {
-            campo: {"validators": [validar_url_web]}
-            for campo in ("facebook_url", "instagram_url", "sitio_web")
+            **{
+                campo: {"validators": [validar_url_web]}
+                for campo in ("facebook_url", "instagram_url", "sitio_web")
+            },
+            "latitud": {"help_text": AYUDA_LATITUD},
+            "longitud": {"help_text": AYUDA_LONGITUD},
         }
+
+    def validate(self, attrs):
+        # Se valida la ubicación resultante: en una edición parcial, los campos no
+        # enviados conservan el valor actual del taller.
+        final = {
+            campo: attrs.get(
+                campo,
+                getattr(self.instance, campo)
+                if self.instance is not None
+                else Taller._meta.get_field(campo).get_default(),
+            )
+            for campo in CAMPOS_UBICACION
+        }
+        errores = errores_ubicacion(**final)
+        if errores:
+            raise serializers.ValidationError(errores)
+        return super().validate(attrs)
 
 
 class ActualizarPerfilTallerSerializer(PerfilTallerEntradaSerializer):
@@ -71,6 +103,20 @@ class RegistroArtesanoSerializer(RegistroSerializer):
     )
 
 
+class UbicacionMapaSerializer(serializers.Serializer):
+    """Posición pública del taller en el mapa."""
+
+    latitud = serializers.DecimalField(
+        max_digits=9, decimal_places=DECIMALES_COORDENADA, read_only=True, help_text=AYUDA_LATITUD
+    )
+    longitud = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=DECIMALES_COORDENADA,
+        read_only=True,
+        help_text=AYUDA_LONGITUD,
+    )
+
+
 class _TallerLecturaSerializer(serializers.ModelSerializer):
     imagen_perfil_url = serializers.SerializerMethodField()
     imagen_portada_url = serializers.SerializerMethodField()
@@ -85,22 +131,42 @@ class _TallerLecturaSerializer(serializers.ModelSerializer):
 
 
 class TallerPublicoSerializer(_TallerLecturaSerializer):
-    """Perfil público del taller aprobado. Sin propietario, estado ni datos de la cuenta."""
+    """Perfil público del taller aprobado. Sin propietario, estado ni datos de la cuenta.
 
-    class Meta:
-        model = Taller
-        fields = ["id", *CAMPOS_PERFIL, "imagen_perfil_url", "imagen_portada_url"]
-        read_only_fields = fields
+    Las coordenadas no se exponen sueltas: solo dentro de ``ubicacion_mapa`` y solo si
+    el artesano autorizó publicarlas.
+    """
 
-
-class TallerPropioSerializer(_TallerLecturaSerializer):
-    """Taller del artesano autenticado: el perfil y el resultado de su revisión."""
+    ubicacion_mapa = serializers.SerializerMethodField(
+        help_text="Posición del taller en el mapa, o null si el artesano no autorizó "
+        "publicarla o no la ha registrado."
+    )
 
     class Meta:
         model = Taller
         fields = [
             "id",
             *CAMPOS_PERFIL,
+            "imagen_perfil_url",
+            "imagen_portada_url",
+            "ubicacion_mapa",
+        ]
+        read_only_fields = fields
+
+    @extend_schema_field(UbicacionMapaSerializer(allow_null=True))
+    def get_ubicacion_mapa(self, obj):
+        return UbicacionMapaSerializer(obj).data if obj.publica_ubicacion else None
+
+
+class TallerPropioSerializer(_TallerLecturaSerializer):
+    """Taller del artesano autenticado: perfil, ubicación (aunque sea privada) y revisión."""
+
+    class Meta:
+        model = Taller
+        fields = [
+            "id",
+            *CAMPOS_PERFIL,
+            *CAMPOS_UBICACION,
             "imagen_perfil_url",
             "imagen_portada_url",
             "estado",
