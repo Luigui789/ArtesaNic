@@ -3,36 +3,64 @@ import { Switch } from "@/components/ui/switch";
 import { SelectorUbicacionTaller } from "@/features/talleres/components/selector-ubicacion-taller";
 import { conUbicacion, type EstadoUbicacion } from "@/features/talleres/ubicacion";
 
+type Contexto = "perfil" | "registro";
+
 type Props = {
   value: EstadoUbicacion;
   onChange: (actualizar: (actual: EstadoUbicacion) => EstadoUbicacion) => void;
   /** La ubicación guardada no se pudo leer (datos inesperados del servidor). */
-  invalida: boolean;
+  invalida?: boolean;
   error?: string | undefined;
   disabled: boolean;
+  /** Formulario que la contiene; solo cambia textos e identificadores. */
+  contexto?: Contexto;
+};
+
+const TEXTOS: Record<Contexto, { titulo: string; descripcion: string; publica: string }> = {
+  perfil: {
+    titulo: "Ubicación del taller",
+    descripcion:
+      "Busca un lugar o selecciona tu taller en el mapa. Los cambios se guardan con «Guardar cambios».",
+    publica:
+      "Si activas esta opción, los compradores podrán ver la posición exacta que selecciones.",
+  },
+  // El taller recién registrado queda pendiente: nada se publica antes de la aprobación.
+  registro: {
+    titulo: "Ubicación del taller (opcional)",
+    descripcion:
+      "Puedes indicar dónde se encuentra tu taller ahora o hacerlo después desde tu perfil.",
+    publica:
+      "Si activas esta opción, los compradores podrán ver la posición exacta seleccionada una vez que tu taller sea aprobado.",
+  },
 };
 
 /**
- * «Ubicación del taller» del perfil (FEAT-GEO-02): selector en el mapa y decisión
- * explícita de publicar. Buscar, usar el GPS o mover el pin nunca publica; sin
- * ubicación el switch queda apagado y deshabilitado. No guarda: el formulario envía
- * estos cambios con el resto del perfil.
+ * «Ubicación del taller» del perfil (FEAT-GEO-02) y del registro de artesano
+ * (FEAT-GEO-03): selector en el mapa y decisión explícita de publicar. Buscar, usar el
+ * GPS o mover el pin nunca publica; sin ubicación el switch queda apagado y
+ * deshabilitado. No guarda: el formulario envía estos datos con el resto.
  */
-export function SeccionUbicacionTaller({ value, onChange, invalida, error, disabled }: Props) {
+export function SeccionUbicacionTaller({
+  value,
+  onChange,
+  invalida = false,
+  error,
+  disabled,
+  contexto = "perfil",
+}: Props) {
   const sinUbicacion = value.ubicacion === null;
+  const textos = TEXTOS[contexto];
+  const id = `${contexto}-ubicacion`;
   return (
     <section
-      aria-labelledby="perfil-ubicacion-titulo"
+      aria-labelledby={`${id}-titulo`}
       className="space-y-3 rounded-xl border bg-surface/40 p-4"
     >
       <div>
-        <h3 id="perfil-ubicacion-titulo" className="font-semibold">
-          Ubicación del taller
+        <h3 id={`${id}-titulo`} className="font-semibold">
+          {textos.titulo}
         </h3>
-        <p className="text-sm text-muted-foreground">
-          Busca un lugar o selecciona tu taller en el mapa. Los cambios se guardan con «Guardar
-          cambios».
-        </p>
+        <p className="text-sm text-muted-foreground">{textos.descripcion}</p>
       </div>
       {invalida ? (
         <p role="alert" className="text-sm text-destructive">
@@ -47,20 +75,18 @@ export function SeccionUbicacionTaller({ value, onChange, invalida, error, disab
       <div className="space-y-1">
         <div className="flex min-h-11 items-center gap-3">
           <Switch
-            id="perfil-ubicacion-publica"
+            id={`${id}-publica`}
             checked={!sinUbicacion && value.publica}
             disabled={sinUbicacion || disabled}
-            aria-describedby="perfil-ubicacion-publica-ayuda"
+            aria-describedby={`${id}-publica-ayuda`}
             onCheckedChange={(publica) => onChange((actual) => ({ ...actual, publica }))}
           />
-          <Label htmlFor="perfil-ubicacion-publica" className="cursor-pointer py-2">
+          <Label htmlFor={`${id}-publica`} className="cursor-pointer py-2">
             Mostrar mi ubicación en el mapa público
           </Label>
         </div>
-        <p id="perfil-ubicacion-publica-ayuda" className="text-xs text-muted-foreground">
-          {sinUbicacion
-            ? "Primero selecciona la ubicación de tu taller."
-            : "Si activas esta opción, los compradores podrán ver la posición exacta que selecciones."}
+        <p id={`${id}-publica-ayuda`} className="text-xs text-muted-foreground">
+          {sinUbicacion ? "Primero selecciona la ubicación de tu taller." : textos.publica}
         </p>
       </div>
       {error ? (
