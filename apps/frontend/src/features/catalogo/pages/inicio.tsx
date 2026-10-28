@@ -4,11 +4,15 @@ import { ArrowRight, Search, Sparkles } from "lucide-react";
 import { CATEGORY_IMAGE } from "@/lib/category-images";
 import { Button } from "@/components/ui/button";
 import { PublicLayout } from "@/components/layout/public-layout";
-import { ProductCard, ProductCardSkeleton } from "@/features/catalogo/components/product-card";
+import {
+  ProductCard,
+  ProductCardSkeleton,
+  ProductImage,
+} from "@/features/catalogo/components/product-card";
 import { ArtisanCard } from "@/features/talleres/components/artisan-card";
 import { ErrorState } from "@/components/common/states";
-import { listPerfilesTalleres } from "@/features/talleres/api";
-import { listCatalog, listCategories } from "@/features/catalogo/api";
+import { talleresPublicosQuery } from "@/features/talleres/queries";
+import { categoriasQuery, productosRecientesQuery } from "@/features/catalogo/queries";
 import { useDocumentHead } from "@/hooks/use-document-head";
 
 export default function Index() {
@@ -31,16 +35,10 @@ export default function Index() {
     canonical: "/descubrir",
   });
 
-  const categorias = useQuery({ queryKey: ["categorias"], queryFn: listCategories });
+  const categorias = useQuery(categoriasQuery);
   // Contrato §12.1: se muestran los productos más recientes publicados.
-  const productos = useQuery({
-    queryKey: ["catalogo", "portada"],
-    queryFn: () => listCatalog({ orden: "recientes", pageSize: 8 }),
-  });
-  const artesanos = useQuery({
-    queryKey: ["talleres-publicos"],
-    queryFn: ({ signal }) => listPerfilesTalleres(signal),
-  });
+  const productos = useQuery(productosRecientesQuery);
+  const artesanos = useQuery(talleresPublicosQuery);
 
   return (
     <PublicLayout>
@@ -73,7 +71,11 @@ export default function Index() {
 
       {/* Categorías */}
       {categorias.isError ? null : (
-        <section className="mx-auto max-w-7xl px-4 py-12" aria-labelledby="titulo-categorias">
+        <section
+          id="categorias"
+          className="mx-auto max-w-7xl scroll-mt-24 px-4 py-12"
+          aria-labelledby="titulo-categorias"
+        >
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 id="titulo-categorias" className="font-display text-2xl font-bold sm:text-3xl">
@@ -102,16 +104,10 @@ export default function Index() {
                       to={`/catalogo?categoria=${c.codigo}`}
                       className="group block overflow-hidden rounded-xl border bg-card transition-colors hover:border-primary/40"
                     >
-                      <div className="aspect-square overflow-hidden bg-surface">
-                        <img
-                          src={CATEGORY_IMAGE[c.codigo]}
-                          alt=""
-                          loading="lazy"
-                          width={1024}
-                          height={768}
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        />
-                      </div>
+                      <ProductImage
+                        src={CATEGORY_IMAGE[c.codigo]}
+                        className="aspect-square transition-transform duration-300 group-hover:scale-105"
+                      />
                       <span className="flex min-h-11 items-center justify-center px-2 text-center text-sm font-medium">
                         {c.nombre}
                       </span>
