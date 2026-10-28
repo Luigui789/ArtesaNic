@@ -3,6 +3,7 @@ import { HeroSection } from "@/components/home/hero-section";
 import { HowItWorksSection } from "@/components/home/how-it-works-section";
 import { ArtisanSection } from "@/components/home/artisan-section";
 import { DiscoverPreview } from "@/components/home/discover-preview";
+import { FinalCta } from "@/components/home/final-cta";
 import { useDocumentHead } from "@/hooks/use-document-head";
 
 export default function Home() {
@@ -31,6 +32,7 @@ export default function Home() {
       <DiscoverPreview />
       <HowItWorksSection />
       <ArtisanSection />
+      <FinalCta />
     </PublicLayout>
   );
 }
