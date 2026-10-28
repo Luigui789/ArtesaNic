@@ -14,6 +14,7 @@ import {
   renovarAcceso,
   solicitar,
 } from "@/lib/http";
+import { crearUbicacion } from "@/features/talleres/ubicacion";
 import type {
   ActualizarPerfilEntrada,
   Credenciales,
@@ -56,6 +57,17 @@ export function cuerpoRegistroComprador({ nombre, telefono, password }: Registro
   return { nombre, telefono, password };
 }
 
+/**
+ * Campos geográficos del taller (FEAT-GEO-03): las coordenadas redondeadas a 6
+ * decimales y la publicación solo si es `true` explícito. Sin ubicación válida no se
+ * envía nada, así nunca viaja `ubicacion_publica=true` sin coordenadas.
+ */
+function cuerpoUbicacion({ ubicacion, ubicacionPublica }: TallerEntrada) {
+  const u = ubicacion ? crearUbicacion(ubicacion.latitud, ubicacion.longitud) : null;
+  if (!u) return {};
+  return { latitud: u.latitud, longitud: u.longitud, ubicacion_publica: ubicacionPublica === true };
+}
+
 /** Solo los campos opcionales que el artesano escribió: nada se publica por omisión. */
 export function cuerpoTaller(t: TallerEntrada) {
   const opcionales = {
@@ -72,6 +84,7 @@ export function cuerpoTaller(t: TallerEntrada) {
     rubro: t.rubro,
     direccion_completa: t.direccionCompleta,
     ...Object.fromEntries(Object.entries(opcionales).filter(([, v]) => v?.trim())),
+    ...cuerpoUbicacion(t),
   };
 }
 
