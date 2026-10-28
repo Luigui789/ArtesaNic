@@ -164,7 +164,12 @@ export function VistaCumplimiento({
         ))}
       </ol>
       {acciones && entregables.length ? (
-        <FormularioEntrega pedido={pedido} lineas={entregables} snapshot={snapshot} />
+        <details className="rounded-lg border p-4">
+          <summary className="list-item min-h-11 cursor-pointer py-3 font-semibold text-primary">
+            Registrar una entrega
+          </summary>
+          <FormularioEntrega pedido={pedido} lineas={entregables} snapshot={snapshot} />
+        </details>
       ) : null}
       <HistorialEntregas
         pedido={pedido.id}
