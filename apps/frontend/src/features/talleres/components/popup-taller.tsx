@@ -13,9 +13,10 @@ export function PopupTaller({ marcador, enlace }: { marcador: MarcadorTaller; en
       <p className="m-0 text-xs text-muted-foreground">{marcador.rubro}</p>
       <p className="m-0 break-words text-xs text-muted-foreground">{marcador.direccion}</p>
       {enlace ? (
+        // `!`: la hoja de Leaflet fija el color de los enlaces del mapa (`.leaflet-container a`).
         <Link
           to={`/artesano/${marcador.id}`}
-          className="inline-flex min-h-11 items-center text-sm font-medium text-primary underline-offset-2 hover:underline"
+          className="inline-flex min-h-11 items-center text-sm font-medium text-primary! underline-offset-2 hover:underline"
         >
           Ver taller
         </Link>
