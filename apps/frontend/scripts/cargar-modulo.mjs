@@ -5,6 +5,10 @@ import { build } from "vite";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+// El bundle se importa como `data:` URL, que no resuelve otros chunks: los `import()`
+// dinámicos (p. ej. el mapa Leaflet, solo de navegador) se incluyen en el mismo chunk.
+// Siguen siendo diferidos: su código no se evalúa hasta que se llama a `import()`.
+const UN_CHUNK = { output: { codeSplitting: false } };
 
 export async function cargarModulo(entry, env = {}) {
   const anteriores = Object.fromEntries(Object.keys(env).map((k) => [k, process.env[k]]));
@@ -15,7 +19,12 @@ export async function cargarModulo(entry, env = {}) {
       root,
       logLevel: "error",
       resolve: { alias: { "@": fileURLToPath(new URL("../src", import.meta.url)) } },
-      build: { write: false, minify: false, lib: { entry, formats: ["es"] } },
+      build: {
+        write: false,
+        minify: false,
+        lib: { entry, formats: ["es"] },
+        rollupOptions: UN_CHUNK,
+      },
     });
     const output = (Array.isArray(result) ? result[0] : result).output.find(
       (o) => o.type === "chunk",
@@ -58,7 +67,12 @@ export async function cargarModulos(modulos, env = {}) {
           load: (id) => (id === `\0${virtual}` ? codigo : undefined),
         },
       ],
-      build: { write: false, minify: false, lib: { entry: virtual, formats: ["es"] } },
+      build: {
+        write: false,
+        minify: false,
+        lib: { entry: virtual, formats: ["es"] },
+        rollupOptions: UN_CHUNK,
+      },
     });
     const output = (Array.isArray(result) ? result[0] : result).output.find(
       (o) => o.type === "chunk",
