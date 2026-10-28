@@ -3,6 +3,7 @@
 // (JSON y multipart), utilidades puras y render en Node sin `window` (Leaflet es
 // solo del navegador).
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { cargarModulos } from "./cargar-modulo.mjs";
 
 // P0: el módulo se compila e importa en Node sin navegador. Si Leaflet se evaluara al
@@ -31,6 +32,8 @@ const m = await cargarModulos(
     propio: "@/features/talleres/perfil-propio",
     ubicacion: "@/features/talleres/ubicacion",
     mapa: "@/features/talleres/mapa",
+    geocoding: "@/features/talleres/geocoding",
+    geolocation: "@/features/talleres/geolocation",
     selector: "@/features/talleres/components/selector-ubicacion-taller",
     panel: "@/features/talleres/pages/panel-taller",
     moneda: "@/hooks/use-currency",
@@ -342,6 +345,223 @@ await verificar("PATCH multipart: imagen + ubicación en una sola petición", as
   assert.equal(sin.ubicacionPublica, false);
 });
 
+// ---------- Geocodificación (Nominatim mockeado: nunca se llama al servicio real) ----------
+
+const NOMINATIM = [
+  {
+    place_id: 101,
+    lat: "11.9741537",
+    lon: "-86.0950123",
+    display_name: "Mercado de Artesanías, Masaya, Nicaragua",
+  },
+  { place_id: 102, lat: "11.9611", lon: "-86.0989", display_name: "Monimbó, Masaya, Nicaragua" },
+];
+/** Geocodificador con reloj y espera simulados; registra las llamadas a fetch. */
+function geocodificador(respuesta = () => json(200, NOMINATIM)) {
+  const llamadas = [];
+  const esperas = [];
+  const reloj = { t: 10_000 };
+  const { buscar } = m.geocoding.crearGeocodificador({
+    url: "https://geo.test/search",
+    ahora: () => reloj.t,
+    // Temporizador virtual: cada espera termina en un instante absoluto, como setTimeout.
+    esperar: async (ms) => {
+      esperas.push(ms);
+      const objetivo = reloj.t + ms;
+      await Promise.resolve();
+      reloj.t = Math.max(reloj.t, objetivo);
+    },
+    fetch: async (url, init) => {
+      llamadas.push({ url: new URL(url), init });
+      return respuesta();
+    },
+  });
+  return { buscar, llamadas, esperas, reloj };
+}
+
+await verificar("geocodificación: URL, parámetros y normalización", async () => {
+  const g = geocodificador();
+  assert.equal(g.llamadas.length, 0, "crear el geocodificador no hace peticiones");
+  const r = await g.buscar("  Mercado de Artesanías ");
+  const [{ url, init }] = g.llamadas;
+  assert.equal(`${url.origin}${url.pathname}`, "https://geo.test/search");
+  assert.equal(url.searchParams.get("q"), "Mercado de Artesanías");
+  assert.equal(url.searchParams.get("format"), "jsonv2");
+  assert.equal(url.searchParams.get("countrycodes"), "ni");
+  assert.ok(Number(url.searchParams.get("limit")) <= 5);
+  assert.equal(url.searchParams.has("addressdetails"), false);
+  assert.equal(init.credentials, "omit");
+  assert.deepEqual(r[0], {
+    id: "101",
+    nombre: "Mercado de Artesanías, Masaya, Nicaragua",
+    ubicacion: { latitud: 11.974154, longitud: -86.095012 }, // redondeado a 6 decimales
+  });
+  assert.equal(r.length, 2);
+  assert.deepEqual(await g.buscar("   "), []);
+  assert.equal(g.llamadas.length, 1, "una consulta vacía no llama al servicio");
+});
+
+await verificar(
+  "geocodificación: vacía, error HTTP, JSON inválido, coordenadas inválidas",
+  async () => {
+    assert.deepEqual(await geocodificador(() => json(200, [])).buscar("Nada"), []);
+    for (const respuesta of [
+      () => json(503, { error: "ocupado" }),
+      () => json(429, {}),
+      () => new Response("<html>", { status: 200 }),
+      () => json(200, { error: "Unable to geocode" }),
+    ])
+      await assert.rejects(geocodificador(respuesta).buscar("Masaya"), (e) => {
+        assert.equal(e.name, "ErrorGeocodificacion");
+        assert.match(e.message, /No pudimos buscar ese lugar/);
+        return true;
+      });
+    const red = geocodificador(() => {
+      throw new TypeError("Failed to fetch");
+    });
+    await assert.rejects(red.buscar("Masaya"), (e) => e.name === "ErrorGeocodificacion");
+    const raros = await geocodificador(() =>
+      json(200, [
+        { place_id: 1, lat: "abc", lon: "-86.1", display_name: "Texto" },
+        { place_id: 2, lat: "95", lon: "-86.1", display_name: "Fuera de rango" },
+        { place_id: 3, lat: 11.9, lon: -86.1, display_name: "Números, no texto" },
+        { place_id: 4, lat: "11.97", lon: "-86.09" }, // sin nombre
+        null,
+        ...NOMINATIM,
+        ...NOMINATIM.map((r, i) => ({ ...r, place_id: 200 + i })),
+        ...NOMINATIM.map((r, i) => ({ ...r, place_id: 300 + i })),
+      ]),
+    ).buscar("Masaya");
+    assert.deepEqual(
+      raros.map((r) => r.id),
+      ["101", "102", "200", "201", "300"],
+      "descarta inválidos y no pasa de 5",
+    );
+  },
+);
+
+await verificar("geocodificación: caché por consulta normalizada", async () => {
+  const g = geocodificador();
+  const a = await g.buscar("Mercado de Artesanías");
+  const b = await g.buscar("  mercado   de ARTESANIAS ");
+  assert.equal(b, a);
+  assert.equal(g.llamadas.length, 1, "la búsqueda repetida no vuelve a llamar");
+  assert.equal(m.geocoding.normalizarConsulta(" Monimbó  "), "monimbo");
+  // Los errores no se guardan: reintentar vuelve a consultar.
+  let fallar = true;
+  const h = geocodificador(() => (fallar ? json(500, {}) : json(200, NOMINATIM)));
+  await assert.rejects(h.buscar("Masaya"));
+  fallar = false;
+  assert.equal((await h.buscar("Masaya")).length, 2);
+  assert.equal(h.llamadas.length, 2);
+});
+
+await verificar("geocodificación: como máximo 1 petición por segundo", async () => {
+  const g = geocodificador();
+  await g.buscar("Masaya");
+  g.reloj.t += 300; // segunda búsqueda a los 300 ms
+  await g.buscar("Monimbó");
+  assert.deepEqual(g.esperas, [700], "espera hasta completar 1 s");
+  g.reloj.t += 5_000;
+  await g.buscar("Parque San Jerónimo");
+  assert.deepEqual(g.esperas, [700], "pasado 1 s no espera");
+  // Dos búsquedas simultáneas quedan espaciadas (el turno se reserva antes de esperar).
+  const c = geocodificador();
+  await Promise.all([c.buscar("uno"), c.buscar("dos"), c.buscar("tres")]);
+  // Las tres empiezan en t=10 000: salen a 10 000, 11 000 y 12 000 ms.
+  assert.deepEqual(c.esperas, [1000, 2000]);
+  assert.equal(c.llamadas.length, 3);
+  // Una caché no consume turno.
+  const d = geocodificador();
+  await d.buscar("Masaya");
+  await d.buscar("masaya");
+  await d.buscar("Catarina");
+  assert.deepEqual(d.esperas, [1000]);
+});
+
+await verificar("geocodificación: sin autocompletado", async () => {
+  // La API del módulo solo expone `buscar` (acción explícita): no hay debounce ni
+  // suscripción a lo que se escribe.
+  assert.deepEqual(Object.keys(m.geocoding.crearGeocodificador()), ["buscar"]);
+  // Renderizar el selector con texto escrito no dispara búsquedas.
+  const antes = peticiones.length;
+  await renderizar((h) =>
+    h(m.selector.SelectorUbicacionTaller, { value: null, onChange: () => undefined }),
+  );
+  assert.equal(peticiones.length, antes);
+  // Comprobación complementaria de la fuente: el selector no hace fetch directo y
+  // solo llama a la búsqueda desde `buscar()` (botón Buscar o Enter).
+  const fuente = readFileSync(
+    new URL("../src/features/talleres/components/selector-ubicacion-taller.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.doesNotMatch(fuente, /\bfetch\(/);
+  assert.equal(fuente.match(/buscarLugar\(/g)?.length, 1);
+  assert.match(fuente, /onChange=\{\(e\) => setConsulta\(e\.target\.value\)\}/);
+});
+
+// ---------- Geolocalización (navigator.geolocation mockeado) ----------
+
+const geo = (fn) => ({
+  getCurrentPosition: (ok, error, opciones) => {
+    geo.opciones = opciones;
+    fn(ok, error);
+  },
+});
+
+await verificar(
+  "geolocalización: éxito, denegado, no disponible, tiempo, no soportada",
+  async () => {
+    const { obtenerUbicacionActual, MENSAJES_GEOLOCALIZACION } = m.geolocation;
+    const exito = await obtenerUbicacionActual({
+      geolocalizacion: geo((ok) =>
+        ok({ coords: { latitude: 11.97123449, longitude: -86.0956784 } }),
+      ),
+      contextoSeguro: true,
+    });
+    assert.deepEqual(exito, { ok: true, ubicacion: { latitud: 11.971234, longitud: -86.095678 } });
+    assert.equal(geo.opciones.timeout > 0, true);
+    for (const [code, fallo] of [
+      [1, "denegado"],
+      [2, "no-disponible"],
+      [3, "tiempo"],
+    ]) {
+      const r = await obtenerUbicacionActual({
+        geolocalizacion: geo((_, error) => error({ code })),
+        contextoSeguro: true,
+      });
+      assert.deepEqual(r, { ok: false, fallo });
+    }
+    assert.deepEqual(await obtenerUbicacionActual({ contextoSeguro: true }), {
+      ok: false,
+      fallo: "no-soportado",
+    });
+    // Node no tiene navigator.geolocation: el entorno por defecto es «no soportado».
+    assert.deepEqual(await obtenerUbicacionActual(), { ok: false, fallo: "no-soportado" });
+    // HTTP no seguro: ni siquiera se pide.
+    let pedida = false;
+    const inseguro = await obtenerUbicacionActual({
+      geolocalizacion: geo(() => (pedida = true)),
+      contextoSeguro: false,
+    });
+    assert.deepEqual(inseguro, { ok: false, fallo: "inseguro" });
+    assert.equal(pedida, false);
+    // Coordenadas absurdas del dispositivo no se emiten.
+    const absurda = await obtenerUbicacionActual({
+      geolocalizacion: geo((ok) => ok({ coords: { latitude: Number.NaN, longitude: 0 } })),
+    });
+    assert.deepEqual(absurda, { ok: false, fallo: "no-disponible" });
+    for (const mensaje of Object.values(MENSAJES_GEOLOCALIZACION))
+      assert.match(mensaje, /buscar un lugar o mover el marcador manualmente/);
+    // Solo lectura puntual: el módulo no usa seguimiento continuo.
+    const fuente = readFileSync(
+      new URL("../src/features/talleres/geolocation.ts", import.meta.url),
+      "utf8",
+    );
+    assert.doesNotMatch(fuente, /watchPosition\(/);
+  },
+);
+
 // ---------- Render en Node (P0) ----------
 
 await verificar(
@@ -354,6 +574,10 @@ await verificar(
     assert.match(texto(vacio), /Aún no has seleccionado la ubicación/);
     assert.doesNotMatch(texto(vacio), /Quitar ubicación/);
     assert.doesNotMatch(vacio, /leaflet-container/, "el mapa no se monta fuera del navegador");
+    assert.match(vacio, /id="ubicacion-busqueda"/);
+    assert.match(texto(vacio), /Buscar/);
+    assert.match(texto(vacio), /Usar mi ubicación actual/);
+    assert.match(texto(vacio), /OpenStreetMap/);
 
     const con = await renderizar((h) =>
       h(m.selector.SelectorUbicacionTaller, {
