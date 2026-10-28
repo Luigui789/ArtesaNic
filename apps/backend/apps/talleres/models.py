@@ -61,12 +61,21 @@ CAMPOS_PERFIL = (
     "sitio_web",
 )
 
+# Posición del taller en el mapa (FEAT-GEO-01). El artesano la edita, pero no forma
+# parte del perfil público: la API pública la entrega solo como ``ubicacion_mapa``
+# cuando el artesano autoriza publicarla.
+CAMPOS_UBICACION = (
+    "latitud",
+    "longitud",
+    "ubicacion_publica",
+)
+
 CAMPOS_IMAGENES = (
     "imagen_perfil",
     "imagen_portada",
 )
 
-CAMPOS_ACTUALIZABLES_PERFIL = (*CAMPOS_PERFIL, *CAMPOS_IMAGENES)
+CAMPOS_ACTUALIZABLES_PERFIL = (*CAMPOS_PERFIL, *CAMPOS_UBICACION, *CAMPOS_IMAGENES)
 
 # Contiene al menos un carácter que no es espacio. \S significa lo mismo en
 # Python y en PostgreSQL.
@@ -275,6 +284,17 @@ class Taller(models.Model):
     @property
     def es_publico(self) -> bool:
         return self.estado == EstadoTaller.APROBADO
+
+    @property
+    def publica_ubicacion(self) -> bool:
+        """La posición sale en el mapa público solo si el taller es público, el
+        artesano lo autorizó y existen ambas coordenadas."""
+        return (
+            self.es_publico
+            and self.ubicacion_publica
+            and self.latitud is not None
+            and self.longitud is not None
+        )
 
     @property
     def habilita_operacion(self) -> bool:

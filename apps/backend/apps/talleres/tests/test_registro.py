@@ -1,6 +1,7 @@
 """El registro del artesano crea la cuenta y su taller pendiente en una transacción (RF-004,
 RF-008, RN-002); el del comprador no crea taller."""
 
+from decimal import Decimal
 from unittest import mock
 
 from django.core.exceptions import ValidationError
@@ -146,6 +147,57 @@ class RegistroArtesanoTests(AuthAPITestCase):
         )
         self.assertEqual(Usuario.objects.count(), 1)
         self.assertEqual(Taller.objects.count(), 1)
+
+
+class RegistroConUbicacionTests(AuthAPITestCase):
+    """La ubicación es opcional en el alta; el registro anterior no cambia (FEAT-GEO-01)."""
+
+    def assertSinCuentasNiTalleres(self):
+        self.assertFalse(Usuario.objects.exists())
+        self.assertFalse(Taller.objects.exists())
+
+    def test_registro_sin_ubicacion_sigue_funcionando(self):
+        respuesta = self.post_con_csrf(URL_REGISTRO_ARTESANO, datos_registro())
+        self.assertEqual(respuesta.status_code, 201, respuesta.content)
+        taller = Taller.objects.get()
+        self.assertIsNone(taller.latitud)
+        self.assertIsNone(taller.longitud)
+        self.assertFalse(taller.ubicacion_publica)
+
+    def test_registro_con_ubicacion_privada(self):
+        respuesta = self.post_con_csrf(
+            URL_REGISTRO_ARTESANO, datos_registro(latitud=11.971234, longitud=-86.095678)
+        )
+        self.assertEqual(respuesta.status_code, 201, respuesta.content)
+        taller = Taller.objects.get()
+        self.assertEqual(taller.latitud, Decimal("11.971234"))
+        self.assertEqual(taller.longitud, Decimal("-86.095678"))
+        self.assertFalse(taller.ubicacion_publica)
+        self.assertEqual(taller.estado, EstadoTaller.PENDIENTE)
+
+    def test_registro_con_ubicacion_publica(self):
+        respuesta = self.post_con_csrf(
+            URL_REGISTRO_ARTESANO,
+            datos_registro(latitud="11.971234", longitud="-86.095678", ubicacion_publica=True),
+        )
+        self.assertEqual(respuesta.status_code, 201, respuesta.content)
+        taller = Taller.objects.get()
+        self.assertTrue(taller.ubicacion_publica)
+        self.assertEqual(taller.estado, EstadoTaller.PENDIENTE)
+
+    def test_ubicacion_invalida_no_crea_nada(self):
+        for ubicacion, campo in [
+            ({"latitud": 11.97}, "longitud"),
+            ({"longitud": -86.09}, "latitud"),
+            ({"ubicacion_publica": True}, "ubicacion_publica"),
+            ({"latitud": 95, "longitud": -86.09}, "latitud"),
+        ]:
+            with self.subTest(ubicacion=ubicacion):
+                respuesta = self.post_con_csrf(URL_REGISTRO_ARTESANO, datos_registro(**ubicacion))
+                self.assertEqual(respuesta.status_code, 400)
+                self.assertEqual(set(respuesta.json()), {"taller"})
+                self.assertIn(campo, respuesta.json()["taller"])
+                self.assertSinCuentasNiTalleres()
 
 
 class AtomicidadDelRegistroTests(AuthAPITestCase):
