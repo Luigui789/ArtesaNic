@@ -3,7 +3,14 @@
 // privacidad, marcadores, encuadre, popup y render en Node sin `window` (Leaflet es solo
 // del navegador).
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { cargarModulos } from "./cargar-modulo.mjs";
+
+globalThis.localStorage ??= {
+  getItem: () => null,
+  setItem: () => undefined,
+  removeItem: () => undefined,
+};
 
 // P0: todo se compila e importa en Node sin navegador.
 assert.equal(typeof globalThis.window, "undefined");
@@ -19,6 +26,13 @@ const MODULOS = {
   mapa: "@/features/talleres/mapa",
   publico: "@/features/talleres/components/mapa-talleres-publico",
   popup: "@/features/talleres/components/popup-taller",
+  rq: "@tanstack/react-query",
+  sesion: "@/features/auth/sesion",
+  sesionReact: "@/features/auth/use-session",
+  moneda: "@/hooks/use-currency",
+  notificaciones: "@/features/notificaciones/use-notifications-demo",
+  descubrir: "@/features/catalogo/pages/inicio",
+  seccion: "@/features/talleres/components/talleres-descubrir",
 };
 const m = await cargarModulos(MODULOS, { VITE_AUTH_API: "real", VITE_CATALOGO_API: "real" });
 const demo = await cargarModulos(
@@ -283,6 +297,135 @@ await verificar(
     assert.deepEqual(peticiones, []);
   },
 );
+
+// ---------- /descubrir: lista y mapa general ----------
+
+const SIN_TEMPORIZADORES = { defaultOptions: { queries: { gcTime: Infinity } } };
+
+/** Página completa en Node, con la caché de TanStack Query ya poblada (sin red). */
+async function renderizarPagina(nodo, { ruta, datos = [] }) {
+  const qc = new m.rq.QueryClient(SIN_TEMPORIZADORES);
+  for (const [clave, valor] of datos) qc.setQueryData(clave, valor);
+  const ctrl = m.sesion.crearControladorSesion(
+    {
+      restaurar: async () => null,
+      iniciarSesion: async () => null,
+      registrarComprador: async () => null,
+      registrarArtesano: async () => null,
+      cerrarSesion: async () => undefined,
+      alExpirar: () => () => undefined,
+    },
+    qc,
+  );
+  await ctrl.reintentar();
+  return m.servidor.renderToStaticMarkup(
+    h(
+      m.rq.QueryClientProvider,
+      { client: qc },
+      h(
+        m.sesionReact.SessionProvider,
+        { controlador: ctrl },
+        h(
+          m.moneda.CurrencyProvider,
+          null,
+          h(
+            m.notificaciones.NotificationsProvider,
+            null,
+            h(m.router.MemoryRouter, { initialEntries: [ruta] }, nodo(h)),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/**
+ * Seis talleres aprobados: 1-4 son las tarjetas destacadas (solo el 2 publica su
+ * ubicación), el 5 publica la suya y el 6 la tiene privada.
+ */
+const SEIS = perfiles([
+  [1, null],
+  [2, { latitud: "11.975", longitud: "-86.09" }],
+  [3, null],
+  [4, null],
+  [5, MONIMBO],
+  [6, null],
+]);
+const seccion = (talleres, vistaInicial) =>
+  m.servidor.renderToStaticMarkup(
+    h(m.router.MemoryRouter, null, h(m.seccion.TalleresDescubrir, { talleres, vistaInicial })),
+  );
+const enlacesTaller = (html) => [...html.matchAll(/href="\/artesano\/(\d+)"/g)].map((x) => +x[1]);
+const pulsado = (html, etiqueta) =>
+  html.match(
+    new RegExp(`<button[^>]*aria-pressed="(true|false)"[^>]*>(?:(?!</button>).)*${etiqueta}`),
+  )?.[1];
+
+await verificar("11. /descubrir en Node: vista lista inicial, sin mapa ni red", async () => {
+  const html = await renderizarPagina((hh) => hh(m.descubrir.default), {
+    ruta: "/descubrir",
+    datos: [[["talleres-publicos"], SEIS]],
+  });
+  assert.match(texto(html), /Talleres para descubrir/);
+  assert.match(html, /role="group" aria-label="Cómo ver los talleres"/);
+  assert.equal(pulsado(html, "Ver talleres"), "true");
+  assert.equal(pulsado(html, "Ver mapa"), "false");
+  // Las tarjetas siguen siendo las 4 destacadas, como antes.
+  assert.deepEqual(enlacesTaller(html), [1, 2, 3, 4]);
+  // Lista inicial: el mapa no se monta (no se descarga Leaflet).
+  assert.doesNotMatch(html, /Mapa de los talleres artesanales/);
+  sinCoordenadas(html, "11.971234", "-86.095678", "11.975");
+  // Ni geocodificación ni otra petición para el mapa.
+  assert.deepEqual(peticiones, []);
+  // Complemento de la fuente: la página entrega la respuesta completa, sin recortar.
+  const fuente = readFileSync(
+    new URL("../src/features/catalogo/pages/inicio.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(fuente, /<TalleresDescubrir talleres=\{artesanos\.data\} \/>/);
+  assert.doesNotMatch(fuente, /artesanos\.data\.slice|queryKey: \["mapa/);
+});
+
+await verificar("12. regresión slice(0,4): el mapa usa todos los talleres ubicados", () => {
+  assert.deepEqual(
+    m.ubicacion.marcadoresDeTalleres(SEIS).map((x) => x.id),
+    [2, 5],
+  );
+  const html = seccion(SEIS, "mapa");
+  assert.equal(pulsado(html, "Ver mapa"), "true");
+  // 2 marcadores (talleres 2 y 5): con slice(0,4) serían 1. El 6 (privado) no cuenta.
+  assert.match(texto(html), /2 talleres han publicado su ubicación en el mapa/);
+  assert.match(html, /role="region" aria-label="Mapa de los talleres artesanales"/);
+  // En vista mapa las tarjetas se ocultan; vuelven con «Ver talleres».
+  assert.deepEqual(enlacesTaller(html), []);
+  sinCoordenadas(html, "11.971234", "-86.095678", "11.975");
+});
+
+await verificar("13. mapa general: 1 ubicación y 0 ubicaciones", () => {
+  const uno = seccion(
+    SEIS.filter((t) => t.id !== 2),
+    "mapa",
+  );
+  assert.match(texto(uno), /1 taller ha publicado su ubicación en el mapa/);
+  const ninguno = seccion(
+    SEIS.filter((t) => t.ubicacionMapa === null),
+    "mapa",
+  );
+  // Sin ubicaciones: aviso y tarjetas, nunca un mapa vacío sin explicación.
+  assert.match(
+    ninguno,
+    /role="status"[^>]*>.*Estos talleres todavía no han publicado su ubicación en el mapa\./,
+  );
+  assert.doesNotMatch(ninguno, /role="region"/);
+  assert.deepEqual(enlacesTaller(ninguno), [1, 3, 4, 6]);
+});
+
+await verificar("14. la lista conserva los talleres sin ubicación pública", () => {
+  // Los talleres sin ubicación pública no desaparecen de la lista.
+  const html = seccion(SEIS, "lista");
+  assert.deepEqual(enlacesTaller(html), [1, 2, 3, 4]);
+  assert.match(texto(html), /Ver mapa/);
+});
 
 console.log(`OK (${grupos.length} grupos): ${grupos.join(" · ")}`);
 // El runtime de react-dom/server (build de navegador) deja canales abiertos.
