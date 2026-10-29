@@ -31,6 +31,7 @@ CAMPOS_PROPIOS = {
     "modalidades",
     "taller",
     "publicado",
+    "moderacion",
     "creado_en",
     "fotografia_url",
     "actualizado_en",

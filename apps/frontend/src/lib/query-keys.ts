@@ -1,5 +1,11 @@
 /** Claves privadas incluyen identidad; el cierre/cambio de sesión también limpia QueryClient. */
 export const claves = {
+  notificaciones: (usuario: number | undefined, pagina: number) =>
+    ["notificaciones-reales", usuario, pagina] as const,
+  notificacionesResumen: (usuario: number | undefined) =>
+    ["notificaciones-resumen-real", usuario] as const,
+  /** Configuración pública (tasa de cambio): sin identidad, es igual para todos. */
+  configuracion: () => ["configuracion-publica"] as const,
   pedidos: (usuario?: number) => ["pedidos-reales", usuario] as const,
   pedido: (usuario: number | undefined, recibido: boolean, id: number) =>
     ["pedido-real", usuario, recibido, id] as const,
@@ -14,6 +20,9 @@ export const claves = {
     ["cumplimiento-real", usuario, recibido, pedido] as const,
   resolucion: (usuario: number | undefined, recibido: boolean, pedido: number) =>
     ["resolucion-real", usuario, recibido, pedido] as const,
+  /** Conversación privada del pedido (AUD-16): la identidad forma parte de la clave. */
+  mensajes: (usuario: number | undefined, pedido: number) =>
+    ["mensajes-reales", usuario, pedido] as const,
   clasificacionesPedido: (usuario: number | undefined, recibido: boolean, pedido: number) =>
     ["clasificaciones-pedido-real", usuario, recibido, pedido] as const,
   /** Binario privado: solo en memoria y con identidad; se descarta al desmontar. */

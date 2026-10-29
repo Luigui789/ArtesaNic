@@ -10,8 +10,10 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { listOrders } from "@/features/pedidos/api";
-import { pollNewMessages } from "@/features/mensajes/api";
+// Demo (AUD-16): el sondeo simulado usa el servidor simulado directo, nunca la API real.
+import { pollNewMessages } from "@/mocks/mensajes";
 import { DEMO_ARTISAN_ID } from "@/features/auth/api";
+import { authReal } from "@/features/auth/modo";
 import { chatMode } from "@/lib/order-state";
 import { useSession } from "@/features/auth/use-session";
 
@@ -144,8 +146,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>;
 }
 
+const SIN_NOTIFICACIONES_DEMO: NotificationsContextValue = {
+  noLeidos: {},
+  total: 0,
+  recientes: [],
+  marcarLeido: () => undefined,
+  marcarTodoLeido: () => undefined,
+};
+
 export function useNotifications() {
   const ctx = useContext(NotificationsContext);
-  if (!ctx) throw new Error("useNotifications debe usarse dentro de NotificationsProvider");
+  if (!ctx) {
+    if (authReal) return SIN_NOTIFICACIONES_DEMO;
+    throw new Error("useNotifications debe usarse dentro de NotificationsProvider");
+  }
   return ctx;
 }

@@ -1,19 +1,19 @@
 /**
  * API de talleres que consume la interfaz.
  *
- * El perfil público (`getPerfilTaller`) sigue la misma fuente que el catálogo: con
- * `VITE_CATALOGO_API=real` lee `GET /api/v1/talleres/{id}/` (AUD-02), de modo que el
- * `taller.id` de un producto real abre su taller real. El resto todavía delega en el
- * servidor simulado, que usan el panel, pedidos y mensajes.
+ * El listado y el perfil público (`listPerfilesTalleres`, `getPerfilTaller`) siguen la
+ * misma fuente que el catálogo: por defecto (`VITE_CATALOGO_API=real`) leen
+ * `GET /api/v1/talleres/` y `GET /api/v1/talleres/{id}/` (AUD-02 y AUD-18), de modo que
+ * `/descubrir` y el `taller.id` de un producto real abren talleres aprobados reales.
+ * Las lecturas simuladas se conservan únicamente para `VITE_CATALOGO_API=mock`.
  */
 import { catalogoReal } from "@/features/catalogo/api";
-import { getArtisan } from "@/mocks/talleres";
+import { getArtisan, listArtisans } from "@/mocks/talleres";
+import type { Artisan } from "@/types";
 import * as http from "./http";
 import type { PerfilTaller } from "./types";
 
-/** Adapta el taller de la demo al perfil público del contrato. */
-async function getPerfilTallerDemo(id: number): Promise<PerfilTaller> {
-  const a = await getArtisan(id);
+function aPerfilTallerDemo(a: Artisan): PerfilTaller {
   return {
     id: a.id,
     nombre: a.nombreTaller,
@@ -26,6 +26,8 @@ async function getPerfilTallerDemo(id: number): Promise<PerfilTaller> {
     facebook: a.redes.facebook ?? "",
     instagram: a.redes.instagram ?? "",
     sitioWeb: "",
+    // La demo no inventa posiciones: sus talleres no publican ubicación en el mapa.
+    ubicacionMapa: null,
     demo: {
       responsable: a.responsable,
       descripcion: a.descripcion,
@@ -34,6 +36,15 @@ async function getPerfilTallerDemo(id: number): Promise<PerfilTaller> {
     },
   };
 }
+
+/** Adapta el taller de la demo al perfil público del contrato. */
+async function getPerfilTallerDemo(id: number): Promise<PerfilTaller> {
+  return aPerfilTallerDemo(await getArtisan(id));
+}
+
+export const listPerfilesTalleres: (signal?: AbortSignal) => Promise<PerfilTaller[]> = catalogoReal
+  ? http.listPerfilesTalleres
+  : async () => (await listArtisans()).map(aPerfilTallerDemo);
 
 export const getPerfilTaller: (id: number) => Promise<PerfilTaller> = catalogoReal
   ? http.getPerfilTaller
@@ -44,6 +55,20 @@ export const getMiTaller = http.getMiTaller;
 /** Edición del perfil propio (RF-008). Solo API real: la demo usa `updateArtisan`. */
 export const actualizarMiTaller = http.actualizarMiTaller;
 
+/** Selector de ubicación (FEAT-GEO-02): búsqueda explícita y posición del dispositivo. */
+export {
+  busquedaDisponible,
+  buscarLugar,
+  ErrorGeocodificacion,
+  MENSAJE_SIN_PROVEEDOR,
+  type ResultadoLugar,
+} from "./geocoding";
+export {
+  MENSAJES_GEOLOCALIZACION,
+  obtenerUbicacionActual,
+  type FalloGeolocalizacion,
+} from "./geolocation";
+
 export { featuredArtisans, getArtisan, listArtisans, updateArtisan } from "@/mocks/talleres";
 export type {
   ActualizarPerfilTallerInput,
@@ -51,4 +76,5 @@ export type {
   PerfilTaller,
   PerfilTallerEntrada,
   TallerPropio,
+  UbicacionTaller,
 } from "./types";

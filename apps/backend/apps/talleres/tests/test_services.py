@@ -1,5 +1,7 @@
 """Servicios del taller: alta pendiente, perfil y aprobación (RF-008, RF-013, RN-002)."""
 
+from decimal import Decimal
+
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
@@ -177,3 +179,95 @@ class ActualizarPerfilTests(TestCase):
             services.actualizar_perfil(self.taller, nombre="   ")
         self.taller.refresh_from_db()
         self.assertEqual(self.taller.nombre, "Cerámica López")
+
+
+class UbicacionServiciosTests(TestCase):
+    """Ubicación del taller en el alta y en la edición del perfil (FEAT-GEO-01)."""
+
+    LATITUD = Decimal("11.971234")
+    LONGITUD = Decimal("-86.095678")
+
+    def test_crear_sin_ubicacion_conserva_los_valores_por_defecto(self):
+        taller = crear_artesano_con_taller()
+        taller.refresh_from_db()
+        self.assertIsNone(taller.latitud)
+        self.assertIsNone(taller.longitud)
+        self.assertFalse(taller.ubicacion_publica)
+
+    def test_crear_con_ubicacion(self):
+        taller = crear_artesano_con_taller(
+            latitud=self.LATITUD, longitud=self.LONGITUD, ubicacion_publica=True
+        )
+        taller.refresh_from_db()
+        self.assertEqual((taller.latitud, taller.longitud), (self.LATITUD, self.LONGITUD))
+        self.assertTrue(taller.ubicacion_publica)
+        self.assertEqual(taller.estado, EstadoTaller.PENDIENTE)
+
+    def test_crear_con_ubicacion_incoherente(self):
+        artesano = crear_usuario("82222222", rol=Rol.ARTESANO)
+        with self.assertRaises(ValidationError) as contexto:
+            services.crear_taller_pendiente(
+                propietario=artesano, **datos_taller(latitud=self.LATITUD)
+            )
+        self.assertEqual(set(contexto.exception.message_dict), {"longitud"})
+        self.assertFalse(Taller.objects.exists())
+
+    def test_actualizar_ubicacion_no_altera_estado_ni_revision(self):
+        taller = crear_artesano_con_taller()
+        admin = crear_administrador()
+        services.aprobar_taller(taller, revisor=admin)
+        taller.refresh_from_db()
+        revision = (taller.estado, taller.revisado_por_id, taller.revisado_en)
+
+        services.actualizar_perfil(
+            taller, latitud=self.LATITUD, longitud=self.LONGITUD, ubicacion_publica=True
+        )
+        taller.refresh_from_db()
+        self.assertEqual((taller.latitud, taller.longitud), (self.LATITUD, self.LONGITUD))
+        self.assertTrue(taller.ubicacion_publica)
+        self.assertEqual((taller.estado, taller.revisado_por_id, taller.revisado_en), revision)
+        self.assertEqual(taller.propietario.rol, Rol.ARTESANO)
+
+    def test_actualizar_ubicacion_de_un_pendiente_no_lo_aprueba(self):
+        taller = crear_artesano_con_taller()
+        services.actualizar_perfil(taller, latitud=self.LATITUD, longitud=self.LONGITUD)
+        taller.refresh_from_db()
+        self.assertEqual(taller.estado, EstadoTaller.PENDIENTE)
+        self.assertIsNone(taller.revisado_por)
+        self.assertIsNone(taller.revisado_en)
+
+    def test_volver_privada_la_ubicacion(self):
+        taller = crear_artesano_con_taller(
+            latitud=self.LATITUD, longitud=self.LONGITUD, ubicacion_publica=True
+        )
+        services.actualizar_perfil(taller, ubicacion_publica=False)
+        taller.refresh_from_db()
+        self.assertFalse(taller.ubicacion_publica)
+        self.assertEqual((taller.latitud, taller.longitud), (self.LATITUD, self.LONGITUD))
+
+    def test_eliminar_la_ubicacion(self):
+        taller = crear_artesano_con_taller(
+            latitud=self.LATITUD, longitud=self.LONGITUD, ubicacion_publica=True
+        )
+        services.actualizar_perfil(taller, latitud=None, longitud=None, ubicacion_publica=False)
+        taller.refresh_from_db()
+        self.assertIsNone(taller.latitud)
+        self.assertIsNone(taller.longitud)
+        self.assertFalse(taller.ubicacion_publica)
+
+    def test_no_elimina_coordenadas_de_una_ubicacion_publica(self):
+        taller = crear_artesano_con_taller(
+            latitud=self.LATITUD, longitud=self.LONGITUD, ubicacion_publica=True
+        )
+        with self.assertRaises(ValidationError) as contexto:
+            services.actualizar_perfil(taller, latitud=None, longitud=None)
+        self.assertEqual(set(contexto.exception.message_dict), {"ubicacion_publica"})
+        taller.refresh_from_db()
+        self.assertEqual(taller.latitud, self.LATITUD)
+
+    def test_sigue_rechazando_campos_desconocidos(self):
+        taller = crear_artesano_con_taller()
+        for campo in ("ubicacion_mapa", "coordenadas", "estado"):
+            with self.subTest(campo=campo):
+                with self.assertRaises(ValueError):
+                    services.actualizar_perfil(taller, **{campo: None})

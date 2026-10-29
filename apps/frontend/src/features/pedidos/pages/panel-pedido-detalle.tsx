@@ -14,7 +14,7 @@ import { SiteLayout } from "@/components/layout/site-layout";
 import { ErrorState } from "@/components/common/states";
 import { StatusPair } from "@/features/pedidos/components/status-badges";
 import { AuditTimeline, OrderTimeline } from "@/features/pedidos/components/timelines";
-import { OrderChat } from "@/features/mensajes/components/order-chat";
+import { OrderChatDemo } from "@/features/mensajes/components/order-chat-demo";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -228,7 +228,7 @@ export default function GestionPedido() {
               <h2 id="mensajes" className="sr-only">
                 Mensajería con el comprador
               </h2>
-              <OrderChat pedidoId={o.id} estado={o.estado} />
+              <OrderChatDemo pedidoId={o.id} estado={o.estado} />
             </section>
 
             <section className="rounded-xl border bg-card p-5" aria-labelledby="historial">

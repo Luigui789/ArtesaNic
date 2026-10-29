@@ -14,6 +14,8 @@ jobs:
         working-directory: apps/frontend
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: pnpm/action-setup@v4
         with:
           version: 10.30.3
@@ -25,5 +27,6 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm lint
       - run: pnpm typecheck
+      - run: pnpm run doctor
       - run: pnpm test
       - run: pnpm build

@@ -4,11 +4,15 @@ import { ArrowRight, Search, Sparkles } from "lucide-react";
 import { CATEGORY_IMAGE } from "@/lib/category-images";
 import { Button } from "@/components/ui/button";
 import { PublicLayout } from "@/components/layout/public-layout";
-import { ProductCard, ProductCardSkeleton } from "@/features/catalogo/components/product-card";
-import { ArtisanCard } from "@/features/talleres/components/artisan-card";
-import { ErrorState } from "@/components/common/states";
-import { listArtisans } from "@/features/talleres/api";
-import { listCatalog, listCategories } from "@/features/catalogo/api";
+import {
+  ProductCard,
+  ProductCardSkeleton,
+  ProductImage,
+} from "@/features/catalogo/components/product-card";
+import { TalleresDescubrir } from "@/features/talleres/components/talleres-descubrir";
+import { EmptyState, ErrorState } from "@/components/common/states";
+import { talleresPublicosQuery } from "@/features/talleres/queries";
+import { categoriasQuery, productosRecientesQuery } from "@/features/catalogo/queries";
 import { useDocumentHead } from "@/hooks/use-document-head";
 
 export default function Index() {
@@ -31,46 +35,122 @@ export default function Index() {
     canonical: "/descubrir",
   });
 
-  const categorias = useQuery({ queryKey: ["categorias"], queryFn: listCategories });
+  const categorias = useQuery(categoriasQuery);
   // Contrato §12.1: se muestran los productos más recientes publicados.
-  const productos = useQuery({
-    queryKey: ["catalogo", "portada"],
-    queryFn: () => listCatalog({ orden: "recientes", pageSize: 8 }),
-  });
-  const artesanos = useQuery({ queryKey: ["artesanos"], queryFn: listArtisans });
+  const productos = useQuery(productosRecientesQuery);
+  const artesanos = useQuery(talleresPublicosQuery);
 
   return (
     <PublicLayout>
       {/* Hero corto editorial */}
-      <section className="border-b bg-surface py-12 sm:py-16">
+      <section className="border-b bg-surface py-8 sm:py-10">
         <div className="mx-auto flex max-w-7xl flex-col justify-between gap-6 px-4 lg:flex-row lg:items-end">
           <div className="max-w-2xl">
             <p className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-primary">
               <Sparkles className="size-3.5" aria-hidden="true" />
-              Exploración y novedades · Masaya
+              Hecho en Masaya
             </p>
             <h1 className="mt-2 text-balance font-display text-3xl font-bold leading-tight sm:text-4xl lg:text-5xl">
-              Descubre lo nuevo en ArtesaNic
+              Talleres y nuevas piezas
             </h1>
             <p className="mt-3 text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Recorre las piezas recién publicadas por los talleres artesanales del municipio,
-              explora los oficios tradicionales y conoce a quienes elaboran cada creación.
+              Conoce quién elabora cada pieza. Explora los talleres en la lista o encuentra su
+              ubicación en el mapa.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
             <Button asChild size="lg" className="touch-target">
               <Link to="/catalogo">
                 <Search className="size-4" aria-hidden="true" />
-                Ir al marketplace completo
+                Explorar productos
               </Link>
             </Button>
           </div>
         </div>
       </section>
 
+      {/* Talleres para descubrir */}
+      <section
+        id="talleres"
+        className="mx-auto scroll-mt-20 max-w-7xl px-4 py-8"
+        aria-labelledby="titulo-talleres"
+      >
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="titulo-talleres" className="font-display text-2xl font-bold sm:text-3xl">
+              Talleres para descubrir
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              La lista te acerca a sus piezas e historias. El mapa muestra dónde están los talleres
+              que comparten su ubicación.
+            </p>
+          </div>
+        </div>
+        {artesanos.isError ? (
+          <div className="mt-6">
+            <ErrorState onRetry={() => void artesanos.refetch()} />
+          </div>
+        ) : artesanos.isPending ? (
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="h-64 animate-pulse rounded-xl bg-surface" />
+            ))}
+          </div>
+        ) : (
+          // Lista (inicial) o mapa con todos los talleres de la respuesta (FEAT-GEO-04).
+          <div className="mt-6">
+            <TalleresDescubrir talleres={artesanos.data} />
+          </div>
+        )}
+      </section>
+
+      {/* Nuevas piezas / productos recientes */}
+      <section className="mx-auto max-w-7xl px-4 py-8" aria-labelledby="titulo-recientes">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="titulo-recientes" className="font-display text-2xl font-bold sm:text-3xl">
+              Nuevas piezas
+            </h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Productos recién publicados por los talleres de Masaya.
+            </p>
+          </div>
+          <Link
+            to="/catalogo"
+            className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary hover:underline"
+          >
+            Ver todos los productos
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+        </div>
+
+        {productos.isError ? (
+          <div className="mt-6">
+            <ErrorState onRetry={() => void productos.refetch()} />
+          </div>
+        ) : productos.data?.items.length === 0 ? (
+          <div className="mt-6">
+            <EmptyState
+              titulo="Pronto habrá nuevas piezas"
+              descripcion="Mientras tanto, conoce los talleres y sus historias."
+            />
+          </div>
+        ) : (
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            {productos.isPending
+              ? Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
+              : productos.data.items.map((p) => <ProductCard key={p.id} product={p} />)}
+          </div>
+        )}
+      </section>
+
       {/* Categorías */}
-      {categorias.isError ? null : (
-        <section className="mx-auto max-w-7xl px-4 py-12" aria-labelledby="titulo-categorias">
+      {categorias.isError || categorias.data?.length === 0 ? null : (
+        <section
+          id="categorias"
+          className="mx-auto max-w-7xl scroll-mt-24 px-4 py-8"
+          aria-labelledby="titulo-categorias"
+        >
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 id="titulo-categorias" className="font-display text-2xl font-bold sm:text-3xl">
@@ -96,19 +176,13 @@ export default function Index() {
               : categorias.data.map((c) => (
                   <li key={c.id}>
                     <Link
-                      to={`/catalogo?categoria=${c.codigo}`}
+                      to={`/catalogo?${new URLSearchParams({ categoria: c.codigo })}`}
                       className="group block overflow-hidden rounded-xl border bg-card transition-colors hover:border-primary/40"
                     >
-                      <div className="aspect-square overflow-hidden bg-surface">
-                        <img
-                          src={CATEGORY_IMAGE[c.codigo]}
-                          alt=""
-                          loading="lazy"
-                          width={1024}
-                          height={768}
-                          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        />
-                      </div>
+                      <ProductImage
+                        src={CATEGORY_IMAGE[c.codigo]}
+                        className="aspect-square transition-transform duration-300 group-hover:scale-105"
+                      />
                       <span className="flex min-h-11 items-center justify-center px-2 text-center text-sm font-medium">
                         {c.nombre}
                       </span>
@@ -119,71 +193,6 @@ export default function Index() {
         </section>
       )}
 
-      {/* Nuevas piezas / productos recientes */}
-      <section className="mx-auto max-w-7xl px-4 py-8" aria-labelledby="titulo-recientes">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 id="titulo-recientes" className="font-display text-2xl font-bold sm:text-3xl">
-              Nuevas piezas
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Productos recién publicados por los talleres de Masaya.
-            </p>
-          </div>
-          <Link
-            to="/catalogo"
-            className="inline-flex min-h-11 items-center gap-1 text-sm font-medium text-primary hover:underline"
-          >
-            Ver todo en el marketplace
-            <ArrowRight className="size-4" aria-hidden="true" />
-          </Link>
-        </div>
-
-        {productos.isError ? (
-          <div className="mt-6">
-            <ErrorState onRetry={() => void productos.refetch()} />
-          </div>
-        ) : (
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
-            {productos.isPending
-              ? Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
-              : productos.data.items.map((p) => <ProductCard key={p.id} product={p} />)}
-          </div>
-        )}
-      </section>
-
-      {/* Talleres para descubrir */}
-      <section
-        id="talleres"
-        className="mx-auto scroll-mt-20 max-w-7xl px-4 py-12"
-        aria-labelledby="titulo-talleres"
-      >
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h2 id="titulo-talleres" className="font-display text-2xl font-bold sm:text-3xl">
-              Talleres para descubrir
-            </h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Conoce algunos de nuestros talleres artesanales, su historia, su horario y sus
-              productos.
-            </p>
-          </div>
-        </div>
-        {artesanos.isError ? (
-          <div className="mt-6">
-            <ErrorState onRetry={() => void artesanos.refetch()} />
-          </div>
-        ) : (
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {artesanos.isPending
-              ? Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="h-64 animate-pulse rounded-xl bg-surface" />
-                ))
-              : artesanos.data.slice(0, 4).map((a) => <ArtisanCard key={a.id} artisan={a} />)}
-          </div>
-        )}
-      </section>
-
       {/* Pequeño CTA al marketplace */}
       <section className="mx-auto max-w-7xl px-4 pt-4" aria-labelledby="titulo-cta-catalogo">
         <div className="flex flex-col items-start justify-between gap-4 rounded-2xl border bg-surface p-6 sm:flex-row sm:items-center sm:p-8">
@@ -193,12 +202,12 @@ export default function Index() {
             </h2>
             <p className="mt-1.5 text-sm text-muted-foreground sm:text-base">
               Utiliza el buscador y los filtros por categoría, rango de precio y taller en el
-              marketplace completo.
+              catálogo completo.
             </p>
           </div>
           <Button asChild size="lg" className="w-full touch-target shrink-0 sm:w-auto">
             <Link to="/catalogo">
-              Explorar marketplace
+              Explorar catálogo
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
           </Button>

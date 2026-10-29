@@ -227,8 +227,4 @@ movimientos y clasificaciones cuando cambia el inventario).
 
 ## Fuera de alcance
 
-Notificaciones persistentes (AUD-20), correo, WhatsApp, chat, pasarela, movimiento automático
-de dinero, devoluciones de mercancía ya entregada, disputas, chargebacks y valoración de
-inventario. Puntos de integración tras el `COMMIT` (log `INFO`): `pedido_cancelado_artesano`,
-`cierre_parcial_propuesto`, `cierre_parcial_objetado`, `pedido_cerrado_parcial`,
-`reembolso_creado` y `reembolso_realizado`.
+Correo, WhatsApp, pasarela, movimiento automático de dinero, devoluciones de mercancía ya entregada, disputas, chargebacks y valoración de inventario. Los eventos de cancelación, cierre y reembolso generan [notificaciones internas](notificaciones.md) dentro de la transacción.

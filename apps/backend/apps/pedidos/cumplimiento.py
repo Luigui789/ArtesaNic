@@ -15,8 +15,8 @@ InventarioProducto`` (los inventarios por ``producto_id`` ascendente). El lock d
 serializa entregas concurrentes, inicios repetidos y la carrera con el vencimiento automático:
 cada transacción revalida estado, pago y cantidades después de obtenerlo.
 
-Sin signals: las transiciones son explícitas y los puntos de integración de AUD-20 se emiten
-con ``transaction.on_commit``.
+Sin signals: las transiciones y notificaciones persistentes se escriben explícitamente
+en la misma transacción; los registros técnicos usan ``transaction.on_commit``.
 """
 
 import logging
@@ -30,6 +30,7 @@ from django.utils import timezone
 
 from apps.catalogo.models import Modalidad
 from apps.inventario import services as inventario
+from apps.notificaciones import eventos as notificaciones
 from apps.operaciones import services as operaciones
 from apps.operaciones.models import TipoOperacion
 from apps.pagos import services as pagos
@@ -56,7 +57,7 @@ from .models import (
 
 logger = logging.getLogger(__name__)
 
-# Nombres estables de los puntos de integración para notificaciones (AUD-20, RN-020).
+# Nombres estables para el registro técnico posterior al commit.
 EVENTO_EN_CUMPLIMIENTO = "pedido_en_cumplimiento"
 EVENTO_ENTREGA = "entrega_registrada"
 EVENTO_ENTREGADO = "pedido_entregado"
@@ -227,7 +228,7 @@ def cantidades_entregadas(pedido: Pedido) -> Counter:
 
 
 def _notificar(evento: str, **datos) -> None:
-    """Se ejecuta tras el COMMIT. AUD-20 enganchará aquí la notificación persistente."""
+    """Registro técnico tras el commit; el aviso persistente se escribe en la transacción."""
     logger.info(
         "%s %s", evento, " ".join(f"{clave}={valor}" for clave, valor in sorted(datos.items()))
     )
@@ -270,6 +271,12 @@ def iniciar_linea(*, artesano, pedido_id: int, linea_id: int) -> CumplimientoLin
     cumplimiento.save(update_fields=["iniciado_en", "iniciado_por", "actualizado_en"])
     if estado.estado == EstadoPedido.CONFIRMADO:
         _transicion(estado, EstadoPedido.EN_CUMPLIMIENTO, artesano, momento)
+        notificaciones.avisar(
+            tipo="pedido_en_cumplimiento",
+            destinatario_id=pedido.comprador_id,
+            evento_id=pedido.pk,
+            pedido_id=pedido.pk,
+        )
         transaction.on_commit(
             lambda: _notificar(EVENTO_EN_CUMPLIMIENTO, pedido_id=pedido.pk, linea_id=linea.pk)
         )
@@ -415,6 +422,19 @@ def registrar_entrega(*, artesano, pedido_id: int, fecha, lineas) -> EntregaPedi
     completo = all(entregadas[lid] == linea.cantidad for lid, linea in lineas_pedido.items())
     if completo:
         _transicion(estado, EstadoPedido.ENTREGADO, artesano, momento)
+    notificaciones.avisar(
+        tipo="entrega_registrada",
+        destinatario_id=pedido.comprador_id,
+        evento_id=entrega.pk,
+        pedido_id=pedido.pk,
+    )
+    if completo:
+        notificaciones.avisar(
+            tipo="pedido_entregado",
+            destinatario_id=pedido.comprador_id,
+            evento_id=pedido.pk,
+            pedido_id=pedido.pk,
+        )
     transaction.on_commit(lambda: _notificar(EVENTO_ENTREGA, pedido_id=pedido.pk, entrega=numero))
     if completo:
         transaction.on_commit(lambda: _notificar(EVENTO_ENTREGADO, pedido_id=pedido.pk))
@@ -468,6 +488,12 @@ def registrar_recepcion(
         motivo=motivo,
         registrado_por=comprador,
         registrado_en=pagos.ahora(),
+    )
+    notificaciones.avisar(
+        tipo=EVENTO_RECEPCION[resultado],
+        destinatario_id=pedido.taller.propietario_id,
+        evento_id=recepcion.pk,
+        pedido_id=pedido.pk,
     )
     transaction.on_commit(
         lambda: _notificar(EVENTO_RECEPCION[resultado], pedido_id=pedido.pk, entrega=entrega.numero)

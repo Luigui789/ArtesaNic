@@ -46,10 +46,14 @@ export function RevisionRenglon({ solicitud, renglon }: { solicitud: number; ren
         throw e;
       }
     },
-    onSuccess: () => {
+    onSuccess: (_, entrada) => {
       intento.current.completar();
       invalidarSolicitud(client, usuario, true, solicitud);
-      toast.success("Producto revisado");
+      toast.success(
+        entrada.resolucion === "aceptado"
+          ? "Producto aceptado. Revisa los demás productos para preparar la propuesta."
+          : "Producto rechazado. El comprador podrá consultar el motivo.",
+      );
     },
   });
   const ejecutar = async (input: ResolucionEntrada) => {
@@ -75,28 +79,36 @@ export function RevisionRenglon({ solicitud, renglon }: { solicitud: number; ren
       >
         Aceptar producto
       </Button>
-      <FormField id={`rechazo-${renglon}`} label="Motivo si rechazas este producto">
-        <Textarea
-          id={`rechazo-${renglon}`}
-          value={motivo}
-          maxLength={MAX_MOTIVO_RECHAZO}
-          disabled={mutation.isPending || intento.current.incierto}
-          onChange={(e) => setMotivo(e.target.value)}
+      <details className="rounded-lg border p-3">
+        <summary className="list-item min-h-11 cursor-pointer py-3 font-medium text-destructive">
+          Rechazar este producto
+        </summary>
+        <p className="mb-3 text-sm text-muted-foreground">
+          Explica el motivo antes de confirmar. El comprador podrá leerlo.
+        </p>
+        <FormField id={`rechazo-${renglon}`} label="Motivo si rechazas este producto">
+          <Textarea
+            id={`rechazo-${renglon}`}
+            value={motivo}
+            maxLength={MAX_MOTIVO_RECHAZO}
+            disabled={mutation.isPending || intento.current.incierto}
+            onChange={(e) => setMotivo(e.target.value)}
+          />
+        </FormField>
+        <ConfirmAction
+          trigger={
+            <Button variant="outline" disabled={mutation.isPending || !motivo.trim()}>
+              Rechazar producto
+            </Button>
+          }
+          title="¿Rechazar este producto?"
+          description="El comprador verá el motivo y este producto quedará fuera de la propuesta."
+          confirm="Rechazar producto"
+          destructive
+          busy={mutation.isPending}
+          onConfirm={() => ejecutar({ resolucion: "rechazado", motivoRechazo: motivo.trim() })}
         />
-      </FormField>
-      <ConfirmAction
-        trigger={
-          <Button variant="outline" disabled={mutation.isPending || !motivo.trim()}>
-            Rechazar producto
-          </Button>
-        }
-        title="¿Rechazar este producto?"
-        description="El comprador verá el motivo y este producto quedará fuera de la propuesta."
-        confirm="Rechazar producto"
-        destructive
-        busy={mutation.isPending}
-        onConfirm={() => ejecutar({ resolucion: "rechazado", motivoRechazo: motivo.trim() })}
-      />
+      </details>
     </div>
   );
 }

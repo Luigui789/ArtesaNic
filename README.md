@@ -4,7 +4,7 @@ Sistema de comercialización de productos artesanales de las PYMEs de Masaya, Ni
 
 ## Estado y arquitectura
 
-El frontend conserva la sesión simulada e IndexedDB. Catálogo y solicitudes V1 pueden leer/escribir Django con `VITE_CATALOGO_API=real`; por defecto usan la demo. La sesión real del frontend sigue pendiente de AUD-18: el selector Demo no autentica peticiones reales. El backend contiene cuentas, talleres/aprobación, catálogo y solicitudes con renglones. Propuesta, confirmación, reservas, pagos y chat reales siguen en sus fases posteriores. [Contrato de solicitudes](docs/api/solicitudes.md).
+El frontend React opera por defecto en modo real (`VITE_AUTH_API=real`, `VITE_CATALOGO_API=real`) conectado al backend Django/DRF y PostgreSQL (cierre de AUD-18): sesión con token de acceso en memoria, renovación por cookie `HttpOnly` y CSRF, cuenta personal (`/cuenta`), talleres públicos y taller propio (`/panel`, `/panel/perfil`, `/descubrir`), catálogo y moderación, inventario y movimientos, solicitudes multiproducto con propuestas y decisión, pedidos confirmados (`/pedidos`, `/panel/pedidos`), pagos y comprobantes privados, vencimiento automático, cumplimiento y entregas parciales, cancelación, cierre parcial y reembolsos, mensajería privada por pedido (`/mensajes` y detalle del pedido) y notificaciones internas (`/notificaciones`). El modo `mock` permanece aislado únicamente para las pruebas de regresión de la demo. [Arquitectura del frontend](docs/arquitectura/frontend.md) · [Contrato de solicitudes](docs/api/solicitudes.md).
 
 React 19 / React Router 8 / TanStack Query → servicios por dominio → demo o Django REST Framework → PostgreSQL 17. Se conservan Tailwind, shadcn/ui, React Hook Form y Zod. Las solicitudes V1 están separadas de los pedidos monoproducto legacy de la demo.
 
@@ -44,7 +44,7 @@ El backend espera el healthcheck de PostgreSQL y aplica migraciones antes de ini
 docker compose exec -T frontend node ../../infra/scripts/check-health.mjs
 ```
 
-La sonda usa el proxy `/api` de Vite hacia Django y comprueba `{"estado":"ok"}`. Catálogo y solicitudes también lo usan en modo real; pedidos legacy, pagos e inventario siguen simulados.
+La sonda usa el proxy `/api` de Vite hacia Django y comprueba `{"estado":"ok"}`. Todos los dominios V1 del frontend consumen `/api/v1` en modo real por defecto; el modo `mock` queda aislado para pruebas locales de regresión.
 
 ## Desarrollo en el host
 
@@ -113,6 +113,7 @@ Desde la raíz:
 ```bash
 python infra/scripts/check-doc-links.py
 python infra/scripts/check-secrets.py
+python infra/scripts/check_requirements_coverage.py
 ```
 
 Las pruebas Django usan una base temporal PostgreSQL; no usan SQLite. El esquema implementado está en [docs/api/openapi.yaml](docs/api/openapi.yaml) y una prueba verifica que coincide con el código. CI ejecuta instalación bloqueada, calidad, pruebas y arranque de Compose; sus workflows filtran por rutas relevantes.
@@ -123,4 +124,4 @@ Las pruebas Django usan una base temporal PostgreSQL; no usan SQLite. El esquema
 
 En Windows, equivalentes con `./infra/scripts/dev.ps1 -Task Install`, `Dev`, `Db`, `Frontend`, `Backend`, `Migrate`, `Lint`, `Test`, `Health`, `Docs` o `Clean`. `Clean` detiene los contenedores y conserva los volúmenes.
 
-[Contribuir](CONTRIBUTING.md) · [ADR del monorepo](docs/adr/0010-monorepo-y-entorno-de-desarrollo.md) · [Discrepancias documentales](docs/trazabilidad/discrepancias-documentales.md) · [Informe de migración](docs/trazabilidad/informe-monorepo.md).
+[Contribuir](CONTRIBUTING.md) · [Cobertura de requisitos V1](docs/trazabilidad/cobertura-v1.md) · [ADR del monorepo](docs/adr/0010-monorepo-y-entorno-de-desarrollo.md) · [Discrepancias documentales](docs/trazabilidad/discrepancias-documentales.md) · [Informe de migración](docs/trazabilidad/informe-monorepo.md).

@@ -1,6 +1,14 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, ImageIcon } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/use-session";
 import { mensajeDominio } from "@/lib/errores-dominio";
@@ -87,40 +95,68 @@ export function ComprobanteGuardado({
   comprobante: ComprobantePago;
   numero: number;
 }) {
+  return (
+    <div className="min-w-0 space-y-2">
+      <VistaPreviaArchivo
+        nombre={comprobante.nombre}
+        tipo={comprobante.tipo}
+        tamano={comprobante.tamano}
+        alt={`Comprobante del intento ${numero}`}
+      />
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button variant="outline" className="touch-target">
+            Ver comprobante
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-h-[90dvh] min-w-0 overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Comprobante de pago</DialogTitle>
+            <DialogDescription>
+              Archivo privado del registro {numero}. Puedes revisarlo o descargarlo.
+            </DialogDescription>
+          </DialogHeader>
+          <ContenidoComprobante comprobante={comprobante} numero={numero} />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/** Solo se monta al abrir el Dialog; al cerrarlo se libera el binario y su Blob URL. */
+function ContenidoComprobante({
+  comprobante,
+  numero,
+}: {
+  comprobante: ComprobantePago;
+  numero: number;
+}) {
   const { usuario } = useSession();
-  const [abierto, setAbierto] = useState(false);
   const archivo = useQuery({
     queryKey: claves.comprobante(usuario?.id, comprobante.url),
     queryFn: ({ signal }) => descargarComprobante(comprobante.url, signal),
-    enabled: abierto,
     gcTime: 0,
     staleTime: Infinity,
     retry: reintentarSalvoErrorDelCliente,
   });
   const url = useUrlTemporal(archivo.data);
-  return (
-    <div className="space-y-2">
-      <VistaPreviaArchivo
-        nombre={comprobante.nombre}
-        tipo={comprobante.tipo}
-        tamano={comprobante.tamano}
-        src={url}
-        alt={`Comprobante del intento ${numero}`}
-        acciones
-      />
-      {!abierto ? (
-        <Button variant="outline" size="sm" onClick={() => setAbierto(true)}>
-          Ver comprobante
-        </Button>
-      ) : archivo.isError ? (
-        <p role="alert" className="text-sm text-destructive">
-          {mensajeDominio(archivo.error)}
-        </p>
-      ) : !url ? (
-        <p role="status" className="text-sm text-muted-foreground">
-          Cargando comprobante…
-        </p>
-      ) : null}
+  return archivo.isError ? (
+    <div role="alert" className="space-y-3">
+      <p className="text-sm text-destructive">{mensajeDominio(archivo.error)}</p>
+      <Button variant="outline" onClick={() => void archivo.refetch()}>
+        Reintentar
+      </Button>
     </div>
+  ) : !url ? (
+    <p role="status">Cargando comprobante…</p>
+  ) : (
+    <VistaPreviaArchivo
+      nombre={comprobante.nombre}
+      tipo={comprobante.tipo}
+      tamano={comprobante.tamano}
+      src={url}
+      alt={`Comprobante del intento ${numero}`}
+      acciones
+    />
   );
 }

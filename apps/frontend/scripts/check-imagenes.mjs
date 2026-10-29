@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { cargarModulos } from "./cargar-modulo.mjs";
 
-const { http, comun, reglas, React, servidor, formulario, tarjeta, router, moneda } =
+const { http, comun, reglas, React, servidor, formulario, tarjeta, router, moneda, rq } =
   await cargarModulos({
     http: "@/features/catalogo/http",
     comun: "@/lib/http",
@@ -13,6 +13,7 @@ const { http, comun, reglas, React, servidor, formulario, tarjeta, router, moned
     tarjeta: "@/features/catalogo/components/product-card",
     router: "react-router",
     moneda: "@/hooks/use-currency",
+    rq: "@tanstack/react-query",
   });
 
 const archivo = new File(["imagen-prueba"], "foto.webp", { type: "image/webp" });
@@ -132,11 +133,16 @@ assert.match(html, /accept="image\/jpeg,image\/png,image\/webp"/);
 assert.match(html, /src="\/media\/productos/);
 assert.match(html, /role="alert"/);
 assert.match(html, /Imagen inválida/);
+// CurrencyProvider consulta la tasa con TanStack Query (AUD-14), como dentro de App.
 const card = servidor.renderToStaticMarkup(
   h(
-    moneda.CurrencyProvider,
-    null,
-    h(router.MemoryRouter, null, h(tarjeta.ProductCard, { product: creado })),
+    rq.QueryClientProvider,
+    { client: new rq.QueryClient() },
+    h(
+      moneda.CurrencyProvider,
+      null,
+      h(router.MemoryRouter, null, h(tarjeta.ProductCard, { product: creado })),
+    ),
   ),
 );
 assert.match(card, /src="\/media\/productos/);

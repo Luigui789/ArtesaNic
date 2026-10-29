@@ -27,7 +27,7 @@ const m = await cargarModulos(
     propio: "@/features/talleres/perfil-propio",
     panel: "@/features/talleres/pages/panel-taller",
     moneda: "@/hooks/use-currency",
-    notificaciones: "@/features/notificaciones/use-notifications",
+    notificaciones: "@/features/notificaciones/use-notifications-demo",
   },
   { VITE_AUTH_API: "real", VITE_CATALOGO_API: "real" },
 );
@@ -58,6 +58,9 @@ const tallerInicial = (estado = "aprobado") => ({
   facebook_url: "",
   instagram_url: "",
   sitio_web: "",
+  latitud: null,
+  longitud: null,
+  ubicacion_publica: false,
   estado,
   motivo_rechazo: estado === "rechazado" ? "Faltan datos de contacto." : "",
   revisado_en: estado === "pendiente" ? null : "2026-10-21T10:00:00-06:00",
@@ -296,11 +299,14 @@ await verificar(
     qc.setQueryData(["perfil-taller", 7], { id: 7, nombre: "Cerámica López" });
     qc.setQueryData(["perfil-taller", 8], { id: 8, nombre: "Otro taller" });
     qc.setQueryData(["sesion-ajena"], "intacta");
+    qc.setQueryData(["talleres-publicos"], [{ id: 7, nombre: "Cerámica López" }]);
     const actualizado = await m.api.actualizarMiTaller({ nombre: "Cerámica Nueva" });
     m.propio.aplicarTallerActualizado(qc, 42, actualizado);
     assert.equal(qc.getQueryData(m.propio.claveMiTaller(42)).nombre, "Cerámica Nueva");
     assert.equal(qc.getQueryState(["perfil-taller", 7]).isInvalidated, true);
     assert.equal(qc.getQueryState(["perfil-taller", 8]).isInvalidated, false);
+    // Home, /descubrir y el mapa público (staleTime 60 s) no muestran el nombre anterior.
+    assert.equal(qc.getQueryState(["talleres-publicos"]).isInvalidated, true);
     // Editar el taller no vacía la caché ni toca la sesión.
     assert.equal(qc.getQueryData(["sesion-ajena"]), "intacta");
     assert.equal(m.lib.tokenDeAcceso(), "acc-1");
@@ -338,8 +344,10 @@ await verificar("2. el formulario carga los datos actuales y no edita el estado"
   assert.match(texto(html), /no cambia el estado de aprobación/);
   assert.match(html, /id="perfil-imagen-perfil"/);
   assert.match(html, /id="perfil-imagen-portada"/);
-  assert.match(texto(html), /Cambiar imagen de perfil/);
-  assert.match(texto(html), /Cambiar imagen de portada/);
+  // Foto del taller y portada se distinguen; cambiar es una acción con texto.
+  assert.match(texto(html), /Foto del taller/);
+  assert.match(texto(html), /Imagen de portada/);
+  assert.match(texto(html), /Elegir (otra )?imagen/);
   const archivo = new File([new Uint8Array([1, 2, 3])], "logo.png", { type: "image/png" });
   const form = m.http.cuerpoPerfilTaller({ imagenPerfil: archivo });
   assert.ok(form instanceof FormData);

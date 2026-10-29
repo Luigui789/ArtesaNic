@@ -10,8 +10,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSession } from "@/features/auth/use-session";
 import { getMiTaller, type TallerPropio } from "@/features/talleres/api";
 import { reintentarSalvoErrorDelCliente } from "@/features/catalogo/api";
-import { FormularioPerfilTaller } from "@/features/talleres/components/formulario-perfil-taller";
+import {
+  FormularioPerfilTaller,
+  type FinEdicion,
+} from "@/features/talleres/components/formulario-perfil-taller";
 import { claveMiTaller } from "@/features/talleres/perfil-propio";
+import { estadoUbicacionDe } from "@/features/talleres/ubicacion";
 import { formatDate } from "@/lib/format";
 import { useDocumentHead } from "@/hooks/use-document-head";
 
@@ -37,6 +41,8 @@ export default function PanelTaller({ editarAlAbrir = false }: { editarAlAbrir?:
     retry: reintentarSalvoErrorDelCliente,
   });
   const [editando, setEditando] = useState(editarAlAbrir);
+  // Confirmación visible tras salir del formulario; se descarta al volver a editar.
+  const [fin, setFin] = useState<FinEdicion | null>(null);
 
   return (
     <SiteLayout>
@@ -61,9 +67,24 @@ export default function PanelTaller({ editarAlAbrir = false }: { editarAlAbrir?:
               onActualizar={() => void taller.refetch()}
             />
             {editando ? (
-              <FormularioPerfilTaller taller={taller.data} onTerminar={() => setEditando(false)} />
+              <FormularioPerfilTaller
+                taller={taller.data}
+                onTerminar={(resultado) => {
+                  setFin(resultado);
+                  setEditando(false);
+                }}
+              />
             ) : (
-              <DatosDelTaller taller={taller.data} onEditar={() => setEditando(true)} />
+              <>
+                <AvisoEdicion fin={fin} taller={taller.data} />
+                <DatosDelTaller
+                  taller={taller.data}
+                  onEditar={() => {
+                    setFin(null);
+                    setEditando(true);
+                  }}
+                />
+              </>
             )}
           </>
         )}
@@ -156,13 +177,42 @@ function EstadoDelTaller({
   );
 }
 
+/** Resultado de la última edición, junto a los datos que el servidor devolvió. */
+function AvisoEdicion({ fin, taller }: { fin: FinEdicion | null; taller: TallerPropio }) {
+  if (fin !== "guardado" && fin !== "sin-cambios") return null;
+  return (
+    <div
+      role="status"
+      className="flex flex-col gap-3 rounded-xl border border-secondary/30 bg-secondary/5 p-4 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <p className="flex items-start gap-2 text-sm font-medium">
+        <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-secondary" aria-hidden="true" />
+        {fin === "guardado" ? "Cambios guardados." : "No había cambios que guardar."}
+      </p>
+      {taller.estado === "aprobado" ? (
+        <Button asChild variant="outline" className="touch-target shrink-0">
+          <Link to={`/artesano/${taller.id}`}>Ver perfil público</Link>
+        </Button>
+      ) : null}
+    </div>
+  );
+}
+
+/** Resumen de texto de la ubicación (FEAT-GEO-02); el mapa solo aparece al editar. */
+function textoUbicacion(taller: TallerPropio): string {
+  const { ubicacion, publica } = estadoUbicacionDe(taller);
+  if (!ubicacion) return "Sin ubicación en el mapa";
+  return publica ? "Registrada, visible en el mapa público" : "Registrada, privada";
+}
+
 function DatosDelTaller({ taller, onEditar }: { taller: TallerPropio; onEditar: () => void }) {
   const filas: [string, string][] = [
     ["Rubro", taller.rubro],
     ["Dirección", taller.direccion],
+    ["Ubicación del taller", textoUbicacion(taller)],
     ["Horario", taller.horario],
-    ["Teléfono público", taller.telefono],
-    ["WhatsApp público", taller.whatsapp],
+    ["Teléfono de contacto", taller.telefono],
+    ["WhatsApp", taller.whatsapp],
     ["Facebook", taller.facebook],
     ["Instagram", taller.instagram],
     ["Sitio web", taller.sitioWeb],
@@ -198,7 +248,7 @@ function DatosDelTaller({ taller, onEditar }: { taller: TallerPropio; onEditar: 
           </div>
           <Button variant="outline" className="touch-target" onClick={onEditar}>
             <Pencil className="size-4" aria-hidden="true" />
-            Editar perfil
+            Editar perfil del taller
           </Button>
         </div>
         <p className="mt-3 text-sm">

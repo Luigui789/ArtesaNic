@@ -150,6 +150,93 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: Sin token o token no válido.
+    patch:
+      operationId: actualizar_perfil
+      description: 'Actualización parcial de la cuenta autenticada: solo `nombre`
+        y `telefono`. Cambiar de forma efectiva el teléfono de acceso exige `password_actual`;
+        un teléfono que normaliza al actual no es un cambio. Rol, estado, privilegios
+        y contraseña no son editables: cualquier otro campo responde 400. No exige
+        CSRF (usa el token Bearer), no emite tokens nuevos y la sesión actual sigue
+        válida. No modifica los contactos públicos del taller.'
+      summary: Actualizar los datos personales propios
+      tags:
+      - Autenticación
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedActualizarPerfilRequest'
+            examples:
+              CambiarElNombre:
+                value:
+                  nombre: Ana Lucía López
+                summary: Cambiar el nombre
+              CambiarElTeléfono:
+                value:
+                  telefono: 8777 1234
+                  password_actual: …
+                summary: Cambiar el teléfono
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Usuario'
+              examples:
+                CuentaActualizada:
+                  value:
+                    id: 4
+                    nombre: Ana Lucía López
+                    telefono: '87771234'
+                    rol: artesano
+                  summary: Cuenta actualizada
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+              examples:
+                TeléfonoYaRegistrado:
+                  value:
+                    telefono:
+                    - Ya existe una cuenta con este teléfono.
+                  summary: Teléfono ya registrado
+                FaltaLaContraseñaActual:
+                  value:
+                    password_actual:
+                    - Confirma tu contraseña actual para cambiar el teléfono.
+                  summary: Falta la contraseña actual
+                ContraseñaActualIncorrecta:
+                  value:
+                    password_actual:
+                    - La contraseña actual no es correcta.
+                  summary: Contraseña actual incorrecta
+                CampoNoPermitido:
+                  value:
+                    rol:
+                    - Campo no permitido.
+                  summary: Campo no permitido
+          description: 'Errores de validación: cada campo con su lista de mensajes.
+            Los campos no editables responden «Campo no permitido.».'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o token no válido.
+        '429':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Demasiados intentos. La cabecera Retry-After indica la espera.
   /api/v1/auth/refrescar/:
     post:
       operationId: renovar_sesion
@@ -366,6 +453,23 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/Categoria'
+          description: ''
+  /api/v1/configuracion/:
+    get:
+      operationId: consultar_configuracion
+      description: 'Tasa de cambio informativa C$ por US$ que configura la administración.
+        Sin tasa configurada responde 200 con `tasa_cambio` y `actualizada_en` en
+        null: no existe una tasa por defecto. Los importes contractuales se conservan
+        en córdobas.'
+      summary: Consultar la configuración pública de la plataforma
+      tags:
+      - Configuración
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfiguracionPublica'
           description: ''
   /api/v1/inventario/:
     get:
@@ -765,6 +869,135 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe o no pertenece a esta parte.
+  /api/v1/notificaciones/:
+    get:
+      operationId: notificaciones_list
+      parameters:
+      - name: page
+        required: false
+        in: query
+        description: Un número de página dentro del conjunto de resultados paginado.
+        schema:
+          type: integer
+      - name: page_size
+        required: false
+        in: query
+        description: Número de resultados a devolver por página.
+        schema:
+          type: integer
+      tags:
+      - Notificaciones
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedNotificacionList'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+  /api/v1/notificaciones/{notificacion_id}/leer/:
+    post:
+      operationId: notificaciones_leer_create
+      parameters:
+      - in: path
+        name: notificacion_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Notificaciones
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Notificacion'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+  /api/v1/notificaciones/leer-todas/:
+    post:
+      operationId: notificaciones_leer_todas_create
+      tags:
+      - Notificaciones
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultadoMarcarTodas'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+  /api/v1/notificaciones/resumen/:
+    get:
+      operationId: notificaciones_resumen_retrieve
+      tags:
+      - Notificaciones
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Resumen'
+          description: ''
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
   /api/v1/operaciones/{tipo}/{clave}/:
     get:
       operationId: consultar_operacion
@@ -827,6 +1060,131 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
           description: No existe, no se completó o pertenece a otro actor.
+  /api/v1/pedidos/{pedido_id}/mensajes/:
+    get:
+      operationId: listar_mensajes_pedido
+      description: 'Solo el comprador del pedido o el artesano de su taller aprobado.
+        Sin `despues_de` devuelve el historial completo; con `despues_de=N`, solo
+        los mensajes con `id > N`, en orden de `id` (cursor del polling de 15 s, RNF-010).
+        Un pedido terminal sigue legible con `solo_lectura: true`. 404 si no existe
+        o es ajeno.'
+      summary: Leer la conversación del pedido (historial o novedades)
+      parameters:
+      - in: query
+        name: despues_de
+        schema:
+          type: integer
+          maximum: 9223372036854775807
+          minimum: 0
+          format: int64
+          default: 0
+        description: 'Devuelve solo mensajes con `id` mayor. Omitido: historial completo.'
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mensajes
+      security:
+      - jwtAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversacionPedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: 'Errores por campo: texto vacío o mayor de 500 caracteres,
+            campo no permitido («Campo no permitido.») o cursor `despues_de` no entero
+            o negativo.'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+    post:
+      operationId: enviar_mensaje_pedido
+      description: El autor es la cuenta del token; solo se acepta `texto`. Se admite
+        mientras el pedido está `confirmado` o `en_cumplimiento`; en un estado terminal
+        responde 409 `conversacion_cerrada`. Sin adjuntos, edición ni borrado.
+      summary: Enviar un mensaje de texto al pedido
+      parameters:
+      - in: path
+        name: pedido_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - Mensajes
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MensajeEntradaRequest'
+        required: true
+      security:
+      - jwtAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MensajePedido'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: 'Errores por campo: texto vacío o mayor de 500 caracteres,
+            campo no permitido («Campo no permitido.») o cursor `despues_de` no entero
+            o negativo.'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Sin token o sesión no válida.
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: Rol incorrecto, o taller del artesano no aprobado.
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+          description: No existe o no pertenece a esta parte.
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConflictoConversacion'
+          description: 'El pedido alcanzó un estado terminal; nada se escribe. `codigo`
+            estable: `conversacion_cerrada`. El historial sigue disponible por GET.'
   /api/v1/pedidos/mios/:
     get:
       operationId: listar_mis_pedidos
@@ -2579,8 +2937,8 @@ paths:
   /api/v1/productos/mios/:
     get:
       operationId: listar_mis_productos
-      description: Publicados y despublicados, del más reciente al más antiguo, paginados.
-        El taller se deriva del token.
+      description: Publicados, despublicados y moderados, del más reciente al más
+        antiguo, paginados. El taller se deriva del token.
       summary: Listar los productos del taller propio
       parameters:
       - name: page
@@ -2790,7 +3148,8 @@ paths:
     post:
       operationId: despublicar_mi_producto
       description: Lo retira del catálogo público y de nuevas solicitudes sin borrarlo
-        (RF-019). Idempotente. Sin cuerpo.
+        (RF-019). Idempotente; también permitido si el producto está moderado, sin
+        levantar la moderación. Sin cuerpo.
       summary: Despublicar un producto del taller propio
       parameters:
       - in: path
@@ -2808,7 +3167,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'producto_sin_fotografia: falta fotografía.'
+          description: 'producto_sin_fotografia: falta fotografía. producto_moderado:
+            retirado por moderación administrativa, no puede volver a publicarse.'
         '200':
           content:
             application/json:
@@ -2837,7 +3197,8 @@ paths:
     post:
       operationId: publicar_mi_producto
       description: 'Lo muestra en el catálogo público. Idempotente: publicar un producto
-        ya publicado responde 200 sin cambios. Sin cuerpo.'
+        ya publicado responde 200 sin cambios. Un producto retirado por moderación
+        responde 409 producto_moderado y no cambia. Sin cuerpo.'
       summary: Publicar un producto del taller propio
       parameters:
       - in: path
@@ -2855,7 +3216,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-          description: 'producto_sin_fotografia: falta fotografía.'
+          description: 'producto_sin_fotografia: falta fotografía. producto_moderado:
+            retirado por moderación administrativa, no puede volver a publicarse.'
         '200':
           content:
             application/json:
@@ -3519,7 +3881,8 @@ paths:
     get:
       operationId: listar_talleres
       description: Perfiles públicos de los talleres aprobados, por nombre. Los pendientes
-        y los rechazados no aparecen.
+        y los rechazados no aparecen. `ubicacion_mapa` trae la posición solo si el
+        artesano autorizó publicarla; si no, es null.
       summary: Listar los talleres aprobados
       tags:
       - Talleres
@@ -3562,7 +3925,8 @@ paths:
     get:
       operationId: consultar_mi_taller
       description: Taller del artesano autenticado, en cualquier estado, con el resultado
-        de su revisión.
+        de su revisión. Incluye `latitud`, `longitud` y `ubicacion_publica` aunque
+        la ubicación sea privada.
       summary: Consultar el taller propio
       tags:
       - Talleres
@@ -3597,7 +3961,9 @@ paths:
       operationId: actualizar_mi_taller
       description: 'Modifica solo los campos enviados del perfil público (RF-008).
         Estado, propietario y revisión no son modificables: enviarlos responde 400.
-        Editar el perfil no cambia el estado de aprobación.'
+        Editar el perfil no cambia el estado de aprobación. `latitud` y `longitud`
+        van juntas: para quitar la ubicación se envían ambas en null con `ubicacion_publica`
+        en false; no se puede publicar sin coordenadas.'
       summary: Actualizar el perfil del taller propio
       tags:
       - Talleres
@@ -3706,6 +4072,18 @@ components:
       required:
       - delta
       - motivo
+    AutorMensaje:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Id estable de la cuenta; distingue lo propio.
+        nombre:
+          type: string
+          description: Nombre vigente de la cuenta (puede cambiar).
+      required:
+      - id
+      - nombre
     BlankEnum:
       enum:
       - ''
@@ -4106,6 +4484,46 @@ components:
         * `image/png` - image/png
         * `image/webp` - image/webp
         * `application/pdf` - application/pdf
+    ConfiguracionPublica:
+      type: object
+      description: Configuración pública. Sin tasa configurada, ambos campos son null
+        (D-AUD14-06).
+      properties:
+        tasa_cambio:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,6}(?:\.\d{0,4})?$
+          readOnly: true
+          nullable: true
+          description: 'Córdobas por un dólar, como texto decimal con cuatro decimales;
+            null si la administración no la ha configurado. Solo informativa: los
+            importes contractuales están en córdobas.'
+        actualizada_en:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Fecha de la última actualización de la tasa; null sin tasa.
+      required:
+      - actualizada_en
+      - tasa_cambio
+    ConflictoConversacion:
+      type: object
+      properties:
+        detail:
+          type: string
+          default: Este pedido ya finalizó. La conversación está disponible solo para
+            consulta.
+        codigo:
+          $ref: '#/components/schemas/ConflictoConversacionCodigoEnum'
+      required:
+      - codigo
+    ConflictoConversacionCodigoEnum:
+      enum:
+      - conversacion_cerrada
+      type: string
+      description: '* `conversacion_cerrada` - Pedido finalizado: conversación de
+        consulta'
     ConflictoCumplimiento:
       type: object
       properties:
@@ -4225,6 +4643,27 @@ components:
       required:
       - codigo
       - detail
+    ConversacionPedido:
+      type: object
+      properties:
+        mensajes:
+          type: array
+          items:
+            $ref: '#/components/schemas/MensajePedido'
+          description: Ordenados por `id` ascendente.
+        cursor:
+          type: integer
+          minimum: 0
+          description: Mayor id entregado o el `despues_de` recibido; nunca retrocede.
+            `0` sin mensajes ni cursor.
+        solo_lectura:
+          type: boolean
+          description: '`true` si el pedido alcanzó un estado terminal: no admite
+            mensajes nuevos.'
+      required:
+      - cursor
+      - mensajes
+      - solo_lectura
     CumplimientoLinea:
       type: object
       properties:
@@ -4902,6 +5341,36 @@ components:
       required:
       - password
       - telefono
+    MensajeEntradaRequest:
+      type: object
+      description: 'Lista cerrada: solo ``texto``. El autor sale del token, nunca
+        del cuerpo.'
+      properties:
+        texto:
+          type: string
+          description: Texto plano; 1–500 caracteres tras recortar los extremos.
+          maxLength: 500
+      required:
+      - texto
+    MensajePedido:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Orden contractual y cursor de la conversación.
+        autor:
+          $ref: '#/components/schemas/AutorMensaje'
+        texto:
+          type: string
+          maxLength: 500
+        creado_en:
+          type: string
+          format: date-time
+      required:
+      - autor
+      - creado_en
+      - id
+      - texto
     MetodoPagoEnum:
       enum:
       - transferencia
@@ -4932,6 +5401,21 @@ components:
         * `stock` - Venta desde stock
         * `produccion` - Producción por cantidad
         * `personalizacion` - Personalización
+    ModeracionPropia:
+      type: object
+      description: 'Moderación vista por el artesano: motivo y fecha, sin la identidad
+        del actor.'
+      properties:
+        motivo:
+          type: string
+          readOnly: true
+        moderado_en:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+      - moderado_en
+      - motivo
     MovimientoInventario:
       type: object
       properties:
@@ -5000,6 +5484,96 @@ components:
       - reservada_antes
       - reservada_despues
       - tipo
+    Notificacion:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        tipo:
+          $ref: '#/components/schemas/NotificacionTipoEnum'
+        titulo:
+          type: string
+          readOnly: true
+        detalle:
+          type: string
+          readOnly: true
+        solicitud_id:
+          type: integer
+          nullable: true
+          readOnly: true
+        pedido_id:
+          type: integer
+          nullable: true
+          readOnly: true
+        creada_en:
+          type: string
+          format: date-time
+          readOnly: true
+        leida:
+          type: boolean
+          readOnly: true
+        leida_en:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+      - creada_en
+      - detalle
+      - id
+      - leida
+      - pedido_id
+      - solicitud_id
+      - tipo
+      - titulo
+    NotificacionTipoEnum:
+      enum:
+      - solicitud_recibida
+      - solicitud_rechazada
+      - propuesta_lista
+      - propuesta_aceptada
+      - propuesta_rechazada
+      - pago_registrado
+      - pago_corregido
+      - pago_confirmado
+      - pago_observado
+      - pago_no_recibido
+      - pedido_en_cumplimiento
+      - entrega_registrada
+      - pedido_entregado
+      - recepcion_confirmada
+      - discrepancia_entrega
+      - pedido_vencido_falta_pago
+      - pedido_cancelado_artesano
+      - cierre_parcial_propuesto
+      - cierre_parcial_objetado
+      - pedido_cerrado_parcial
+      - reembolso_creado
+      - reembolso_realizado
+      type: string
+      description: |-
+        * `solicitud_recibida` - Solicitud recibida
+        * `solicitud_rechazada` - Solicitud rechazada
+        * `propuesta_lista` - Propuesta lista
+        * `propuesta_aceptada` - Propuesta aceptada
+        * `propuesta_rechazada` - Propuesta rechazada
+        * `pago_registrado` - Pago registrado
+        * `pago_corregido` - Pago corregido
+        * `pago_confirmado` - Pago confirmado
+        * `pago_observado` - Pago observado
+        * `pago_no_recibido` - Pago no recibido
+        * `pedido_en_cumplimiento` - Pedido en cumplimiento
+        * `entrega_registrada` - Entrega registrada
+        * `pedido_entregado` - Pedido entregado
+        * `recepcion_confirmada` - Recepcion confirmada
+        * `discrepancia_entrega` - Discrepancia entrega
+        * `pedido_vencido_falta_pago` - Pedido vencido falta pago
+        * `pedido_cancelado_artesano` - Pedido cancelado artesano
+        * `cierre_parcial_propuesto` - Cierre parcial propuesto
+        * `cierre_parcial_objetado` - Cierre parcial objetado
+        * `pedido_cerrado_parcial` - Pedido cerrado parcial
+        * `reembolso_creado` - Reembolso creado
+        * `reembolso_realizado` - Reembolso realizado
     ObligacionClasificacion:
       type: object
       properties:
@@ -5152,6 +5726,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/MovimientoInventario'
+    PaginatedNotificacionList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notificacion'
     PaginatedPedidoArtesanoList:
       type: object
       required:
@@ -5346,6 +5943,30 @@ components:
       - registrable_hasta
       - revision_pendiente
       - total
+    PatchedActualizarPerfilRequest:
+      type: object
+      description: |-
+        Datos personales propios editables (RF-004): solo nombre y teléfono.
+
+        Actualización parcial. Rol, estado, privilegios y contraseña no son editables:
+        cualquier otro campo se rechaza con 400 (D-AUD15-01, D-AUD15-04).
+      properties:
+        nombre:
+          type: string
+          minLength: 1
+          description: Nombre completo.
+          maxLength: 150
+        telefono:
+          type: string
+          minLength: 1
+          description: Nuevo teléfono de acceso, en cualquier formato admitido. Si
+            cambia de forma efectiva exige `password_actual`.
+          maxLength: 32
+        password_actual:
+          type: string
+          writeOnly: true
+          description: Contraseña actual. Obligatoria solo para cambiar el teléfono;
+            no se guarda ni se devuelve.
     PatchedActualizarPerfilTallerRequest:
       type: object
       description: Edición del perfil del taller propio, incluyendo imagen de perfil
@@ -5404,6 +6025,25 @@ components:
             maxLength: 200
           - type: string
             maxLength: 0
+        latitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+          description: Latitud en grados decimales (WGS 84), de -90 a 90, con hasta
+            6 decimales.
+        longitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,6})?$
+          nullable: true
+          description: Longitud en grados decimales (WGS 84), de -180 a 180, con hasta
+            6 decimales.
+        ubicacion_publica:
+          type: boolean
+          title: Ubicación pública
+          description: Si el artesano autoriza mostrar la posición del taller en el
+            mapa público.
         imagen_perfil:
           type: string
           format: binary
@@ -5667,7 +6307,7 @@ components:
     PerfilTallerEntradaRequest:
       type: object
       description: |-
-        Datos del perfil que escribe el artesano (RF-008).
+        Datos del perfil y ubicación que escribe el artesano (RF-008, FEAT-GEO-01).
 
         Propietario, estado y revisión no son campos de entrada: enviarlos responde 400.
       properties:
@@ -5724,6 +6364,25 @@ components:
             maxLength: 200
           - type: string
             maxLength: 0
+        latitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          nullable: true
+          description: Latitud en grados decimales (WGS 84), de -90 a 90, con hasta
+            6 decimales.
+        longitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,6})?$
+          nullable: true
+          description: Longitud en grados decimales (WGS 84), de -180 a 180, con hasta
+            6 decimales.
+        ubicacion_publica:
+          type: boolean
+          title: Ubicación pública
+          description: Si el artesano autoriza mostrar la posición del taller en el
+            mapa público.
       required:
       - direccion_completa
       - nombre
@@ -5773,8 +6432,11 @@ components:
       - precio
     ProductoPropio:
       type: object
-      description: 'Producto del taller propio: añade su estado de publicación y última
-        edición.'
+      description: |-
+        Producto del taller propio: añade su estado de publicación, moderación y última edición.
+
+        ``publicado`` es la decisión del artesano; ``moderacion`` (null si no existe) indica un
+        retiro administrativo que impide publicarlo (RF-019, D-AUD14-04).
       properties:
         id:
           type: integer
@@ -5812,6 +6474,14 @@ components:
         publicado:
           type: boolean
           readOnly: true
+        moderacion:
+          allOf:
+          - $ref: '#/components/schemas/ModeracionPropia'
+          nullable: true
+          readOnly: true
+          description: 'Retiro por moderación administrativa: motivo y fecha; null
+            si no existe. Un producto moderado no aparece en el catálogo ni puede
+            publicarse.'
         creado_en:
           type: string
           format: date-time
@@ -5833,6 +6503,7 @@ components:
       - fotografia_url
       - id
       - modalidades
+      - moderacion
       - nombre
       - precio
       - publicado
@@ -6554,6 +7225,16 @@ components:
       description: |-
         * `aceptada` - Aceptada
         * `rechazada` - Rechazada
+    ResultadoMarcarTodas:
+      type: object
+      properties:
+        actualizadas:
+          type: integer
+        no_leidas:
+          type: integer
+      required:
+      - actualizadas
+      - no_leidas
     ResultadoRecepcionEnum:
       enum:
       - confirmada
@@ -6572,6 +7253,13 @@ components:
         * `confirmado` - Pago confirmado
         * `observado` - Pago observado
         * `no_recibido` - Pago no recibido
+    Resumen:
+      type: object
+      properties:
+        no_leidas:
+          type: integer
+      required:
+      - no_leidas
     Revisor:
       type: object
       properties:
@@ -6754,8 +7442,8 @@ components:
       - renglones
     TallerPropio:
       type: object
-      description: 'Taller del artesano autenticado: el perfil y el resultado de su
-        revisión.'
+      description: 'Taller del artesano autenticado: perfil, ubicación (aunque sea
+        privada) y revisión.'
       properties:
         id:
           type: integer
@@ -6800,6 +7488,24 @@ components:
           type: string
           format: uri
           readOnly: true
+        latitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        longitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,6})?$
+          readOnly: true
+          nullable: true
+        ubicacion_publica:
+          type: boolean
+          readOnly: true
+          title: Ubicación pública
+          description: Si el artesano autoriza mostrar la posición del taller en el
+            mapa público.
         imagen_perfil_url:
           type: string
           format: uri
@@ -6843,17 +7549,23 @@ components:
       - imagen_perfil_url
       - imagen_portada_url
       - instagram_url
+      - latitud
+      - longitud
       - motivo_rechazo
       - nombre
       - revisado_en
       - rubro
       - sitio_web
       - telefono_publico
+      - ubicacion_publica
       - whatsapp_publico
     TallerPublico:
       type: object
-      description: Perfil público del taller aprobado. Sin propietario, estado ni
-        datos de la cuenta.
+      description: |-
+        Perfil público del taller aprobado. Sin propietario, estado ni datos de la cuenta.
+
+        Las coordenadas no se exponen sueltas: solo dentro de ``ubicacion_mapa`` y solo si
+        el artesano autorizó publicarlas.
       properties:
         id:
           type: integer
@@ -6908,6 +7620,13 @@ components:
           format: uri
           nullable: true
           readOnly: true
+        ubicacion_mapa:
+          allOf:
+          - $ref: '#/components/schemas/UbicacionMapa'
+          nullable: true
+          readOnly: true
+          description: Posición del taller en el mapa, o null si el artesano no autorizó
+            publicarla o no la ha registrado.
       required:
       - direccion_completa
       - facebook_url
@@ -6921,6 +7640,7 @@ components:
       - rubro
       - sitio_web
       - telefono_publico
+      - ubicacion_mapa
       - whatsapp_publico
     TallerResumen:
       type: object
@@ -7013,6 +7733,27 @@ components:
           description: Valor para la cabecera X-CSRFToken.
       required:
       - csrf_token
+    UbicacionMapa:
+      type: object
+      description: Posición pública del taller en el mapa.
+      properties:
+        latitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,3}(?:\.\d{0,6})?$
+          readOnly: true
+          description: Latitud en grados decimales (WGS 84), de -90 a 90, con hasta
+            6 decimales.
+        longitud:
+          type: string
+          format: decimal
+          pattern: ^-?\d{0,4}(?:\.\d{0,6})?$
+          readOnly: true
+          description: Longitud en grados decimales (WGS 84), de -180 a 180, con hasta
+            6 decimales.
+      required:
+      - latitud
+      - longitud
     Usuario:
       type: object
       description: Identidad autenticada. Sin contraseña, hash ni privilegios internos.

@@ -64,6 +64,7 @@ interface ProductoDTO {
 
 interface ProductoPropioDTO extends ProductoDTO {
   publicado: boolean;
+  moderacion?: { motivo: string; moderado_en: string } | null;
   actualizado_en: string;
 }
 
@@ -105,7 +106,14 @@ export function aProductoCatalogo(p: ProductoDTO): CatalogProduct {
 }
 
 export function aProductoPropio(p: ProductoPropioDTO): OwnProduct {
-  return { ...aProductoCatalogo(p), publicado: p.publicado, actualizadoEn: p.actualizado_en };
+  return {
+    ...aProductoCatalogo(p),
+    publicado: p.publicado,
+    moderacion: p.moderacion
+      ? { motivo: p.moderacion.motivo, moderadoEn: p.moderacion.moderado_en }
+      : null,
+    actualizadoEn: p.actualizado_en,
+  };
 }
 
 function aPaginado<D, T>(

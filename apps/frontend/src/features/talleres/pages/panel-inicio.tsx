@@ -97,21 +97,6 @@ export default function Panel() {
           </div>
         </header>
 
-        <section
-          className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
-          aria-label="Resumen del taller"
-        >
-          {tarjetas.map((t) => (
-            <div key={t.label} className="rounded-xl border bg-card p-4 sm:p-5">
-              <t.icon className="size-5 text-secondary" aria-hidden="true" />
-              <div className="mt-3 text-3xl font-bold">
-                {resumen.isPending ? <Skeleton className="h-9 w-12" /> : (t.value ?? 0)}
-              </div>
-              <p className="mt-1 text-sm text-muted-foreground">{t.label}</p>
-            </div>
-          ))}
-        </section>
-
         <section className="mt-10" aria-labelledby="recientes">
           <div className="flex items-center justify-between gap-3">
             <h2 id="recientes" className="font-display text-xl font-bold">
@@ -156,7 +141,7 @@ export default function Panel() {
                       </div>
                     </div>
                     <Button asChild variant="outline" className="touch-target w-full sm:w-auto">
-                      <Link to={`/panel/pedidos/${o.id}`}>Gestionar</Link>
+                      <Link to={`/panel/pedidos/${o.id}`}>Ver pedido</Link>
                     </Button>
                   </div>
                 </article>
@@ -164,6 +149,25 @@ export default function Panel() {
             )}
           </div>
         </section>
+        <details className="mt-6 rounded-xl border p-4">
+          <summary className="min-h-11 cursor-pointer font-semibold">
+            Consultar indicadores de la demostración
+          </summary>{" "}
+          <section
+            className="mt-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4"
+            aria-label="Resumen del taller"
+          >
+            {tarjetas.map((t) => (
+              <div key={t.label} className="rounded-xl border bg-card p-4 sm:p-5">
+                <t.icon className="size-5 text-secondary" aria-hidden="true" />
+                <div className="mt-3 text-3xl font-bold">
+                  {resumen.isPending ? <Skeleton className="h-9 w-12" /> : (t.value ?? 0)}
+                </div>
+                <p className="mt-1 text-sm text-muted-foreground">{t.label}</p>
+              </div>
+            ))}
+          </section>
+        </details>
       </PageContainer>
     </SiteLayout>
   );

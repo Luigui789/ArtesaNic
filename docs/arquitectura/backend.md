@@ -14,7 +14,7 @@ Back-Artesanic/
 │   ├── urls.py                 /admin/, /api/v1/salud/, /api/v1/auth/, /api/v1/talleres/,
 │   │                           /api/v1/categorias/, /api/v1/productos/, /api/v1/inventario/,
 │   │                           /api/v1/solicitudes/ (solicitudes, propuestas y decisión),
-│   │                           /api/v1/pedidos/, /api/v1/operaciones/
+│   │                           /api/v1/pedidos/, /api/v1/operaciones/, /api/v1/configuracion/
 │   ├── health.py               Sonda de disponibilidad (RNF-006)
 │   ├── wsgi.py, asgi.py
 │   └── tests/                  Salud, orígenes (CORS y CSRF) y esquema OpenAPI
@@ -42,7 +42,7 @@ Back-Artesanic/
 │   │   ├── services.py         Creación transaccional desde la propuesta aceptada (+ estado, cumplimiento
 │   │   │                       y copia de la distribución económica)
 │   │   ├── cumplimiento.py     Iniciar renglón, registrar entrega y recepción: Pago confirmado, locks,
-│   │   │                       consumo de reservas, transiciones y puntos de integración AUD-20
+│   │   │                       consumo de reservas, transiciones y notificaciones AUD-17
 │   │   ├── resolucion.py       Cancelación del taller, propuesta y respuesta de cierre parcial (AUD-13)
 │   │   ├── reembolsos.py       Base reembolsable, reembolso total/parcial y devolución externa (AUD-13)
 │   │   ├── clasificacion.py    Clasificación reutilizable/baja de unidades manipuladas (AUD-13)
@@ -69,10 +69,22 @@ Back-Artesanic/
 │   │   ├── selectors.py        Lectura por parte en tres consultas
 │   │   ├── api/               Emisión, lectura y decisión bajo /api/v1/solicitudes/{mias,recibidas}/{id}/propuesta/
 │   │   └── tests/             Cotización, decisión, permisos, idempotencia, concurrencia real y smoke HTTP
+│   ├── mensajes/               Conversación privada del pedido confirmado (RF-014, RNF-010; AUD-16)
+│   │   ├── models.py           MensajePedido append-only (texto ≤ 500, índice (pedido, id))
+│   │   ├── services.py         enviar_mensaje: lock del Pedido, estado no terminal, autor = actor
+│   │   ├── selectors.py        Ownership en SQL, historial o delta por cursor de id
+│   │   ├── api/                GET/POST /api/v1/pedidos/{id}/mensajes/ (docs/api/mensajes.md)
+│   │   └── tests/              Modelo, API, privacidad y carreras reales en PostgreSQL
+│   ├── configuracion/          Tasa de cambio informativa administrada (RF-007, RF-013.4; AUD-14)
+│   │   ├── models.py           ConfiguracionPlataforma (singleton id=1) y CambioTasaCambio append-only
+│   │   ├── services.py         actualizar_tasa_cambio: lock del singleton, proyección + historial
+│   │   ├── admin.py            Edición de la tasa en Django Admin vía el servicio, sin add/delete
+│   │   ├── api/                GET público /api/v1/configuracion/ (docs/api/configuracion.md)
+│   │   └── tests/
 │   ├── catalogo/               Categorías y productos con modalidades V1 (RF-001, RF-003, RF-017, RF-019; AUD-04)
-│   │   ├── models.py           Categoria, Producto, Modalidad y sus restricciones (al menos una modalidad)
-│   │   ├── services.py         Alta, edición, publicar y despublicar; exige taller aprobado
-│   │   ├── admin.py            Categorías en Django Admin (código estable)
+│   │   ├── models.py           Categoria, Producto, Modalidad, ModeracionProducto (AUD-14) y restricciones
+│   │   ├── services.py         Alta, edición, publicar y despublicar; exige taller aprobado; moderar_producto
+│   │   ├── admin.py            Categorías (código estable) y productos de solo lectura con acción de moderación
 │   │   ├── fixtures/           Categorías de desarrollo, no normativas
 │   │   ├── api/                Catálogo público y productos propios (docs/api/catalogo.md)
 │   │   └── tests/
@@ -140,15 +152,28 @@ Las reglas tienen un único lugar: la normalización del teléfono está en `pho
 - **Rol de negocio** (`Usuario.rol`): `comprador`, `artesano` o `administrador`.
 - **Privilegios internos de Django** (`is_staff`, `is_superuser`, grupos y permisos): independientes del rol. PostgreSQL impide que una cuenta de comprador o artesano los tenga, y tener rol administrador no los concede.
 - **Superusuario** (`createsuperuser`): cuenta técnica de mantenimiento, con todos los permisos. No es la forma de dar de alta a la administración de la plataforma.
-- **Administrador de plataforma**: lo crea un superusuario en Django Admin con rol `administrador`, `is_staff` activado y solo los permisos que necesita (en esta fase, ver y cambiar usuarios, para activar o desactivar cuentas). No puede reasignar roles, otorgar privilegios, cambiar contraseñas ajenas ni ver tokens.
-- **Restricción de RF-013 y RNF-004 para las fases siguientes:** la administración no accede al contenido de chats ni de comprobantes. Como un superusuario lo ve todo en Django Admin, esos modelos **no deben registrarse en el admin**, y la supervisión de pedidos será de solo lectura.
+- **Administrador de plataforma**: lo crea un superusuario en Django Admin con rol `administrador`, `is_staff` activado y solo los permisos que necesita. No puede reasignar roles, otorgar privilegios, cambiar contraseñas ajenas ni ver tokens. Los servicios administrativos vuelven a comprobar rol, `is_staff`, cuenta activa y el permiso concreto: no confían solo en que la petición llegó por `/admin/`.
+- **Superficie administrativa tras AUD-14** (Django Admin, fuera de `/api/v1/` y del OpenAPI; sesión y CSRF propios de Django, sin JWT ni CORS para administradores, D-AUD14-12):
+
+  | Ruta | Capacidad | Permisos |
+  |---|---|---|
+  | `/admin/accounts/usuario/` | Activar y desactivar cuentas ajenas | `view_usuario`, `change_usuario` |
+  | `/admin/talleres/taller/` | Aprobar y rechazar talleres; perfil de solo lectura | `view_taller`, `revisar_taller` |
+  | `/admin/catalogo/categoria/` | Crear y renombrar categorías (código estable) | permisos de `categoria` |
+  | `/admin/catalogo/producto/` | Consultar productos y retirarlos por moderación con motivo; sin edición | `view_producto`, `moderar_producto` |
+  | `/admin/configuracion/configuracionplataforma/` | Actualizar la tasa de cambio (con historial) | `view_`/`change_configuracionplataforma` |
+  | `/admin/pedidos/pedido/` | Supervisar estado, importes y líneas de pedidos; solo lectura, sin acciones | `view_pedido` |
+
+- **Privacidad administrativa (RF-013.6 a 8, RN-006, RNF-013; D-AUD14-11):** el administrador no modifica acuerdos comerciales ni accede a chats ni comprobantes. Como un superusuario lo ve todo en Django Admin, `apps.pagos` (`Pago`, `IntentoPago`, `RevisionIntentoPago`, comprobantes) **no se registra en el admin**. `apps.mensajes` (`MensajePedido`, AUD-16) tampoco se registra: `/admin/mensajes/` responde `404` incluso al superusuario (D-AUD16-09). `PedidoAdmin` no muestra referencias, archivos, rutas privadas ni el teléfono del comprador. Una prueba fija la lista exacta de modelos registrados (`apps/pedidos/tests/test_admin.py`): ampliarla exige revisar estas reglas.
 
 ## Cómo crece: fase de talleres y catálogo
 
 | Dónde | Qué |
 |---|---|
 | `apps/talleres/` (AUD-02, implementada) | Perfil del taller (RF-008) vinculado a la cuenta de artesano; aprobación (RF-013) en Django Admin. El alta ocurre en el registro del artesano; estados y rubro según D-AUD02-01 a 03 ([talleres](../api/talleres.md#4-decisiones-aplicadas-en-aud-02)). |
-| `apps/catalogo/` (AUD-04, implementada salvo imagen) | Categorías, productos con modalidades combinables, publicación y catálogo público paginado ([catálogo](../api/catalogo.md)). Pendiente: fotografía principal (DR-01) y moderación administrativa con actor y motivo (AUD-14). Las unidades estándar e inventario (RF-022) serán un dominio aparte. |
+| `apps/catalogo/` (AUD-04, DR-01, AUD-14) | Categorías, productos con modalidades combinables, fotografía principal, publicación y catálogo público paginado ([catálogo](../api/catalogo.md)). La moderación administrativa (`ModeracionProducto`, con actor y motivo) es independiente de `publicado` y saca el producto del catálogo y de nuevas solicitudes sin tocar compromisos previos (D-AUD14-02/03). |
+| `apps/configuracion/` (AUD-14) | [Configuración pública](../api/configuracion.md): tasa de cambio informativa en un singleton con historial append-only; escritura solo en Django Admin. |
+| `apps/pedidos/admin.py` (AUD-14) | Supervisión de pedidos de solo lectura (`view_pedido`): estado operativo, importes congelados y líneas, sin acciones ni edición (D-AUD14-10). |
 | `apps/solicitudes/` (AUD-05/06) | [Solicitudes y renglones](../api/solicitudes.md), creación atómica y lectura de las partes. Revisión individual con historial y [DR-03](../decisiones/v1.md#dr-03--solicitud-sin-renglones-aceptados) aplicada (AUD-06). Mutaciones protegidas por AUD-08. |
 | `apps/propuestas/` (AUD-06/07) | [Propuesta final y decisión del comprador](../api/propuestas.md): cotización con precio del servidor, cargos, plan y costo de entrega, total y `DecisionPropuesta` (`aceptada`/`rechazada`). |
 | `apps/pedidos/` (AUD-07) | [Pedido confirmado](../api/pedidos.md): snapshot contractual inmutable (`Pedido`, `LineaPedido`, `CargoPedido`) creado al aceptar la propuesta, independiente de cambios posteriores del catálogo. |
@@ -171,3 +196,6 @@ Las aplicaciones se crean cuando su fase empieza. La lista prevista (`workshops`
 6. Las transacciones, junto a la operación que necesita consistencia (`services.py`).
 7. Sin repositorios, eventos ni interfaces abstractas sin una necesidad comprobada.
 8. Las pruebas, junto al módulo que verifican.
+
+
+AUD-17: las notificaciones comerciales persistentes y su bandeja real se describen en [notificaciones](../api/notificaciones.md). La demo de mensajes conserva su estado separado.

@@ -10,6 +10,7 @@ from django.db import transaction
 
 from apps.accounts.models import Rol
 from apps.catalogo.models import Modalidad, Producto
+from apps.notificaciones import eventos as notificaciones
 from apps.operaciones import services as operaciones
 from apps.operaciones.models import TipoOperacion
 
@@ -103,6 +104,17 @@ def _entrega_preferida(modalidad: str, descripcion: str) -> dict:
     return {"modalidad_entrega_preferida": modalidad, "descripcion_entrega_preferida": descripcion}
 
 
+def _bloquear_productos(ids: set[int]) -> None:
+    """Serializa la nueva solicitud con publicar y moderar sobre cada producto (D-AUD14-07).
+
+    Orden ascendente y determinista. Si una moderación obtuvo antes el lock, la consulta
+    de catálogo posterior ya la ve y el producto queda no disponible; si la solicitud lo
+    obtuvo primero, la moderación espera y la solicitud queda como compromiso previo.
+    Solo afecta al alta: resolver, proponer, confirmar o cumplir no se filtran.
+    """
+    list(Producto.objects.select_for_update().filter(pk__in=ids).order_by("pk").values_list("pk"))
+
+
 @transaction.atomic
 def crear_solicitud(
     *,
@@ -134,6 +146,7 @@ def crear_solicitud(
             for campo in ("producto", "cantidad")
         ):
             raise SolicitudInvalida({"renglones": ["Producto y cantidad deben ser enteros."]})
+    _bloquear_productos({d["producto"] for d in renglones})
     productos = {
         p.pk: p
         for p in Producto.objects.catalogo()
@@ -189,6 +202,12 @@ def crear_solicitud(
     for fila in filas:
         fila.solicitud = solicitud
     RenglonSolicitud.objects.bulk_create(filas)
+    notificaciones.avisar(
+        tipo="solicitud_recibida",
+        destinatario_id=solicitud.taller.propietario_id,
+        evento_id=solicitud.pk,
+        solicitud_id=solicitud.pk,
+    )
     return solicitud
 
 
@@ -336,6 +355,13 @@ def resolver_renglon(
 
     solicitud.estado = estado_tras_revision([r.resolucion for r in renglones])
     solicitud.save(update_fields=["estado", "actualizado_en"])
+    if solicitud.estado == EstadoSolicitud.RECHAZADA:
+        notificaciones.avisar(
+            tipo="solicitud_rechazada",
+            destinatario_id=solicitud.comprador_id,
+            evento_id=solicitud.pk,
+            solicitud_id=solicitud.pk,
+        )
     return revision
 
 

@@ -40,6 +40,9 @@ export default tseslint.config(
       "src/mocks/**",
       "src/components/layout/site-layout.tsx",
       "src/components/layout/demo-controls.tsx",
+      // AUD-16: la mensajería demo usa el servidor simulado directo; `mensajes/api.ts` es real.
+      "src/features/mensajes/components/order-chat-demo.tsx",
+      "src/features/notificaciones/use-notifications-demo.tsx",
     ],
     rules: {
       "no-restricted-imports": [

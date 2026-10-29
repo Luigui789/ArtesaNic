@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useForm } from "react-hook-form";
+import { useForm, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { SiteLayout } from "@/components/layout/site-layout";
@@ -95,9 +95,7 @@ export function ListadoInventario() {
                   </div>
                   <CantidadesInventario inventario={i} />
                   <Button asChild variant="outline">
-                    <Link to={`/panel/inventario/${i.producto.id}`}>
-                      Gestionar existencias y movimientos
-                    </Link>
+                    <Link to={`/panel/inventario/${i.producto.id}`}>Ver y ajustar inventario</Link>
                   </Button>
                 </li>
               ))}
@@ -132,53 +130,92 @@ export function DetalleInventario() {
   });
   const sinInicializar =
     inventario.error instanceof ApiError && inventario.error.status === 404 && !!producto.data;
+  let contenido;
+  if (!id) contenido = <ErrorState mensaje="El producto no existe." />;
+  else if (producto.isPending) contenido = <LoadingState />;
+  else if (producto.isError)
+    contenido = (
+      <ErrorState
+        mensaje={mensajeDominio(producto.error)}
+        onRetry={() => void producto.refetch()}
+      />
+    );
+  else if (inventario.isPending) contenido = <LoadingState />;
+  else if (inventario.isError && !sinInicializar)
+    contenido = (
+      <ErrorState
+        mensaje={mensajeDominio(inventario.error)}
+        onRetry={() => void inventario.refetch()}
+      />
+    );
+  else
+    contenido = (
+      <ContenidoInventario
+        producto={id}
+        inventario={inventario.data}
+        sinInicializar={sinInicializar}
+      />
+    );
   return (
     <SiteLayout>
       <PageContainer>
         <PageHeader
-          title={producto.data?.nombre ?? "Existencias del producto"}
-          description="Las reservas de pedidos confirmados se reflejan aquí. Solo puedes ajustar unidades disponibles."
+          title="Inventario del producto"
+          description={producto.data?.nombre ?? "Consulta las unidades y sus movimientos."}
           back={{ to: "/panel/inventario", label: "Volver al inventario" }}
         />
-        {!id ? (
-          <ErrorState mensaje="El producto no existe." />
-        ) : producto.isPending ? (
-          <LoadingState />
-        ) : producto.isError ? (
-          <ErrorState
-            mensaje={mensajeDominio(producto.error)}
-            onRetry={() => void producto.refetch()}
-          />
-        ) : inventario.isPending ? (
-          <LoadingState />
-        ) : inventario.isError && !sinInicializar ? (
-          <ErrorState
-            mensaje={mensajeDominio(inventario.error)}
-            onRetry={() => void inventario.refetch()}
-          />
-        ) : (
-          <>
-            <StatusBadge tone={sinInicializar ? "pending" : "success"}>
-              {sinInicializar ? "Sin existencia inicial" : "Inventario registrado"}
-            </StatusBadge>
-            {inventario.data ? <CantidadesInventario inventario={inventario.data} /> : null}
-            <Section
-              title={sinInicializar ? "Establecer existencia inicial" : "Actualizar existencias"}
-              description="Cada operación queda en el historial. Los movimientos anteriores se conservan sin editar ni borrar."
-            >
-              <FormularioInventario
-                key={`${id}-${sinInicializar}`}
-                producto={id}
-                inicial={!inventario.data}
-              />
-            </Section>
-            {inventario.data ? <HistorialMovimientos producto={id} /> : null}
-          </>
-        )}
+        {contenido}
       </PageContainer>
     </SiteLayout>
   );
 }
+function ContenidoInventario({
+  producto,
+  inventario,
+  sinInicializar,
+}: {
+  producto: number;
+  inventario: Inventario | undefined;
+  sinInicializar: boolean;
+}) {
+  return (
+    <>
+      <StatusBadge tone={sinInicializar ? "pending" : "success"}>
+        {sinInicializar ? "Sin existencia inicial" : "Inventario registrado"}
+      </StatusBadge>
+      {inventario ? <CantidadesInventario inventario={inventario} /> : null}
+      <p className="text-sm text-muted-foreground">
+        Físicas: todas las unidades que tienes. Reservadas: comprometidas en pedidos. Disponibles:
+        las que todavía puedes ofrecer. Las reservas de pedidos confirmados se reflejan aquí; solo
+        puedes ajustar unidades disponibles.
+      </p>
+      <details open={sinInicializar} className="rounded-xl border bg-card p-4">
+        <summary className="list-item min-h-11 cursor-pointer py-3 font-semibold text-primary">
+          {sinInicializar ? "Registrar unidades iniciales" : "Actualizar existencias"}
+        </summary>
+        <Section
+          title={sinInicializar ? "Establecer existencia inicial" : "Actualizar existencias"}
+          description="Cada operación queda en el historial. Los movimientos anteriores se conservan sin editar ni borrar."
+        >
+          <FormularioInventario
+            key={`${producto}-${sinInicializar}`}
+            producto={producto}
+            inicial={!inventario}
+          />
+        </Section>
+      </details>
+      {inventario ? (
+        <details className="rounded-xl border bg-card p-4">
+          <summary className="list-item min-h-11 cursor-pointer py-3 font-semibold">
+            Consultar historial de movimientos
+          </summary>
+          <HistorialMovimientos producto={producto} />
+        </details>
+      ) : null}
+    </>
+  );
+}
+
 export function FormularioInventario({
   producto,
   inicial,
@@ -217,7 +254,7 @@ export function FormularioInventario({
       client.setQueryData([...claves.inventario(usuario?.id), producto], data);
       void client.invalidateQueries({ queryKey: claves.inventario(usuario?.id) });
       void client.invalidateQueries({ queryKey: claves.movimientos(usuario?.id, producto) });
-      toast.success("Existencias actualizadas");
+      toast.success("Existencias actualizadas. Revisa las cantidades y el historial.");
       form.reset({ accion: "entradas", cantidad: 1, direccion: "sumar", motivo: "" });
     },
     onError: (error) => {
@@ -266,63 +303,7 @@ export function FormularioInventario({
           Conservamos este intento. Reintenta con los mismos datos para confirmar el resultado.
         </p>
       ) : null}
-      <fieldset disabled={locked} className="space-y-4">
-        {!inicial ? (
-          <FormField id="inv-accion" label="Operación">
-            <select
-              id="inv-accion"
-              className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-base"
-              {...form.register("accion")}
-            >
-              <option value="entradas">Registrar entrada</option>
-              <option value="ajustes">Corregir existencias con un ajuste</option>
-            </select>
-          </FormField>
-        ) : null}
-        {accion === "ajustes" ? (
-          <FormField id="inv-direccion" label="¿Cómo cambia la cantidad?">
-            <select
-              id="inv-direccion"
-              className="min-h-11 w-full rounded-md border border-input bg-background px-3"
-              {...form.register("direccion")}
-            >
-              <option value="sumar">Sumar unidades</option>
-              <option value="restar">Restar unidades</option>
-            </select>
-          </FormField>
-        ) : null}
-        <FormField
-          id="inv-cantidad"
-          label={inicial ? "Unidades que tienes actualmente *" : "Cantidad de unidades *"}
-          error={form.formState.errors.cantidad?.message}
-        >
-          <Input
-            id="inv-cantidad"
-            type="number"
-            inputMode="numeric"
-            min={inicial ? 0 : 1}
-            step="1"
-            {...form.register("cantidad")}
-            aria-invalid={!!form.formState.errors.cantidad}
-            aria-describedby="inv-cantidad-error"
-          />
-        </FormField>
-        {accion !== "inicial" ? (
-          <FormField
-            id="inv-motivo"
-            label={accion === "ajustes" ? "Motivo del ajuste *" : "Observación (opcional)"}
-            error={form.formState.errors.motivo?.message}
-          >
-            <Textarea
-              id="inv-motivo"
-              maxLength={500}
-              {...form.register("motivo")}
-              aria-invalid={!!form.formState.errors.motivo}
-              aria-describedby="inv-motivo-error"
-            />
-          </FormField>
-        ) : null}
-      </fieldset>
+      <CamposInventario form={form} inicial={inicial} accion={accion} locked={locked} />
       <Button type="submit" disabled={guardar.isPending}>
         {guardar.isPending
           ? "Guardando…"
@@ -335,6 +316,85 @@ export function FormularioInventario({
     </form>
   );
 }
+function CamposInventario({
+  form,
+  inicial,
+  accion,
+  locked,
+}: {
+  form: UseFormReturn<MovimientoFormulario>;
+  inicial: boolean;
+  accion: MovimientoFormulario["accion"];
+  locked: boolean;
+}) {
+  return (
+    <fieldset disabled={locked} className="space-y-4">
+      {!inicial ? (
+        <FormField id="inv-accion" label="Operación">
+          <select
+            id="inv-accion"
+            className="min-h-11 w-full rounded-md border border-input bg-background px-3 text-base"
+            {...form.register("accion")}
+          >
+            <option value="entradas">Agregar unidades recién elaboradas</option>
+            <option value="ajustes">Corregir la cantidad registrada</option>
+          </select>
+        </FormField>
+      ) : null}
+      {accion === "ajustes" ? (
+        <FormField id="inv-direccion" label="¿Cómo cambia la cantidad?">
+          <select
+            id="inv-direccion"
+            className="min-h-11 w-full rounded-md border border-input bg-background px-3"
+            {...form.register("direccion")}
+          >
+            <option value="sumar">Aumentar unidades</option>
+            <option value="restar">Reducir unidades</option>
+          </select>
+        </FormField>
+      ) : null}
+      <FormField
+        id="inv-cantidad"
+        label={inicial ? "Unidades que tienes actualmente *" : "Cantidad de unidades *"}
+        error={form.formState.errors.cantidad?.message}
+      >
+        <Input
+          id="inv-cantidad"
+          type="number"
+          inputMode="numeric"
+          min={inicial ? 0 : 1}
+          step="1"
+          {...form.register("cantidad")}
+          aria-invalid={!!form.formState.errors.cantidad}
+          aria-describedby="inv-cantidad-error"
+        />
+      </FormField>
+      {accion !== "inicial" ? (
+        <FormField
+          id="inv-motivo"
+          label={
+            accion === "ajustes" ? "¿Por qué corriges la cantidad? *" : "Observación (opcional)"
+          }
+          help={
+            accion === "ajustes"
+              ? "El motivo permite entender el cambio cuando consultes el historial."
+              : "Por ejemplo, piezas recién terminadas."
+          }
+          error={form.formState.errors.motivo?.message}
+        >
+          <Textarea
+            id="inv-motivo"
+            maxLength={500}
+            {...form.register("motivo")}
+            aria-invalid={!!form.formState.errors.motivo}
+            aria-describedby="inv-motivo-error"
+          />
+        </FormField>
+      ) : null}
+    </fieldset>
+  );
+}
+
 const NOMBRE: Record<string, string> = {
   existencia_inicial: "Existencia inicial",
   entrada: "Entrada",

@@ -28,12 +28,14 @@ test:
 	pnpm -C apps/frontend test
 	cd apps/backend && uv run python manage.py check && uv run python manage.py makemigrations --check --dry-run && uv run python manage.py test
 	python infra/scripts/check-doc-links.py
+	python infra/scripts/check_requirements_coverage.py
 
 health:
 	docker compose exec -T frontend node ../../infra/scripts/check-health.mjs
 
 docs:
 	python infra/scripts/check-doc-links.py
+	python infra/scripts/check_requirements_coverage.py
 
 clean:
 	docker compose stop

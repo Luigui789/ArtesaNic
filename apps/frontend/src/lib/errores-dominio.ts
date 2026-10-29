@@ -18,6 +18,7 @@ const MENSAJES: Record<string, string> = {
   solicitud_rechazada: "Esta solicitud fue rechazada y ya no admite cambios.",
   solicitud_sin_renglones_aceptados: "No hay productos aceptados para preparar una propuesta.",
   producto_sin_fotografia: "Agrega una fotografía principal antes de publicar el producto.",
+  producto_moderado: "Este producto fue retirado por moderación y no puede publicarse.",
   pago_ya_confirmado: "El pago de este pedido ya fue confirmado. Actualiza para ver el resultado.",
   pago_en_revision:
     "Ya hay un pago registrado esperando la revisión del taller. Actualiza para ver su estado.",
@@ -50,6 +51,8 @@ const MENSAJES: Record<string, string> = {
   reembolso_ya_realizado: "La devolución de este reembolso ya fue registrada.",
   clasificacion_excede_pendiente:
     "La cantidad supera las unidades pendientes de clasificar. Actualiza para ver lo pendiente.",
+  conversacion_cerrada:
+    "Este pedido finalizó. La conversación queda disponible solo para consulta.",
   resultado_pendiente:
     "No pudimos confirmar el resultado anterior. Reintenta con los mismos datos antes de iniciar otra operación.",
 };

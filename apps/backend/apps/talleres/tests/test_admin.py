@@ -93,6 +93,21 @@ class RevisionEnAdminTests(TestCase):
         self.assertEqual(self.taller.nombre, "Cerámica López")
         self.assertEqual(self.taller.estado, EstadoTaller.PENDIENTE)
 
+    def test_la_ubicacion_es_visible_y_de_solo_lectura(self):
+        services.actualizar_perfil(self.taller, latitud="11.971234", longitud="-86.095678")
+        url_cambio = f"{URL_LISTA}{self.taller.pk}/change/"
+        respuesta = self.client.get(url_cambio)
+        self.assertEqual(respuesta.status_code, 200)
+        for campo in ("latitud", "longitud", "ubicacion_publica"):
+            self.assertIn(campo, respuesta.context["adminform"].readonly_fields)
+        # LANGUAGE_CODE="es": el admin muestra la coma decimal.
+        self.assertContains(respuesta, "11,971234")
+        respuesta = self.client.post(url_cambio, {"latitud": "0", "ubicacion_publica": "on"})
+        self.assertEqual(respuesta.status_code, 403)
+        self.taller.refresh_from_db()
+        self.assertEqual(str(self.taller.latitud), "11.971234")
+        self.assertFalse(self.taller.ubicacion_publica)
+
     def test_el_superusuario_tampoco_edita_el_perfil(self):
         superusuario = Usuario.objects.create_superuser(
             telefono="89990000", password=PASSWORD, nombre="Mantenimiento"

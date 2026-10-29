@@ -1,4 +1,4 @@
-// AUD-05/06/08: cliente HTTP contra respuestas controladas. No es E2E de sesión (AUD-18).
+// AUD-05/06/08: cliente HTTP de solicitudes contra respuestas controladas (la sesión real se verifica en check-auth-ui.mjs y check-aud18-cierre.mjs).
 import assert from "node:assert/strict";
 import { build } from "vite";
 import { fileURLToPath } from "node:url";
@@ -722,6 +722,4 @@ await verificar("AUD-06: la demo no simula revisión ni propuesta y no usa fetch
   assert.equal(peticiones.length, 0);
 });
 
-console.log(
-  `OK: solicitudes HTTP, ${grupos.length} grupos de contrato; sesión E2E pendiente de AUD-18.`,
-);
+console.log(`OK: solicitudes HTTP, ${grupos.length} grupos de contrato verificados.`);

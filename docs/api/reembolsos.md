@@ -110,6 +110,4 @@ Huella: `pedido_id`, `reembolso_id`, `fecha`, `referencia` recortada; nunca el m
 
 ## Fuera de alcance
 
-Pasarela, procesamiento automático de dinero, disputas y chargebacks. La notificación al
-comprador (RF-021.7) pertenece a AUD-20: hoy se emiten los puntos de integración
-`reembolso_creado` y `reembolso_realizado` tras el `COMMIT`.
+Pasarela, procesamiento automático de dinero, disputas y chargebacks. Los eventos `reembolso_creado` y `reembolso_realizado` producen [notificaciones internas](notificaciones.md) dentro de la transacción.

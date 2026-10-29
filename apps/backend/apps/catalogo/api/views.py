@@ -192,7 +192,7 @@ class _GestionMixin:
             # drf-spectacular inspecciona la vista sin una petición autenticada.
             return Producto.objects.none()
         return Producto.objects.del_taller(self.request.user.taller).select_related(
-            "taller", "categoria"
+            "taller", "categoria", "moderacion"
         )
 
     def get_object(self, producto_id: int) -> Producto:
@@ -217,8 +217,8 @@ class MisProductosView(_GestionMixin, ListModelMixin, GenericAPIView):
         tags=[TAG_GESTION],
         operation_id="listar_mis_productos",
         summary="Listar los productos del taller propio",
-        description="Publicados y despublicados, del más reciente al más antiguo, paginados. "
-        "El taller se deriva del token.",
+        description="Publicados, despublicados y moderados, del más reciente al más antiguo, "
+        "paginados. El taller se deriva del token.",
         responses={
             200: ProductoPropioSerializer(many=True),
             401: RESPUESTA_401,
@@ -312,6 +312,14 @@ class _PublicacionView(_GestionView):
             operacion(producto)
         except services.TallerNoHabilitado:
             raise _sin_habilitacion() from None
+        except services.ProductoModerado:
+            return Response(
+                {
+                    "codigo": "producto_moderado",
+                    "detail": "Este producto fue retirado por moderación y no puede publicarse.",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
         except services.ProductoSinFotografia:
             return Response(
                 {
@@ -324,7 +332,11 @@ class _PublicacionView(_GestionView):
 
 
 _RESPUESTAS_PUBLICACION = {
-    409: OpenApiResponse(ErrorSerializer, description="producto_sin_fotografia: falta fotografía."),
+    409: OpenApiResponse(
+        ErrorSerializer,
+        description="producto_sin_fotografia: falta fotografía. producto_moderado: retirado "
+        "por moderación administrativa, no puede volver a publicarse.",
+    ),
     200: ProductoPropioSerializer,
     401: RESPUESTA_401,
     403: RESPUESTA_403,
@@ -341,7 +353,8 @@ class PublicarView(_PublicacionView):
         operation_id="publicar_mi_producto",
         summary="Publicar un producto del taller propio",
         description="Lo muestra en el catálogo público. Idempotente: publicar un producto ya "
-        "publicado responde 200 sin cambios. Sin cuerpo.",
+        "publicado responde 200 sin cambios. Un producto retirado por moderación responde "
+        "409 producto_moderado y no cambia. Sin cuerpo.",
         request=None,
         responses=_RESPUESTAS_PUBLICACION,
     )
@@ -358,7 +371,8 @@ class DespublicarView(_PublicacionView):
         operation_id="despublicar_mi_producto",
         summary="Despublicar un producto del taller propio",
         description="Lo retira del catálogo público y de nuevas solicitudes sin borrarlo "
-        "(RF-019). Idempotente. Sin cuerpo.",
+        "(RF-019). Idempotente; también permitido si el producto está moderado, sin levantar "
+        "la moderación. Sin cuerpo.",
         request=None,
         responses=_RESPUESTAS_PUBLICACION,
     )

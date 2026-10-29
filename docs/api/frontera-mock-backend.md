@@ -200,7 +200,7 @@ Y cinco reglas de negocio transversales que el backend debe aplicar **con indepe
 1. **Precondición de producción** — `aceptado → en_produccion` exige `estado_pago = confirmado` (RF-010, RF-011).
 2. **Congelación económica** — al registrarse el pago, los cuatro términos económicos quedan inmutables y `pago.monto` los captura.
 3. **Reembolso automático y atómico** — cancelar un pedido con pago confirmado crea el reembolso en la misma transacción.
-4. **Ventana del chat** — solo `aceptado`, `en_produccion` y `listo_para_entrega` admiten mensajes nuevos (RF-014).
+4. **Ventana del chat** — solo `aceptado`, `en_produccion` y `listo_para_entrega` admiten mensajes nuevos (RF-014). *Superado por AUD-16:* la ventana real es `confirmado`/`en_cumplimiento` del `Pedido` confirmado y el delta usa `despues_de=<id>`, no `desde=<fecha>`; ver [mensajes](mensajes.md).
 5. **Publicación** — un taller no aprobado no publica productos; sus productos no aparecen en el catálogo público.
 
 ---
@@ -271,3 +271,6 @@ Adaptación de src/
 **`src/` permanece congelado** hasta que el backend exista. La tabla de impacto sobre el frontend vive en la sección 10 del contrato y se ejecutará por fases, con el mismo método que las fases B y C.
 
 **El siguiente paso es el modelo de datos, no los endpoints.** A partir de aquí, el mock deja de ser guía: la única fuente de verdad es el contrato.
+
+
+AUD-17: las notificaciones comerciales persistentes y su bandeja real se describen en [notificaciones](../api/notificaciones.md). La demo de mensajes conserva su estado separado.

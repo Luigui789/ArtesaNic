@@ -1,6 +1,6 @@
 // Verifica la fuente del perfil público del taller (src/features/talleres/api.ts):
-// el servidor simulado por defecto y GET /api/v1/talleres/{id}/ con VITE_CATALOGO_API=real,
-// de modo que el taller.id de un producto real abre su taller real (RF-003.6, RF-008).
+// el modo simulado explícito (VITE_CATALOGO_API=mock) y GET /api/v1/talleres/{id}/ en modo real
+// (por defecto tras AUD-18), de modo que el taller.id de un producto real abre su taller real (RF-008).
 import assert from "node:assert/strict";
 import { cargarModulo } from "./cargar-modulo.mjs";
 
@@ -54,6 +54,8 @@ const tallerDTO = {
   facebook_url: "",
   instagram_url: "https://instagram.com/barroysombra",
   sitio_web: "",
+  // GEO-01: el perfil público siempre incluye la posición publicada o null.
+  ubicacion_mapa: null,
 };
 const productoDTO = {
   id: 15,
@@ -83,6 +85,7 @@ assert.deepEqual(taller, {
   facebook: "",
   instagram: "https://instagram.com/barroysombra",
   sitioWeb: "",
+  ubicacionMapa: null,
 });
 assert.equal("demo" in taller, false, "La API pública no trae datos de la demo.");
 
@@ -108,5 +111,5 @@ await assert.rejects(real.getPerfilTaller(8), (e) => {
 assert.deepEqual(peticiones, ["/api/v1/talleres/8/"]);
 
 console.log(
-  "OK: perfil público del taller (simulado por defecto, API real con VITE_CATALOGO_API=real).",
+  "OK: perfil público del taller (API real por defecto y modo simulado aislado con VITE_CATALOGO_API=mock).",
 );

@@ -1,6 +1,6 @@
 # Trazabilidad con requisitos y módulos
 
-> **Trazabilidad heredada de la fase 1.** Las referencias anteriores deben contrastarse con las [24 RF y 15 RNF actuales](../requisitos/requisitos.md). Esta migración no amplía el backend ni ratifica diferencias pendientes.
+> **Trazabilidad heredada de la fase 1.** Para la matriz vigente y verificada automáticamente tras AUD-01…AUD-19 (21 RF activos, 15 RNF activos, 24 RN activas y 3 RF no activos en V1), consultar [cobertura-v1.md](cobertura-v1.md) y [cobertura-v1.json](cobertura-v1.json). Las referencias históricas siguientes corresponden a la fase 1 y deben contrastarse con las [39 fichas de requisitos](../requisitos/requisitos.md).
 
 ## Fuente de los requisitos
 
@@ -21,13 +21,15 @@ Escala: **Implementado** (código y pruebas en esta rama), **Parcial** (cubre un
 
 | Requisito | Qué exige (resumen) | Estado | Evidencia |
 |---|---|---|---|
-| **RF-004** v2.0 Autenticación simplificada | Registro e inicio de sesión de comprador y artesano con teléfono y contraseña; roles, estado de cuenta y permisos asignados por el servidor; consultar y editar datos propios; cerrar sesión; aprobación del taller antes de publicar | **Parcial** | Registro, login, logout, perfil, roles por servidor, cuentas inactivas: `apps/accounts`, `test_registration.py`, `test_authentication.py`. Pendiente: **editar datos propios** (el contrato no lo define), **aprobación del taller** (fase de talleres) y **recuperación de contraseña** (sin definición, como indica la ficha) |
+| **RF-004** v2.0 Autenticación simplificada | Registro e inicio de sesión de comprador y artesano con teléfono y contraseña; roles, estado de cuenta y permisos asignados por el servidor; consultar y editar datos propios; cerrar sesión; aprobación del taller antes de publicar | **Parcial** | Registro, login, logout, perfil, roles por servidor, cuentas inactivas: `apps/accounts`, `test_registration.py`, `test_authentication.py`. Editar datos propios (AUD-15): `PATCH /auth/perfil/`, `test_datos_personales.py`. Pendiente: **aprobación del taller** (fase de talleres) y **recuperación de contraseña** (sin definición, como indica la ficha) |
 | **RF-013** v3.0 Panel de administración (Django Admin) | Aprobar talleres, activar y desactivar cuentas, moderar productos, configurar la tasa, consultar pedidos en solo lectura; sin acceso a chats ni comprobantes | **Parcial** | Activar y desactivar cuentas; la administración de plataforma no reasigna roles, privilegios ni contraseñas y no ve tokens: `admin.py`, `test_admin.py`. El resto llega con cada dominio |
+| **RF-014** Mensajería asociada al pedido | Texto entre las partes de un pedido confirmado; sin chat de solicitud; solo lectura al finalizar; orden e historial; sin acceso del administrador | **Implementado** (AUD-16) | `apps/mensajes`: `MensajePedido` append-only, `GET`/`POST /api/v1/pedidos/{id}/mensajes/`, ownership en SQL (ajeno `404`), `409 conversacion_cerrada` en estados terminales, sin registro en Django Admin. `test_model.py`, `test_api.py`, `test_privacidad.py`, `apps/pedidos/tests/test_admin.py`; chat en el detalle real (`check-mensajes.mjs`). [Contrato](../api/mensajes.md), D-AUD16-01 a 10 |
 | **RNF-004** v4.1 Seguridad de pagos y datos sensibles | TLS, hash seguro, autorización en servidor por rol, objeto y pertenencia, CSRF cuando corresponda, chats y comprobantes solo para las partes | **Parcial** | Hash de Django; permisos por rol y propietario (`permissions.py`, `test_permissions.py`); CSRF (`csrf.py`, pruebas de registro, login, refrescar, logout y orígenes). Pendiente: TLS (despliegue); chats y comprobantes (sus fases) |
+| **RNF-010** Actualización de mensajería | Mensaje visible en la otra sesión en ≤ 15 s, solo información nueva, sin omisiones por concurrencia, orden conservado | **Implementado** (AUD-16); verificación manual con dos sesiones pendiente | Cursor por `id` (`despues_de`), envíos serializados por el lock del `Pedido`; carreras reales en `apps/mensajes/tests/test_concurrencia.py`. Polling de 15 s con fusión incremental en `src/features/mensajes` (`check-mensajes.mjs`). D-AUD16-06 a 08 |
 | **RNF-005** v2.1 Arquitectura e interoperabilidad | API REST/JSON con contratos definidos, `snake_case`, servidor como autoridad | **Implementado** en lo que abarca la fase | `docs/api/openapi.yaml` comprobado por `config/tests/test_openapi.py` |
 | **RNF-006** v2.0 Disponibilidad | Comprobaciones periódicas de salud | **Parcial** | `GET /api/v1/salud/` (`test_health.py`). La medición, el periodo y las exclusiones siguen sin definir |
 | **RNF-011** v1.1 Integridad transaccional | Transacciones y restricciones de PostgreSQL | **Parcial** | Unicidad y forma canónica del teléfono, rol válido, privilegios solo con rol administrador (`test_account_model.py`); registro simultáneo del mismo teléfono resuelto por la restricción única. Las operaciones de pedidos, pagos y unidades llegarán en sus fases |
-| **RNF-013** v1.1 Minimización y acceso a datos personales | Solo los datos necesarios; teléfono privado de acceso separado de los contactos públicos del taller | **Parcial** | La cuenta guarda nombre y teléfono; el teléfono solo se devuelve a su titular (`perfil`). Los contactos públicos del taller llegarán con RF-008 |
+| **RNF-013** v1.1 Minimización y acceso a datos personales | Solo los datos necesarios; teléfono privado de acceso separado de los contactos públicos del taller | **Parcial** | La cuenta guarda nombre y teléfono; el teléfono solo se devuelve a su titular (`perfil`) y cambiarlo no modifica los contactos públicos del taller (AUD-15, D-AUD15-05). Los contactos públicos del taller llegarán con RF-008 |
 | **RNF-014** v1.1 Resiliencia ante conectividad inestable | Reintentos sin duplicar efectos | **Parcial** | Reenviar un registro no duplica la cuenta (restricción única); `logout` es idempotente |
 | **RNF-015** v1.1 Mantenibilidad y pruebas | Reglas en servicios de dominio, pruebas, trazabilidad por identificadores | **Parcial** | `services.py`; 77 pruebas por comportamiento contra PostgreSQL; este documento |
 
@@ -43,7 +45,7 @@ RF-008 (perfil del taller) y RNF-008 (trazabilidad de operaciones de negocio) no
 | Verificar pertenencia al pedido, limitar acciones y datos | Base implementada (`EsPropietario`, permisos por rol); los pedidos llegarán en su fase |
 | Activar y desactivar cuentas según permisos | Implementado en Django Admin |
 | Consultar datos personales propios | Implementado (`/auth/perfil/`) |
-| Editar datos personales propios | **Pendiente**: el contrato no define el endpoint ni qué campos pueden cambiarse |
+| Editar datos personales propios | Implementado (AUD-15): `PATCH /auth/perfil/`, solo `nombre` y `telefono`; el cambio efectivo de teléfono exige la contraseña actual. `test_datos_personales.py`, `test_concurrencia_datos_personales.py`; página `/cuenta` (`check-cuenta.mjs`) |
 | Perfil público del taller; solicitar y resolver la aprobación | **Pendiente**: fase de talleres |
 
 ### Desviaciones del prototipo que esta fase resuelve en el servidor
@@ -79,3 +81,6 @@ Ninguna se resuelve aquí. Se registran para no convertir el comportamiento del 
 | 8 | **Retiro del artesano frente a moderación del administrador** (D14) | El contrato tiene un solo `publicado`; la hoja recomienda dos causas distinguibles | Catálogo |
 | 9 | **Acceso administrativo a chats y comprobantes** (D11) | RF-013, RNF-004 y RNF-013 lo prohíben sin excepciones; la elección A de Luis espera al equipo. El backend no convierte a la administración de plataforma en superusuario, y esos modelos no deberán registrarse en Django Admin | Mensajería y pagos |
 | 10 | **Política de imágenes** (RF-002) | Cantidad, dimensiones y miniaturas sin definir; almacenamiento público del catálogo separado de los comprobantes privados | Catálogo |
+
+
+AUD-17: las notificaciones comerciales persistentes y su bandeja real se describen en [notificaciones](../api/notificaciones.md). La demo de mensajes conserva su estado separado.

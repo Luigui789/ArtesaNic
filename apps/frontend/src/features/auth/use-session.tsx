@@ -11,6 +11,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { adaptadorSesion, modoAuth, type ModoAuth } from "@/features/auth/api";
 import { crearControladorSesion, type ControladorSesion, type EstadoSesion } from "./sesion";
 import type {
+  ActualizarPerfilEntrada,
   Credenciales,
   RegistroArtesanoEntrada,
   RegistroCompradorEntrada,
@@ -31,6 +32,8 @@ interface SessionContextValue {
   registrarComprador: (entrada: RegistroCompradorEntrada) => Promise<SesionUsuario>;
   registrarArtesano: (entrada: RegistroArtesanoEntrada) => Promise<SesionUsuario>;
   cerrarSesion: () => Promise<void>;
+  /** `PATCH /auth/perfil/`: la identidad devuelta reemplaza a `usuario` de inmediato. */
+  actualizarPerfil: (entrada: ActualizarPerfilEntrada) => Promise<SesionUsuario>;
   reintentar: () => Promise<void>;
   /** Solo en modo demo; `null` en modo real, donde el rol lo asigna el servidor. */
   cambiarVistaDemo: ((rol: Role) => void) | null;
@@ -71,6 +74,7 @@ export function SessionProvider({
       registrarComprador: controlador.registrarComprador,
       registrarArtesano: controlador.registrarArtesano,
       cerrarSesion: controlador.cerrarSesion,
+      actualizarPerfil: controlador.actualizarPerfil,
       reintentar: controlador.reintentar,
       cambiarVistaDemo: controlador.cambiarVistaDemo,
     }),

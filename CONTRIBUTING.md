@@ -13,7 +13,7 @@ En el frontend, cada dominio tiene su carpeta en `apps/frontend/src/features/`; 
 
 Frontend: pnpm y `apps/frontend/pnpm-lock.yaml`. Backend: uv, `apps/backend/pyproject.toml` y `apps/backend/uv.lock`. Instalar con `--frozen-lockfile` y `--locked`; no generar locks paralelos ni actualizar versiones mayores por reorganizar carpetas.
 
-La sesión del frontend sigue simulada (AUD-18 pendiente). Catálogo y solicitudes V1 comparten `VITE_CATALOGO_API`: demo por defecto, cliente HTTP real opcional. Los pedidos, pagos e inventario legacy siguen en la demo; no son contratos del nuevo flujo. Ver [solicitudes](docs/api/solicitudes.md) y [fronteras de fase](docs/decisiones/v1.md).
+La sesión y los dominios del frontend operan en modo real por defecto (`VITE_AUTH_API=real` y `VITE_CATALOGO_API=real`, cierre de AUD-18) contra Django/DRF y PostgreSQL. El modo `mock` queda aislado para las pruebas de regresión de la demo; las pantallas legacy no se exponen en modo real. Ver [arquitectura del frontend](docs/arquitectura/frontend.md), [solicitudes](docs/api/solicitudes.md) y [fronteras de fase](docs/decisiones/v1.md).
 
 ## Validación de un cambio
 
@@ -25,7 +25,7 @@ Tras cambiar endpoints implementados, desde `apps/backend` regenerar:
 uv run python manage.py spectacular --validate --fail-on-warn --file ../../docs/api/openapi.yaml
 ```
 
-Comprobar enlaces con `python infra/scripts/check-doc-links.py` y patrones de credenciales con `python infra/scripts/check-secrets.py`. No registrar `.env`, entornos virtuales, cachés ni archivos de usuarios. Las plantillas contienen exclusivamente valores de ejemplo.
+Comprobar enlaces con `python infra/scripts/check-doc-links.py`, patrones de credenciales con `python infra/scripts/check-secrets.py` y la [matriz de trazabilidad y cobertura V1](docs/trazabilidad/cobertura-v1.md) con `python infra/scripts/check_requirements_coverage.py`. No registrar `.env`, entornos virtuales, cachés ni archivos de usuarios. Las plantillas contienen exclusivamente valores de ejemplo.
 
 ## Documentación y decisiones
 

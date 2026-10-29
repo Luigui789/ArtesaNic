@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from apps.catalogo.models import Modalidad
 from apps.inventario import services as inventario
+from apps.notificaciones import eventos as notificaciones
 from apps.operaciones import services as operaciones
 from apps.operaciones.models import TipoOperacion
 from apps.pedidos import services as pedidos
@@ -251,6 +252,12 @@ def finalizar_propuesta(
 
     solicitud.estado = EstadoSolicitud.PROPUESTA_EMITIDA
     solicitud.save(update_fields=["estado", "actualizado_en"])
+    notificaciones.avisar(
+        tipo="propuesta_lista",
+        destinatario_id=solicitud.comprador_id,
+        evento_id=propuesta.pk,
+        solicitud_id=solicitud.pk,
+    )
     return propuesta
 
 
@@ -301,11 +308,18 @@ def decidir_propuesta(*, comprador, solicitud_id: int, decision: str) -> Decisio
         raise ConflictoSolicitud(CodigoConflicto.PROPUESTA_YA_DECIDIDA)
 
     if decision == AccionDecisionPropuesta.RECHAZAR:
-        return DecisionPropuesta.objects.create(
+        registro = DecisionPropuesta.objects.create(
             propuesta=propuesta,
             comprador=comprador,
             decision=ResultadoDecisionPropuesta.RECHAZADA,
         )
+        notificaciones.avisar(
+            tipo="propuesta_rechazada",
+            destinatario_id=solicitud.taller.propietario_id,
+            evento_id=registro.pk,
+            solicitud_id=solicitud.pk,
+        )
+        return registro
 
     lineas_propuesta = list(
         propuesta.lineas.select_related("renglon__producto__categoria", "distribucion").order_by(
@@ -337,6 +351,12 @@ def decidir_propuesta(*, comprador, solicitud_id: int, decision: str) -> Decisio
         lineas_pedido=lineas_pedido,
         inventarios=inventarios,
         actor=comprador,
+    )
+    notificaciones.avisar(
+        tipo="propuesta_aceptada",
+        destinatario_id=solicitud.taller.propietario_id,
+        evento_id=registro.pk,
+        pedido_id=pedido.pk,
     )
     return registro
 

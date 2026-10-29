@@ -23,6 +23,7 @@ from django.db import transaction
 from django.db.models import Q
 
 from apps.inventario import services as inventario
+from apps.notificaciones import eventos as notificaciones
 from apps.pagos import services as pagos
 from apps.pagos.models import ESTADOS_CON_PLAZO, PLAZO, Pago
 
@@ -37,7 +38,7 @@ from .models import (
 logger = logging.getLogger(__name__)
 
 TAMANO_LOTE = 100
-# Nombre estable del punto de integración para notificaciones (AUD-20, RN-020).
+# Nombre estable para el registro técnico posterior al commit.
 EVENTO_VENCIDO = "pedido_vencido_falta_pago"
 
 
@@ -60,7 +61,7 @@ def candidatos(momento, *, despues_de: int = 0, limite: int = TAMANO_LOTE) -> li
 
 
 def _notificar_vencimiento(pedido_id: int, momento, liberadas: int) -> None:
-    """Se ejecuta tras el COMMIT. AUD-20 enganchará aquí la notificación persistente."""
+    """Registro técnico tras el commit; el aviso persistente se escribe en la transacción."""
     logger.info(
         "%s pedido_id=%s vencido_en=%s reservas_liberadas=%s",
         EVENTO_VENCIDO,
@@ -115,6 +116,13 @@ def vencer_pedido(pedido_id: int) -> bool:
         actor=None,
         creado_en=momento,
     )
+    for destinatario_id in (pedido.comprador_id, pedido.taller.propietario_id):
+        notificaciones.avisar(
+            tipo="pedido_vencido_falta_pago",
+            destinatario_id=destinatario_id,
+            evento_id=pedido.pk,
+            pedido_id=pedido.pk,
+        )
     transaction.on_commit(lambda: _notificar_vencimiento(pedido.pk, momento, len(liberadas)))
     return True
 
