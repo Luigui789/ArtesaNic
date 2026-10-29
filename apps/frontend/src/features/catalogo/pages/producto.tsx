@@ -1,7 +1,7 @@
 import { PageContainer } from "@/components/common/page";
 import { Link, useParams } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, Clock, MapPin, Phone } from "lucide-react";
+import { ArrowRight, MapPin } from "lucide-react";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { CurrencySwitcher } from "@/components/common/currency-switcher";
 import { ErrorState } from "@/components/common/states";
@@ -15,14 +15,13 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { getArtisan } from "@/features/talleres/api";
+import { perfilTallerQuery } from "@/features/talleres/queries";
 import {
   ApiError,
-  catalogoReal,
   getCatalogProduct,
   reintentarSalvoErrorDelCliente,
 } from "@/features/catalogo/api";
-import { ModalidadesTexto, ProductImage } from "@/features/catalogo/components/product-card";
+import { ProductImage } from "@/features/catalogo/components/product-card";
 import { useCurrency } from "@/hooks/use-currency";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { parseRouteId } from "@/lib/route-id";
@@ -55,12 +54,7 @@ export default function DetalleProducto() {
     // Un 404 (despublicado o de un taller no aprobado) no se reintenta.
     retry: reintentarSalvoErrorDelCliente,
   });
-  // Los datos ampliados del taller siguen en el servidor simulado (dominio talleres).
-  const artesano = useQuery({
-    queryKey: ["artesano", producto.data?.taller.id],
-    queryFn: () => getArtisan(producto.data!.taller.id),
-    enabled: !!producto.data && !catalogoReal,
-  });
+  const artesano = useQuery(perfilTallerQuery(producto.data?.taller.id));
 
   if (id === undefined) return <NotFound />;
 
@@ -113,34 +107,36 @@ export default function DetalleProducto() {
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
-            <BreadcrumbItem>
-              <BreadcrumbPage className="line-clamp-1">{p.nombre}</BreadcrumbPage>
+            <BreadcrumbItem className="min-w-0 max-w-full">
+              <BreadcrumbPage className="min-w-0 truncate">{p.nombre}</BreadcrumbPage>
             </BreadcrumbItem>
           </BreadcrumbList>
         </Breadcrumb>
 
-        <div className="mt-6 grid gap-8 lg:grid-cols-2">
-          <div>
+        <div className="grid gap-6 md:grid-cols-2 lg:gap-10">
+          <div className="min-w-0">
             <div className="overflow-hidden rounded-xl border">
               <ProductImage src={p.imagen} alt={p.nombre} className="aspect-[4/3]" />
             </div>
           </div>
 
-          <div>
-            <Badge variant="outline" className="border-secondary/40 text-secondary">
+          <div className="min-w-0">
+            <Badge
+              variant="outline"
+              className="max-w-full [overflow-wrap:anywhere] border-secondary/40 text-secondary"
+            >
               {p.categoria.nombre}
             </Badge>
-            <h1 className="mt-3 text-balance font-display text-3xl font-semibold sm:text-4xl">
+            <h1 className="mt-3 break-words font-display text-3xl font-semibold sm:text-4xl">
               {p.nombre}
             </h1>
             <Link
               to={`/artesano/${p.taller.id}`}
-              className="mt-2 inline-flex min-h-11 items-center text-sm text-secondary underline-offset-4 hover:underline"
+              className="mt-2 inline-flex min-h-11 max-w-full items-center break-words text-sm text-secondary underline-offset-4 hover:underline"
             >
               Hecho por {p.taller.nombre}
             </Link>
 
-            <ModalidadesTexto modalidades={p.modalidades} className="mt-2" />
             <div className="mt-4 flex flex-wrap items-center gap-3">
               <p className="text-3xl font-bold text-primary">{format(p.precio)}</p>
               <CurrencySwitcher />
@@ -151,77 +147,106 @@ export default function DetalleProducto() {
               </p>
             ) : null}
 
-            <div className="mt-6">
-              <h2 className="text-base font-semibold">Descripción</h2>
-              <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-                {p.descripcion}
-              </p>
-            </div>
+            <section className="mt-5 space-y-2" aria-labelledby="opciones-producto">
+              <h2 id="opciones-producto" className="text-base font-semibold">
+                Cómo podés solicitarlo
+              </h2>
+              <ul className="space-y-1 text-sm leading-relaxed text-muted-foreground">
+                {p.modalidades.includes("stock") ? (
+                  <li>
+                    Pieza estándar ya elaborada.
+                    {typeof p.disponibleStock === "number"
+                      ? ` ${p.disponibleStock > 0 ? `${p.disponibleStock} ${p.disponibleStock === 1 ? "unidad disponible" : "unidades disponibles"}` : "Sin unidades disponibles ahora"}.`
+                      : ""}
+                  </li>
+                ) : null}
+                {p.modalidades.includes("produccion") ? (
+                  <li>
+                    Pieza estándar elaborada por cantidad, según lo que acordés con el taller.
+                  </li>
+                ) : null}
+                {p.modalidades.includes("personalizacion") ? (
+                  <li>
+                    Personalizado: podés indicar los detalles que querés al preparar tu solicitud.
+                  </li>
+                ) : null}
+              </ul>
+            </section>
 
-            <div className="mt-8">
+            <div className="mt-5">
               <Button asChild size="lg" className="w-full touch-target text-base sm:w-auto">
                 <Link to={`/solicitar/${p.id}`}>
-                  Preparar solicitud
+                  Solicitar producto
                   <ArrowRight className="size-5" aria-hidden="true" />
                 </Link>
               </Button>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                El taller revisará cada renglón. Confirmar una propuesta y coordinar pago y entrega
-                son etapas posteriores.
+                Contale al taller qué necesitás. Revisará tu solicitud y te enviará una propuesta
+                para acordar los detalles antes de confirmar el pedido.
               </p>
             </div>
 
-            {catalogoReal ? (
-              <section className="mt-8 rounded-xl border bg-card p-5" aria-labelledby="taller">
-                <h2 id="taller" className="text-base font-semibold">
-                  Elaborado por
-                </h2>
-                <p className="mt-2 font-medium">{p.taller.nombre}</p>
-                <Link
-                  to={`/artesano/${p.taller.id}`}
-                  className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
-                >
-                  Ver perfil del taller
-                </Link>
-              </section>
-            ) : artesano.data ? (
-              <section className="mt-8 rounded-xl border bg-card p-5" aria-labelledby="taller">
-                <h2 id="taller" className="text-base font-semibold">
-                  Elaborado por
-                </h2>
-                <div className="mt-3 flex items-start gap-3">
-                  <img
-                    src={artesano.data.fotoUrl}
-                    alt=""
-                    loading="lazy"
-                    className="size-14 shrink-0 rounded-lg object-cover"
-                  />
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{artesano.data.nombreTaller}</p>
-                    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <MapPin className="size-4 shrink-0" aria-hidden="true" />
-                      {artesano.data.ubicacion}
-                    </p>
-                    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Clock className="size-4 shrink-0" aria-hidden="true" />
-                      {artesano.data.horario}
-                    </p>
-                    <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                      <Phone className="size-4 shrink-0" aria-hidden="true" />
-                      {artesano.data.telefono}
-                    </p>
-                    <Link
-                      to={`/artesano/${artesano.data.id}`}
-                      className="mt-1 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
-                    >
-                      Ver perfil del taller
-                    </Link>
+            <p className="mt-3 line-clamp-3 break-words text-sm leading-relaxed text-muted-foreground">
+              {p.descripcion}
+            </p>
+            <a
+              href="#descripcion-producto"
+              className="inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
+            >
+              Leer descripción completa
+            </a>
+            <section className="mt-6 border-t pt-5" aria-labelledby="taller">
+              <h2 id="taller" className="text-base font-semibold">
+                Elaborado por
+              </h2>
+              <div className="mt-3 flex items-start gap-3">
+                {artesano.data ? (
+                  <div className="w-16 shrink-0 overflow-hidden rounded-lg">
+                    <ProductImage
+                      src={artesano.data.imagenPerfil ?? artesano.data.demo?.fotoUrl}
+                      alt={`Taller ${artesano.data.nombre}`}
+                      className="aspect-square"
+                    />
                   </div>
+                ) : null}
+                <div className="min-w-0">
+                  <p className="break-words font-semibold">{p.taller.nombre}</p>
+                  {artesano.data ? (
+                    <>
+                      <p className="break-words text-sm text-muted-foreground">
+                        {artesano.data.rubro}
+                      </p>
+                      <p className="mt-1 flex items-start gap-1.5 text-sm text-muted-foreground">
+                        <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                        <span className="min-w-0 break-words">{artesano.data.direccion}</span>
+                      </p>
+                    </>
+                  ) : null}
+                  <Link
+                    to={`/artesano/${p.taller.id}`}
+                    className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary hover:underline"
+                  >
+                    Ver taller <ArrowRight className="size-4" aria-hidden="true" />
+                  </Link>
+                  {artesano.isError ? (
+                    <p className="text-sm text-muted-foreground">
+                      No pudimos cargar los datos adicionales. Podés visitar el taller para
+                      reintentar.
+                    </p>
+                  ) : null}
                 </div>
-              </section>
-            ) : null}
+              </div>
+            </section>
           </div>
         </div>
+        <section className="max-w-3xl border-t pt-6" aria-labelledby="descripcion-producto">
+          <h2 id="descripcion-producto" className="font-display text-xl font-semibold">
+            Sobre esta pieza
+          </h2>
+          <p className="mt-3 whitespace-pre-line break-words text-base leading-relaxed text-muted-foreground">
+            {p.descripcion}
+          </p>
+        </section>
       </PageContainer>
     </SiteLayout>
   );
