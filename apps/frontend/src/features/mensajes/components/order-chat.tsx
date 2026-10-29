@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { useMutation, useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Lock, RefreshCw, Send } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSession } from "@/features/auth/use-session";
@@ -88,6 +89,7 @@ export function OrderChat({ pedido, estado }: { pedido: number; estado: EstadoPe
       );
       setTexto("");
       setErrorEnvio(null);
+      toast.success("Mensaje enviado");
       // Delta inmediato: trae lo que la otra parte confirmó antes y avanza el cursor.
       void sondearConversacion(queryClient, usuarioId, pedido, sondeando, setErrorSondeo);
     },
@@ -105,6 +107,11 @@ export function OrderChat({ pedido, estado }: { pedido: number; estado: EstadoPe
 
   return (
     <VistaConversacion
+      pedido={pedido}
+      contraparte={
+        conversacion.data?.mensajes.find((m) => m.autor.id !== usuarioId)?.autor.nombre ??
+        "la otra parte del pedido"
+      }
       estado={conversacion.isPending ? "cargando" : conversacion.isError ? "error" : "lista"}
       mensajes={conversacion.data?.mensajes ?? []}
       usuarioId={usuarioId}
@@ -125,6 +132,8 @@ export function OrderChat({ pedido, estado }: { pedido: number; estado: EstadoPe
 }
 
 export interface VistaConversacionProps {
+  pedido?: number;
+  contraparte?: string;
   estado: "cargando" | "error" | "lista";
   mensajes: MensajePedido[];
   usuarioId: number | undefined;
@@ -141,6 +150,8 @@ export interface VistaConversacionProps {
 
 /** Presentación pura del chat: se renderiza igual para comprador y artesano. */
 export function VistaConversacion({
+  pedido,
+  contraparte,
   estado,
   mensajes,
   usuarioId,
@@ -165,11 +176,18 @@ export function VistaConversacion({
   }, [cantidad]);
 
   return (
-    <section aria-labelledby="mensajes-pedido" className="rounded-xl border bg-card">
+    <section aria-labelledby="mensajes-pedido" className="min-w-0 rounded-xl border bg-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
-        <h2 id="mensajes-pedido" className="text-base font-semibold">
-          Mensajes del pedido
-        </h2>
+        <div className="min-w-0">
+          <h2 id="mensajes-pedido" className="text-base font-semibold">
+            Mensajes del pedido{pedido ? ` #${pedido}` : ""}
+          </h2>
+          {contraparte ? (
+            <p className="mt-1 line-clamp-2 break-words text-sm text-muted-foreground">
+              Conversación con {contraparte}
+            </p>
+          ) : null}
+        </div>
         {!soloLectura && estado === "lista" ? (
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <RefreshCw className="size-3.5" aria-hidden="true" />
@@ -186,7 +204,8 @@ export function VistaConversacion({
         aria-label="Conversación del pedido"
         aria-live="polite"
         aria-relevant="additions"
-        className="max-h-96 space-y-3 overflow-y-auto overscroll-contain p-4"
+        tabIndex={0}
+        className="max-h-[min(24rem,45dvh)] min-w-0 space-y-3 overflow-y-auto overscroll-contain p-4"
       >
         {estado === "cargando" ? (
           <div className="space-y-3" aria-label="Cargando mensajes">
@@ -212,17 +231,17 @@ export function VistaConversacion({
               >
                 <div
                   className={cn(
-                    "max-w-[85%] min-w-0 rounded-lg border px-3 py-2 text-sm",
+                    "max-w-[90%] min-w-0 rounded-lg border px-3 py-2 text-base sm:max-w-[85%]",
                     propio ? "border-primary/20 bg-primary/10" : "bg-surface",
                   )}
                 >
-                  <p className="text-xs font-medium text-muted-foreground">
+                  <p className="break-words text-sm font-medium text-muted-foreground">
                     {propio ? "Tú" : m.autor.nombre}
                   </p>
                   <p className="mt-1 whitespace-pre-wrap break-words">{m.texto}</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
+                  <time dateTime={m.creadoEn} className="mt-2 block text-xs text-muted-foreground">
                     {formatDate(m.creadoEn)} · {formatTime(m.creadoEn)}
-                  </p>
+                  </time>
                 </div>
               </div>
             );
@@ -254,7 +273,7 @@ export function VistaConversacion({
         >
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <div className="min-w-0 flex-1">
-              <label htmlFor="mensaje-pedido" className="sr-only">
+              <label htmlFor="mensaje-pedido" className="mb-2 block text-sm font-medium">
                 Escribe un mensaje
               </label>
               <Textarea
