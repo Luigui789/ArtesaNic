@@ -161,7 +161,7 @@ export function DetalleInventario() {
       <PageContainer>
         <PageHeader
           title="Inventario del producto"
-          description={producto.data?.nombre ?? "Consultá las unidades y sus movimientos."}
+          description={producto.data?.nombre ?? "Consulta las unidades y sus movimientos."}
           back={{ to: "/panel/inventario", label: "Volver al inventario" }}
         />
         {contenido}
@@ -185,9 +185,9 @@ function ContenidoInventario({
       </StatusBadge>
       {inventario ? <CantidadesInventario inventario={inventario} /> : null}
       <p className="text-sm text-muted-foreground">
-        Físicas: todas las unidades que tenés. Reservadas: comprometidas en pedidos. Disponibles:
-        las que todavía podés ofrecer. Las reservas de pedidos confirmados se reflejan aquí; solo
-        podés ajustar unidades disponibles.
+        Físicas: todas las unidades que tienes. Reservadas: comprometidas en pedidos. Disponibles:
+        las que todavía puedes ofrecer. Las reservas de pedidos confirmados se reflejan aquí; solo
+        puedes ajustar unidades disponibles.
       </p>
       <details open={sinInicializar} className="rounded-xl border bg-card p-4">
         <summary className="list-item min-h-11 cursor-pointer py-3 font-semibold text-primary">
@@ -254,7 +254,7 @@ export function FormularioInventario({
       client.setQueryData([...claves.inventario(usuario?.id), producto], data);
       void client.invalidateQueries({ queryKey: claves.inventario(usuario?.id) });
       void client.invalidateQueries({ queryKey: claves.movimientos(usuario?.id, producto) });
-      toast.success("Existencias actualizadas. Revisá las cantidades y el historial.");
+      toast.success("Existencias actualizadas. Revisa las cantidades y el historial.");
       form.reset({ accion: "entradas", cantidad: 1, direccion: "sumar", motivo: "" });
     },
     onError: (error) => {
@@ -373,11 +373,11 @@ function CamposInventario({
         <FormField
           id="inv-motivo"
           label={
-            accion === "ajustes" ? "¿Por qué corregís la cantidad? *" : "Observación (opcional)"
+            accion === "ajustes" ? "¿Por qué corriges la cantidad? *" : "Observación (opcional)"
           }
           help={
             accion === "ajustes"
-              ? "El motivo permite entender el cambio cuando consultés el historial."
+              ? "El motivo permite entender el cambio cuando consultes el historial."
               : "Por ejemplo, piezas recién terminadas."
           }
           error={form.formState.errors.motivo?.message}

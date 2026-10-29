@@ -83,7 +83,7 @@ function CabeceraFormularioProducto({ editando }: { editando: boolean }) {
       <DialogTitle>{editando ? "Editar producto" : "Nuevo producto"}</DialogTitle>
       <DialogDescription>
         {catalogoReal
-          ? "Completá los datos, elegí cómo ofrecer la pieza y agregá su fotografía. Los pedidos confirmados conservan lo acordado."
+          ? "Completa los datos, elige cómo ofrecer la pieza y agrega su fotografía. Los pedidos confirmados conservan lo acordado."
           : "Los datos son simulados y se conservan al recargar en este navegador."}
       </DialogDescription>
     </DialogHeader>
@@ -426,7 +426,7 @@ export default function MisProductos() {
       <>
         <div className="space-y-3 rounded-xl border bg-card p-4">
           <p className="text-sm text-muted-foreground">
-            Estos filtros revisan únicamente los productos de esta página. Cambiá de página para
+            Estos filtros revisan únicamente los productos de esta página. Cambia de página para
             consultar otros.
           </p>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -460,7 +460,7 @@ export default function MisProductos() {
         {!visibles.length ? (
           <EmptyState
             titulo="Sin coincidencias en esta página"
-            descripcion="Probá otro nombre o estado. Las demás páginas no se filtraron."
+            descripcion="Prueba otro nombre o estado. Las demás páginas no se filtraron."
             accion={
               <Button
                 variant="outline"

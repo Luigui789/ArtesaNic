@@ -243,11 +243,11 @@ function SeccionAgregarProductos({
   return (
     <section aria-labelledby="agregar-productos" className="space-y-4">
       <h2 id="agregar-productos" className="text-xl font-semibold">
-        {tallerNombre ? `Más productos de ${tallerNombre}` : "Elegí un producto para comenzar"}
+        {tallerNombre ? `Más productos de ${tallerNombre}` : "Elige un producto para comenzar"}
       </h2>
       {renglones[0] ? (
         <p className="text-sm">
-          Agregá otro producto de este taller o repetí uno para solicitarlo con otra modalidad.
+          Agrega otro producto de este taller o repite uno para solicitarlo con otra modalidad.
         </p>
       ) : null}
       {avisoTaller ? <p role="alert">{avisoTaller}</p> : null}
@@ -701,7 +701,7 @@ function Composicion({ productoId }: { productoId: number | undefined }) {
         <p>
           {paso === "edicion"
             ? "Agrega uno o varios productos de un mismo taller. Cada producto conserva su modalidad."
-            : `Revisa los productos y detalles para ${taller?.nombre ?? "el taller"}. Podés volver a editar antes de enviarla.`}
+            : `Revisa los productos y detalles para ${taller?.nombre ?? "el taller"}. Puedes volver a editar antes de enviarla.`}
         </p>
         <p className="rounded-lg border p-4 text-sm">
           {solicitudesReales

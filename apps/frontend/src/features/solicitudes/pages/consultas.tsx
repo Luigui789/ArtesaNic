@@ -254,20 +254,20 @@ function ProximoPasoSolicitud({ estado }: { estado: EstadoSolicitud }) {
     >
       <h2 className="font-semibold">
         {estado === "pendiente_revision"
-          ? "Revisá cada producto solicitado"
+          ? "Revisa cada producto solicitado"
           : estado === "lista_propuesta"
-            ? "Prepará la propuesta para el comprador"
+            ? "Prepara la propuesta para el comprador"
             : estado === "propuesta_emitida"
-              ? "Consultá la propuesta y la decisión del comprador"
+              ? "Consulta la propuesta y la decisión del comprador"
               : "Solicitud finalizada"}
       </h2>
       <p className="text-sm text-muted-foreground">
         {estado === "pendiente_revision"
-          ? "Aceptá o rechazá cada producto. Después preparás la propuesta."
+          ? "Acepta o rechaza cada producto. Después preparas la propuesta."
           : estado === "lista_propuesta"
-            ? "Definí precios y entrega. El comprador confirma el pedido al aceptar tu propuesta."
+            ? "Define precios y entrega. El comprador confirma el pedido al aceptar tu propuesta."
             : estado === "propuesta_emitida"
-              ? "Consultá las condiciones enviadas y la respuesta del comprador."
+              ? "Consulta las condiciones enviadas y la respuesta del comprador."
               : "Conservamos los productos y sus motivos de rechazo."}
       </p>
     </section>

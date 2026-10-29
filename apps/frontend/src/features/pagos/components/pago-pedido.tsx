@@ -572,7 +572,7 @@ export function RevisionPago({
       <div>
         <h3 className="font-semibold">Revisar el pago registrado</h3>
         <p className="text-sm text-muted-foreground">
-          Abrí el comprobante y verificá el dinero en tu cuenta o medio de cobro antes de decidir.
+          Abre el comprobante y verifica el dinero en tu cuenta o medio de cobro antes de decidir.
           La resolución de este intento es definitiva.
         </p>
       </div>

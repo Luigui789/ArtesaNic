@@ -47,7 +47,7 @@ export default function PanelResumen() {
       <PageContainer>
         <PageHeader
           title="Inicio de mi taller"
-          description={`${taller.data?.nombre ?? "Tu taller"}. Hola${usuario ? `, ${usuario.nombre}` : ""}. Revisá las solicitudes recientes y continuá con tus pedidos.`}
+          description={`${taller.data?.nombre ?? "Tu taller"}. Hola${usuario ? `, ${usuario.nombre}` : ""}. Revisa las solicitudes recientes y continúa con tus pedidos.`}
           action={
             <Button asChild>
               <Link
@@ -73,7 +73,7 @@ export default function PanelResumen() {
             </div>
             <Section
               title="Productos e inventario"
-              description="Agregá o editá piezas y revisá las unidades que podés ofrecer."
+              description="Agrega o edita piezas y revisa las unidades que puedes ofrecer."
             >
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-2">
                 {[
@@ -110,7 +110,7 @@ function SolicitudesPendientes({
   return (
     <Section
       title="Requieren tu atención"
-      description="Pendientes de revisión o propuesta en la primera página recibida. Abrí el listado completo para revisar las demás."
+      description="Pendientes de revisión o propuesta en la primera página recibida. Abre el listado completo para revisar las demás."
       action={
         <Button asChild variant="ghost">
           <Link to="/panel/solicitudes">Ver todas las solicitudes</Link>

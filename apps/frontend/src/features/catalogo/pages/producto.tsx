@@ -39,7 +39,7 @@ function ProductOptions({ p }: { p: CatalogProduct }) {
   return (
     <section className="mt-5 space-y-2" aria-labelledby="opciones-producto">
       <h2 id="opciones-producto" className="text-base font-semibold">
-        Cómo podés solicitarlo
+        Cómo puedes solicitarlo
       </h2>
       <ul className="space-y-1 text-sm leading-relaxed text-muted-foreground">
         {p.modalidades.includes("stock") ? (
@@ -49,10 +49,10 @@ function ProductOptions({ p }: { p: CatalogProduct }) {
           </li>
         ) : null}
         {p.modalidades.includes("produccion") ? (
-          <li>Pieza estándar elaborada por cantidad, según lo que acordés con el taller.</li>
+          <li>Pieza estándar elaborada por cantidad, según lo que acuerdes con el taller.</li>
         ) : null}
         {p.modalidades.includes("personalizacion") ? (
-          <li>Personalizado: podés indicar los detalles que querés al preparar tu solicitud.</li>
+          <li>Personalizado: puedes indicar los detalles que quieres al preparar tu solicitud.</li>
         ) : null}
       </ul>
     </section>
@@ -100,7 +100,7 @@ function ProductWorkshop({
           </Link>
           {artesano.isError ? (
             <p className="text-sm text-muted-foreground">
-              No pudimos cargar los datos adicionales. Podés visitar el taller para reintentar.
+              No pudimos cargar los datos adicionales. Puedes visitar el taller para reintentar.
             </p>
           ) : null}
         </div>
@@ -239,7 +239,7 @@ export default function DetalleProducto() {
                 </Link>
               </Button>
               <p className="mt-2 max-w-md text-sm text-muted-foreground">
-                Contale al taller qué necesitás. Revisará tu solicitud y te enviará una propuesta
+                Cuéntale al taller qué necesitas. Revisará tu solicitud y te enviará una propuesta
                 para acordar los detalles antes de confirmar el pedido.
               </p>
             </div>

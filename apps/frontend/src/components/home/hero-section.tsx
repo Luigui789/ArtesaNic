@@ -15,10 +15,10 @@ export function HeroSection() {
             id="home-titulo"
             className="mt-3 text-balance font-display text-3xl font-semibold leading-tight sm:text-4xl lg:text-5xl"
           >
-            Descubrí artesanías hechas en Masaya.
+            Descubre artesanías hechas en Masaya.
           </h1>
           <p className="mt-3 max-w-md text-base leading-relaxed text-muted-foreground">
-            Piezas con historia, creadas por talleres locales. Encontrá la tuya y solicitala
+            Piezas con historia, creadas por talleres locales. Encuentra la tuya y solicítala
             directamente a quien la elabora.
           </p>
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-1">

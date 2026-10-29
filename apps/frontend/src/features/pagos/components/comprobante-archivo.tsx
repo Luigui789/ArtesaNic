@@ -113,7 +113,7 @@ export function ComprobanteGuardado({
           <DialogHeader>
             <DialogTitle>Comprobante de pago</DialogTitle>
             <DialogDescription>
-              Archivo privado del registro {numero}. Podés revisarlo o descargarlo.
+              Archivo privado del registro {numero}. Puedes revisarlo o descargarlo.
             </DialogDescription>
           </DialogHeader>
           <ContenidoComprobante comprobante={comprobante} numero={numero} />

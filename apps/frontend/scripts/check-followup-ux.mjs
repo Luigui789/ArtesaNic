@@ -72,11 +72,11 @@ const pago = {
     },
   ],
 };
-assert.match(m.labels.siguientePasoPago(pago, true, false), /Tu turno: revisá/);
+assert.match(m.labels.siguientePasoPago(pago, true, false), /Tu turno: revisa/);
 assert.match(m.labels.siguientePasoPago(pago, false, false), /Le toca al taller/);
 assert.match(
   m.labels.siguientePasoPago({ ...pago, estado: "observado" }, false, false),
-  /enviá la corrección/,
+  /envía la corrección/,
 );
 assert.match(
   m.labels.siguientePasoPago({ ...pago, estado: "no_recibido" }, false, false),
@@ -103,7 +103,7 @@ const avisos = [
     id: 1,
     tipo: "pago_observado",
     titulo: "Comprobante necesita corrección",
-    detalle: "Revisá el motivo.",
+    detalle: "Revisa el motivo.",
     solicitudId: null,
     pedidoId: 21,
     creadaEn: "2026-10-29T05:30:00Z",
@@ -114,7 +114,7 @@ const avisos = [
     id: 2,
     tipo: "propuesta_lista",
     titulo: "Propuesta disponible",
-    detalle: "Conocé las condiciones.",
+    detalle: "Conoce las condiciones.",
     solicitudId: 11,
     pedidoId: null,
     creadaEn: "2026-10-28T05:30:00Z",

@@ -137,7 +137,7 @@ function MenuMovil({
             <Button variant="outline">Cerrar</Button>
           </SheetClose>
         </div>
-        <SheetDescription>Elige a dónde querés ir.</SheetDescription>
+        <SheetDescription>Elige a dónde quieres ir.</SheetDescription>
       </SheetHeader>
       <div className="mt-5 space-y-5 px-4 pb-6">
         {usuario ? (

@@ -364,7 +364,7 @@ function EncabezadoPedidos({ recibidos }: { recibidos: boolean }) {
       title={recibidos ? "Pedidos del taller" : "Mis pedidos"}
       description={
         recibidos
-          ? "Abrí un pedido para revisar el pago, preparar los productos y registrar su entrega."
+          ? "Abre un pedido para revisar el pago, preparar los productos y registrar su entrega."
           : "Acuerdos confirmados por el comprador, con sus productos e importes conservados."
       }
       action={

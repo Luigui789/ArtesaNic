@@ -207,7 +207,7 @@ function CatalogFilters({
 
       {categorias.isError || talleres.isError ? (
         <p role="status" className="text-sm text-muted-foreground">
-          No pudimos cargar algunas opciones. Podés seguir buscando productos o reintentar.
+          No pudimos cargar algunas opciones. Puedes seguir buscando productos o reintentar.
           <Button
             type="button"
             variant="link"
@@ -272,8 +272,8 @@ function CatalogProductList({
           titulo="No encontramos productos"
           descripcion={
             activeCount
-              ? "La búsqueda o los filtros no encontraron productos. Probá otra palabra o quitá un filtro."
-              : "Todavía no hay productos publicados. Volvé más adelante para conocer nuevas piezas."
+              ? "La búsqueda o los filtros no encontraron productos. Prueba otra palabra o quita un filtro."
+              : "Todavía no hay productos publicados. Vuelve más adelante para conocer nuevas piezas."
           }
           accion={
             activeCount ? (
@@ -413,7 +413,7 @@ export default function Catalogo() {
     <SiteLayout>
       <PageContainer>
         <PageHeader
-          title="Artesanías para vos"
+          title="Artesanías para ti"
           description="Encuentra tu próxima pieza. Artesanías hechas por talleres de Masaya."
         />
         <form

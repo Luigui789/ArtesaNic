@@ -32,7 +32,7 @@ function RecentProducts() {
             Recién publicados
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Encontrá una pieza para vos, tu casa o para regalar.
+            Encuentra una pieza para ti, tu casa o para regalar.
           </p>
         </div>
         <Link to="/catalogo" className={CTA}>
@@ -41,7 +41,7 @@ function RecentProducts() {
       </div>
       {productos.isError ? (
         <ErrorState
-          mensaje="No pudimos cargar los productos recientes. Podés explorar el catálogo o volver a intentar."
+          mensaje="No pudimos cargar los productos recientes. Puedes explorar el catálogo o volver a intentar."
           onRetry={() => void productos.refetch()}
         />
       ) : productos.isPending ? (
@@ -63,7 +63,7 @@ function RecentProducts() {
       ) : (
         <EmptyState
           titulo="Pronto habrá nuevas piezas"
-          descripcion="Los productos publicados por los talleres aparecerán aquí. Mientras tanto, podés conocer a quienes los elaboran."
+          descripcion="Los productos publicados por los talleres aparecerán aquí. Mientras tanto, puedes conocer a quienes los elaboran."
         />
       )}
     </section>
@@ -84,7 +84,7 @@ function CategoryPreview() {
               id="home-categorias"
               className="mt-2 font-display text-2xl font-semibold sm:text-3xl"
             >
-              Explorá por categoría
+              Explora por categoría
             </h2>
           </div>
           <Link to="/descubrir#categorias" className={CTA}>
@@ -137,7 +137,7 @@ function CategoryPreview() {
           </ul>
         ) : (
           <p className="text-sm text-muted-foreground">
-            Las categorías estarán disponibles cuando se publiquen. Podés explorar el catálogo
+            Las categorías estarán disponibles cuando se publiquen. Puedes explorar el catálogo
             completo.
           </p>
         )}
@@ -157,7 +157,7 @@ function WorkshopPreview() {
       <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-1">
         <div>
           <h2 id="home-talleres" className="font-display text-2xl font-semibold sm:text-3xl">
-            Conocé las manos detrás de cada pieza
+            Conoce las manos detrás de cada pieza
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Historias, oficios y talleres de Masaya.
@@ -169,7 +169,7 @@ function WorkshopPreview() {
       </div>
       {talleres.isError ? (
         <ErrorState
-          mensaje="No pudimos cargar los talleres. Podés seguir explorando los productos."
+          mensaje="No pudimos cargar los talleres. Puedes seguir explorando los productos."
           onRetry={() => void talleres.refetch()}
         />
       ) : talleres.isPending ? (

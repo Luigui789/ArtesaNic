@@ -54,7 +54,7 @@ export default function Index() {
               Talleres y nuevas piezas
             </h1>
             <p className="mt-3 text-base leading-relaxed text-muted-foreground sm:text-lg">
-              Conocé quién elabora cada pieza. Explorá los talleres en la lista o encontrá su
+              Conoce quién elabora cada pieza. Explora los talleres en la lista o encuentra su
               ubicación en el mapa.
             </p>
           </div>
@@ -132,7 +132,7 @@ export default function Index() {
           <div className="mt-6">
             <EmptyState
               titulo="Pronto habrá nuevas piezas"
-              descripcion="Mientras tanto, conocé los talleres y sus historias."
+              descripcion="Mientras tanto, conoce los talleres y sus historias."
             />
           </div>
         ) : (

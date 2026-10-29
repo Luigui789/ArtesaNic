@@ -51,7 +51,7 @@ export function RevisionRenglon({ solicitud, renglon }: { solicitud: number; ren
       invalidarSolicitud(client, usuario, true, solicitud);
       toast.success(
         entrada.resolucion === "aceptado"
-          ? "Producto aceptado. Revisá los demás productos para preparar la propuesta."
+          ? "Producto aceptado. Revisa los demás productos para preparar la propuesta."
           : "Producto rechazado. El comprador podrá consultar el motivo.",
       );
     },
@@ -84,7 +84,7 @@ export function RevisionRenglon({ solicitud, renglon }: { solicitud: number; ren
           Rechazar este producto
         </summary>
         <p className="mb-3 text-sm text-muted-foreground">
-          Explicá el motivo antes de confirmar. El comprador podrá leerlo.
+          Explica el motivo antes de confirmar. El comprador podrá leerlo.
         </p>
         <FormField id={`rechazo-${renglon}`} label="Motivo si rechazas este producto">
           <Textarea

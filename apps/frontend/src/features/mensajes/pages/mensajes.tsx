@@ -376,7 +376,7 @@ export default function MensajesPage() {
       <PageContainer className="max-w-6xl">
         <PageHeader
           title="Mensajes"
-          description="Elegí un pedido para conversar con la otra parte sobre sus detalles y entrega."
+          description="Elige un pedido para conversar con la otra parte sobre sus detalles y entrega."
           action={
             <Button asChild variant="outline" className="min-h-11 touch-target">
               <Link to={rutaBasePedidos}>

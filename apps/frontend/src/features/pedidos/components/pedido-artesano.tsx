@@ -115,7 +115,7 @@ export function PedidoArtesano({
         {fallo ? (
           <div role="alert" className="space-y-2 rounded-lg border border-destructive p-3 text-sm">
             <p>
-              No pudimos comprobar todos los avisos. Consultá las secciones antes de realizar una
+              No pudimos comprobar todos los avisos. Consulta las secciones antes de realizar una
               acción.
             </p>
             <Button
@@ -166,7 +166,7 @@ export function PedidoArtesano({
           ))}
         </TabsList>
         <p className="my-3 text-sm text-muted-foreground">
-          Elegí una sección. Los datos que escribas se conservan al cambiar de pestaña.
+          Elige una sección. Los datos que escribas se conservan al cambiar de pestaña.
         </p>
         <TabsContent forceMount value="resumen" className="data-[state=inactive]:hidden">
           <div className="grid items-start gap-4 xl:grid-cols-2">
@@ -196,7 +196,7 @@ export function PedidoArtesano({
         </TabsContent>
         <TabsContent forceMount value="resolucion" className="data-[state=inactive]:hidden">
           <p className="mb-4 text-sm text-muted-foreground">
-            Consultá cancelaciones, cierres y reembolsos. Las acciones disponibles dependen del
+            Consulta cancelaciones, cierres y reembolsos. Las acciones disponibles dependen del
             estado actual y mantienen sus confirmaciones.
           </p>
           {resolucion}
@@ -215,14 +215,14 @@ function avisosDelPedido(
   const avisos: string[] = [];
   if (p.estado === "vencido_falta_pago")
     avisos.push(
-      "El pedido venció por falta de pago. Consultá su historial; no admite nuevas operaciones.",
+      "El pedido venció por falta de pago. Consulta su historial; no admite nuevas operaciones.",
     );
   if (payment?.revisionPendiente)
     avisos.push("Hay un comprobante que requiere tu revisión antes de continuar.");
   if (payment?.estado === "observado")
     avisos.push("El comprobante necesita corrección por parte del comprador.");
   if (payment?.estado === "no_recibido")
-    avisos.push("El pago figura como no recibido. Consultá el intento y su plazo.");
+    avisos.push("El pago figura como no recibido. Consulta el intento y su plazo.");
   if (payment?.registrableHasta)
     avisos.push(
       `Plazo para registrar o corregir el pago: ${formatDateTime(payment.registrableHasta)}.`,
@@ -231,16 +231,16 @@ function avisosDelPedido(
     avisos.push(`Cancelado por el taller: ${resolution.cancelacion.motivo}`);
   if (resolution?.cierresParciales.some((c) => c.estado === "pendiente"))
     avisos.push(
-      "Hay un cierre parcial pendiente de respuesta. Revisá Cambios y cierre antes de continuar.",
+      "Hay un cierre parcial pendiente de respuesta. Revisa Cambios y cierre antes de continuar.",
     );
   if (resolution?.cierresParciales.some((c) => c.estado === "objetado"))
     avisos.push(
-      "El historial contiene un cierre objetado por el comprador. Consultá Cambios y cierre.",
+      "El historial contiene un cierre objetado por el comprador. Consulta Cambios y cierre.",
     );
   if (resolution?.reembolso?.estado === "pendiente")
-    avisos.push("Hay un reembolso pendiente. Consultá Cambios y cierre.");
+    avisos.push("Hay un reembolso pendiente. Consulta Cambios y cierre.");
   if (work?.entregas.some((e) => e.recepcion?.resultado === "discrepancia"))
-    avisos.push("Hay una discrepancia registrada en una entrega. Consultá Preparación y entrega.");
+    avisos.push("Hay una discrepancia registrada en una entrega. Consulta Preparación y entrega.");
   return avisos;
 }
 function accionDelPedido(
@@ -279,8 +279,8 @@ function ProximoPaso({
         {cerrado
           ? "El pedido finalizó. Los acuerdos y registros se conservan."
           : confirmado
-            ? "Cada producto avanza por separado. Revisá lo que falta preparar o entregar."
-            : "Consultá el comprobante y el plazo para saber qué falta antes de continuar."}
+            ? "Cada producto avanza por separado. Revisa lo que falta preparar o entregar."
+            : "Consulta el comprobante y el plazo para saber qué falta antes de continuar."}
       </p>
       <Button onClick={() => onNavigate(accion.tab)}>{accion.texto}</Button>
     </div>
