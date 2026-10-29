@@ -42,6 +42,7 @@ import {
   METODO_PAGO_LABELS,
   TONO_ESTADO_PAGO,
   origenIntento,
+  siguientePasoPago,
 } from "../labels";
 import type {
   IntentoPago,
@@ -111,7 +112,7 @@ export function VistaPago({
           {ESTADO_PAGO_LABELS[pago.estado]}
         </StatusBadge>
         <div className="text-left sm:text-right">
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {recibido ? "Total del pedido" : "Total a pagar"}
           </p>
           <p className="text-lg font-semibold tabular-nums text-primary">
@@ -119,6 +120,27 @@ export function VistaPago({
           </p>
         </div>
       </div>
+      <p
+        role="status"
+        className="break-words rounded-lg border-l-4 border-primary bg-surface p-4 text-sm leading-relaxed"
+      >
+        {siguientePasoPago(pago, recibido, pedidoVencido || pedidoFinalizado)}
+      </p>
+      {vigente ? (
+        <div className="min-w-0 space-y-3 border-b pb-4">
+          <dl className="grid min-w-0 gap-3 text-sm sm:grid-cols-2">
+            <div className="min-w-0">
+              <dt className="text-muted-foreground">Método del pago actual</dt>
+              <dd>{METODO_PAGO_LABELS[vigente.metodo]}</dd>
+            </div>
+            <div className="min-w-0">
+              <dt className="text-muted-foreground">Referencia</dt>
+              <dd className="break-all">{vigente.referencia}</dd>
+            </div>
+          </dl>
+          <ComprobanteGuardado comprobante={vigente.comprobante} numero={vigente.numero} />
+        </div>
+      ) : null}
       {pedidoVencido ? (
         <Nota>El pedido venció por falta de pago. El historial del pago se conserva.</Nota>
       ) : pedidoFinalizado ? (
@@ -130,7 +152,14 @@ export function VistaPago({
       ) : (
         <EstadoParaComprador pago={pago} vigente={vigente} />
       )}
-      {pago.intentos.length ? <HistorialPago pago={pago} /> : null}
+      {pago.intentos.length ? (
+        <details className="min-w-0 rounded-lg border p-4">
+          <summary className="min-h-11 cursor-pointer py-2 font-semibold">
+            Ver historial de pagos y comprobantes
+          </summary>
+          <HistorialPago pago={pago} />
+        </details>
+      ) : null}
     </div>
   );
 }
@@ -162,7 +191,7 @@ function Plazo({
   return (
     <p className="text-sm">
       {vencido ? "El plazo venció el " : `${etiqueta}: `}
-      <strong className="whitespace-nowrap">{formatDateTime(fecha)}</strong>
+      <strong>{formatDateTime(fecha)}</strong>
     </p>
   );
 }
@@ -541,10 +570,10 @@ export function RevisionPago({
   return (
     <div className="space-y-4 rounded-lg border p-4">
       <div>
-        <h3 className="font-semibold">Revisar el intento {vigente.numero}</h3>
+        <h3 className="font-semibold">Revisar el pago registrado</h3>
         <p className="text-sm text-muted-foreground">
-          Abre el comprobante del historial y verifica el dinero en tu cuenta o medio de cobro antes
-          de decidir. La resolución de este intento es definitiva.
+          Abre el comprobante y verifica el dinero en tu cuenta o medio de cobro antes de decidir.
+          La resolución de este intento es definitiva.
         </p>
       </div>
       <FormMessage>{mutation.isError ? mensajeDominio(mutation.error) : null}</FormMessage>
@@ -556,47 +585,52 @@ export function RevisionPago({
         busy={mutation.isPending}
         onConfirm={() => ejecutar({ estado: "confirmado" })}
       />
-      <FormField
-        id={`${id}-motivo`}
-        label="Motivo (obligatorio para observar o marcar como no recibido)"
-        help={`Observar: el comprobante o los datos tienen un problema y el comprador puede corregirlos. No recibido: el dinero no aparece acreditado. Hasta ${MAX_MOTIVO_PAGO} caracteres.`}
-      >
-        <Textarea
+      <details className="min-w-0 border-t pt-3">
+        <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold">
+          Hay un problema con el pago
+        </summary>
+        <FormField
           id={`${id}-motivo`}
-          value={motivo}
-          maxLength={MAX_MOTIVO_PAGO}
-          aria-describedby={`${id}-motivo-help`}
-          disabled={mutation.isPending || intento.current.incierto}
-          onChange={(e) => setMotivo(e.target.value)}
-        />
-      </FormField>
-      <div className="flex flex-wrap gap-2">
-        <ConfirmAction
-          trigger={
-            <Button variant="outline" disabled={mutation.isPending || !texto}>
-              Observar comprobante
-            </Button>
-          }
-          title="¿Observar este comprobante?"
-          description="El comprador verá el motivo y tendrá 48 horas para corregir el comprobante o los datos."
-          confirm="Observar comprobante"
-          busy={mutation.isPending}
-          onConfirm={() => ejecutar({ estado: "observado", motivo: texto })}
-        />
-        <ConfirmAction
-          trigger={
-            <Button variant="outline" disabled={mutation.isPending || !texto}>
-              Pago no recibido
-            </Button>
-          }
-          title="¿Marcar el pago como no recibido?"
-          description="Usa esta opción si verificaste que los fondos no fueron acreditados. El comprador tendrá 48 horas para registrar un nuevo pago."
-          confirm="Marcar como no recibido"
-          destructive
-          busy={mutation.isPending}
-          onConfirm={() => ejecutar({ estado: "no_recibido", motivo: texto })}
-        />
-      </div>
+          label="Motivo (obligatorio para observar o marcar como no recibido)"
+          help={`Observar: el comprobante o los datos tienen un problema y el comprador puede corregirlos. No recibido: el dinero no aparece acreditado. Hasta ${MAX_MOTIVO_PAGO} caracteres.`}
+        >
+          <Textarea
+            id={`${id}-motivo`}
+            value={motivo}
+            maxLength={MAX_MOTIVO_PAGO}
+            aria-describedby={`${id}-motivo-help`}
+            disabled={mutation.isPending || intento.current.incierto}
+            onChange={(e) => setMotivo(e.target.value)}
+          />
+        </FormField>
+        <div className="flex flex-wrap gap-2">
+          <ConfirmAction
+            trigger={
+              <Button variant="outline" disabled={mutation.isPending || !texto}>
+                Observar comprobante
+              </Button>
+            }
+            title="¿Observar este comprobante?"
+            description="El comprador verá el motivo y tendrá 48 horas para corregir el comprobante o los datos."
+            confirm="Observar comprobante"
+            busy={mutation.isPending}
+            onConfirm={() => ejecutar({ estado: "observado", motivo: texto })}
+          />
+          <ConfirmAction
+            trigger={
+              <Button variant="outline" disabled={mutation.isPending || !texto}>
+                Pago no recibido
+              </Button>
+            }
+            title="¿Marcar el pago como no recibido?"
+            description="Usa esta opción si verificaste que los fondos no fueron acreditados. El comprador tendrá 48 horas para registrar un nuevo pago."
+            confirm="Marcar como no recibido"
+            destructive
+            busy={mutation.isPending}
+            onConfirm={() => ejecutar({ estado: "no_recibido", motivo: texto })}
+          />
+        </div>
+      </details>
     </div>
   );
 }

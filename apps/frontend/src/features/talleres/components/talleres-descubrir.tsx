@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
-import { List, Map as IconoMapa, MapPin } from "lucide-react";
+import { Check, List, Map as IconoMapa, MapPin } from "lucide-react";
+import { EmptyState } from "@/components/common/states";
 import { ArtisanCard } from "@/features/talleres/components/artisan-card";
 import { MapaTalleresPublico } from "@/features/talleres/components/mapa-talleres-publico";
 import type { PerfilTaller } from "@/features/talleres/types";
@@ -43,6 +44,14 @@ export function TalleresDescubrir({
   const marcadores = useMemo(() => marcadoresDeTalleres(talleres), [talleres]);
   const n = marcadores.length;
 
+  if (talleres.length === 0)
+    return (
+      <EmptyState
+        titulo="Nuevos talleres por conocer"
+        descripcion="Aquí aparecerán los talleres cuando publiquen su perfil."
+      />
+    );
+
   return (
     <div className="space-y-4">
       <div
@@ -65,6 +74,7 @@ export function TalleresDescubrir({
           >
             <Icono className="size-4" aria-hidden="true" />
             {etiqueta}
+            {vista === valor ? <Check className="size-4 shrink-0" aria-hidden="true" /> : null}
           </button>
         ))}
       </div>

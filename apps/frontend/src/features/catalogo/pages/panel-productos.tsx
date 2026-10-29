@@ -65,6 +65,115 @@ const MODALIDAD_AYUDA: Record<Modalidad, string> = {
   personalizacion: "Adaptas la pieza a lo que pide el comprador, desde cero o sobre una unidad.",
 };
 
+function ErrorProducto({ mensaje }: { mensaje: string | undefined }) {
+  return mensaje ? (
+    <p role="alert" className="text-sm text-destructive">
+      {mensaje}
+    </p>
+  ) : null;
+}
+
+function TextoGuardarProducto({ guardando, editando }: { guardando: boolean; editando: boolean }) {
+  return guardando ? "Guardando…" : editando ? "Guardar cambios" : "Registrar producto";
+}
+
+function CabeceraFormularioProducto({ editando }: { editando: boolean }) {
+  return (
+    <DialogHeader>
+      <DialogTitle>{editando ? "Editar producto" : "Nuevo producto"}</DialogTitle>
+      <DialogDescription>
+        {catalogoReal
+          ? "Completa los datos, elige cómo ofrecer la pieza y agrega su fotografía. Los pedidos confirmados conservan lo acordado."
+          : "Los datos son simulados y se conservan al recargar en este navegador."}
+      </DialogDescription>
+    </DialogHeader>
+  );
+}
+
+function valoresInventarioSimulado(
+  tipoUnidades: UnitType | "",
+  existencias: string,
+  unidades: Awaited<ReturnType<typeof getProduct>> | undefined,
+): { tipoActual: UnitType | ""; existenciasActuales: string } {
+  return {
+    tipoActual: tipoUnidades || unidades?.tipoUnidades || "",
+    existenciasActuales: existencias || (unidades ? String(unidades.existenciasFisicas) : ""),
+  };
+}
+
+function InventarioSimuladoProducto({
+  tipoActual,
+  editando,
+  existenciasActuales,
+  unidades,
+  motivoAjuste,
+  errores,
+  onTipoUnidades,
+  onExistencias,
+  onMotivoAjuste,
+}: {
+  tipoActual: UnitType | "";
+  editando: boolean;
+  existenciasActuales: string;
+  unidades: Awaited<ReturnType<typeof getProduct>> | undefined;
+  motivoAjuste: string;
+  errores: Record<string, string>;
+  onTipoUnidades: (tipo: UnitType) => void;
+  onExistencias: (cantidad: string) => void;
+  onMotivoAjuste: (motivo: string) => void;
+}) {
+  return (
+    <fieldset className="space-y-3 rounded-lg border p-4">
+      <legend className="px-1 text-sm font-medium">Existencias (inventario simulado)</legend>
+      <Label htmlFor="p-units">Tipo de unidades *</Label>
+      <select
+        id="p-units"
+        value={tipoActual}
+        className="min-h-11 w-full rounded-md border bg-background px-3"
+        onChange={(e) => {
+          const type = e.target.value as UnitType;
+          onTipoUnidades(type);
+          if (type === "pieza_unica" && !editando) onExistencias("1");
+        }}
+      >
+        <option value="">Selecciona el tipo</option>
+        {Object.entries(UNIT_TYPE_LABELS).map(([type, label]) => (
+          <option key={type} value={type}>
+            {label}
+          </option>
+        ))}
+      </select>
+      <ErrorProducto mensaje={errores["tipoUnidades"]} />
+      <Label htmlFor="p-stock">Existencias físicas *</Label>
+      <Input
+        id="p-stock"
+        type="number"
+        min={editando ? 0 : 1}
+        max={tipoActual === "pieza_unica" ? 1 : undefined}
+        step={1}
+        value={existenciasActuales}
+        disabled={tipoActual === "pieza_unica" && !editando}
+        onChange={(e) => onExistencias(e.target.value)}
+      />
+      {editando && unidades ? (
+        <>
+          <p className="text-sm">
+            Reservadas: {unidades.unidadesReservadas} · Por clasificar:{" "}
+            {unidades.unidadesPorClasificar}. No pueden quedar menos unidades que las comprometidas.
+          </p>
+          <Label htmlFor="p-stock-reason">Motivo del ajuste de unidades</Label>
+          <Textarea
+            id="p-stock-reason"
+            maxLength={300}
+            value={motivoAjuste}
+            onChange={(e) => onMotivoAjuste(e.target.value)}
+          />
+        </>
+      ) : null}
+    </fieldset>
+  );
+}
+
 export default function MisProductos() {
   useDocumentHead({
     title: "Mis productos | Panel del artesano",
@@ -85,6 +194,8 @@ export default function MisProductos() {
   const { format } = useCurrency();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
+  const [busqueda, setBusqueda] = useState("");
+  const [estadoVisible, setEstadoVisible] = useState("todos");
 
   const [abierto, setAbierto] = useState(false);
   const [editando, setEditando] = useState<OwnProduct | null>(null);
@@ -148,6 +259,11 @@ export default function MisProductos() {
     enabled: abierto && !catalogoReal && editando !== null,
   });
 
+  const visibles = (productos.data?.items ?? []).filter(
+    (p) =>
+      p.nombre.toLocaleLowerCase().includes(busqueda.trim().toLocaleLowerCase()) &&
+      (estadoVisible === "todos" || (estadoVisible === "publicados" ? p.publicado : !p.publicado)),
+  );
   const abrir = (p?: OwnProduct) => {
     setEditando(p ?? null);
     setNombre(p?.nombre ?? "");
@@ -166,8 +282,11 @@ export default function MisProductos() {
 
   // Al cargar el inventario simulado del producto, se proponen sus valores actuales.
   const unidades = inventario.data;
-  const tipoActual = tipoUnidades || unidades?.tipoUnidades || "";
-  const existenciasActuales = existencias || (unidades ? String(unidades.existenciasFisicas) : "");
+  const { tipoActual, existenciasActuales } = valoresInventarioSimulado(
+    tipoUnidades,
+    existencias,
+    unidades,
+  );
 
   const alternarModalidad = (m: Modalidad, activa: boolean) => {
     const actuales = formulario.getValues("modalidades");
@@ -179,6 +298,21 @@ export default function MisProductos() {
   };
 
   const invalidar = () => void queryClient.invalidateQueries();
+  const enfocarError = (campo?: string) => {
+    if (!campo) return;
+    const ids: Record<string, string> = {
+      nombre: "p-nombre",
+      precio: "p-precio",
+      categoria: "p-categoria",
+      descripcion: "p-descripcion",
+      modalidades: "p-modalidad-stock",
+      fotografia_principal: "p-fotografia",
+      tipoUnidades: "p-units",
+      existenciasFisicas: "p-stock",
+      motivoAjuste: "p-stock-reason",
+    };
+    requestAnimationFrame(() => document.getElementById(ids[campo] ?? "")?.focus());
+  };
 
   const guardar = useMutation({
     mutationFn: (input: ProductInput) =>
@@ -196,11 +330,11 @@ export default function MisProductos() {
     },
     onError: (e: Error) => {
       if (e instanceof ApiError) {
-        setErrores(
-          Object.fromEntries(
-            Object.entries(e.campos).map(([campo, mensajes]) => [campo, mensajes.join(" ")]),
-          ),
+        const campos = Object.fromEntries(
+          Object.entries(e.campos).map(([campo, mensajes]) => [campo, mensajes.join(" ")]),
         );
+        setErrores(campos);
+        enfocarError(Object.keys(campos)[0]);
       }
       toast.error(mensajeDominio(e));
     },
@@ -241,6 +375,7 @@ export default function MisProductos() {
     if (pideInventario && !tipoActual) map["tipoUnidades"] = "Selecciona el tipo de unidades.";
     if (Object.keys(map).length > 0 || !r.success) {
       setErrores(map);
+      enfocarError(Object.keys(map)[0]);
       return;
     }
     setErrores({});
@@ -258,6 +393,173 @@ export default function MisProductos() {
     });
   };
 
+  let listado;
+  if (productos.isError)
+    listado = (
+      <ErrorState
+        mensaje={mensajeDominio(productos.error)}
+        onRetry={() => void productos.refetch()}
+      />
+    );
+  else if (productos.isPending)
+    listado = (
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-64 w-full rounded-xl" />
+        ))}
+      </div>
+    );
+  else if (productos.data.items.length === 0)
+    listado = (
+      <EmptyState
+        titulo="Aún no tienes productos registrados"
+        descripcion="Registra tu primera pieza y publícala para empezar a recibir solicitudes."
+        accion={
+          <Button className="touch-target" onClick={() => abrir()}>
+            Registrar producto
+          </Button>
+        }
+      />
+    );
+  else
+    listado = (
+      <>
+        <div className="space-y-3 rounded-xl border bg-card p-4">
+          <p className="text-sm text-muted-foreground">
+            Estos filtros revisan únicamente los productos de esta página. Cambia de página para
+            consultar otros.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="productos-busqueda">Buscar en esta página</Label>
+              <Input
+                id="productos-busqueda"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Nombre del producto"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="productos-estado">Publicación en esta página</Label>
+              <select
+                id="productos-estado"
+                className="min-h-11 w-full rounded-md border border-input bg-background px-3"
+                value={estadoVisible}
+                onChange={(e) => setEstadoVisible(e.target.value)}
+              >
+                <option value="todos">Todos</option>
+                <option value="publicados">Publicados</option>
+                <option value="sin-publicar">Sin publicar</option>
+              </select>
+            </div>
+          </div>
+          <p role="status" className="text-sm">
+            {visibles.length} de {productos.data.items.length} productos cargados
+          </p>
+        </div>
+        {!visibles.length ? (
+          <EmptyState
+            titulo="Sin coincidencias en esta página"
+            descripcion="Prueba otro nombre o estado. Las demás páginas no se filtraron."
+            accion={
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setBusqueda("");
+                  setEstadoVisible("todos");
+                }}
+              >
+                Limpiar filtros
+              </Button>
+            }
+          />
+        ) : null}
+        <ul className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {visibles.map((p) => (
+            <li key={p.id} className="overflow-hidden rounded-xl border bg-card">
+              <ProductImage src={p.imagen} alt={p.nombre} className="aspect-[4/3]" />
+              <div className="p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-muted-foreground">{p.categoria.nombre}</p>
+                  <EstadoProductoPropio producto={p} />
+                </div>
+                <h2 className="mt-1 line-clamp-2 break-words font-medium">{p.nombre}</h2>
+                <p className="mt-1 font-semibold text-primary">{format(p.precio)}</p>
+                {typeof p.disponibleStock === "number" ? (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Disponibles para ofrecer: {p.disponibleStock}
+                  </p>
+                ) : null}
+                <ModalidadesTexto modalidades={p.modalidades} className="mt-1 text-xs" />
+                <AvisoModeracion producto={p} />
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="outline" className="touch-target" onClick={() => abrir(p)}>
+                    <Pencil className="size-4" aria-hidden="true" />
+                    Editar producto
+                  </Button>
+                  {!p.publicado && !p.moderacion ? (
+                    <Button disabled={publicacion.isPending} onClick={() => publicacion.mutate(p)}>
+                      <Eye className="size-4" aria-hidden="true" />
+                      Publicar
+                    </Button>
+                  ) : null}
+                </div>
+                <details className="mt-3 border-t pt-2">
+                  <summary className="list-item min-h-11 cursor-pointer py-3 text-sm font-medium text-primary">
+                    Más opciones
+                  </summary>
+                  <div className="space-y-3 py-2">
+                    {p.publicado ? (
+                      <ConfirmAction
+                        trigger={
+                          <Button variant="outline" disabled={publicacion.isPending}>
+                            <EyeOff className="size-4" aria-hidden="true" />
+                            Despublicar
+                          </Button>
+                        }
+                        title="¿Despublicar este producto?"
+                        description="Dejará de aparecer en el catálogo. Su foto y las referencias de pedidos se conservan."
+                        confirm="Despublicar producto"
+                        destructive
+                        busy={publicacion.isPending}
+                        onConfirm={async () => {
+                          try {
+                            await publicacion.mutateAsync(p);
+                          } catch {
+                            /* error informado por la mutación */
+                          }
+                        }}
+                      />
+                    ) : p.moderacion ? (
+                      // Backend es la autoridad (409 producto_moderado); aquí se explica.
+                      <p className="self-center text-xs text-muted-foreground">
+                        {MENSAJE_SIN_REPUBLICAR}
+                      </p>
+                    ) : null}
+                    {catalogoReal ? (
+                      <Button asChild variant="ghost" className="mt-2 w-full">
+                        <Link to={`/panel/inventario/${p.id}`}>Gestionar existencias</Link>
+                      </Button>
+                    ) : null}
+                  </div>
+                </details>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        <ListPagination
+          page={page}
+          totalPages={productos.data.totalPages}
+          onPage={(next) => {
+            setPage(next);
+            setBusqueda("");
+            setEstadoVisible("todos");
+          }}
+          busy={productos.isPlaceholderData}
+        />
+      </>
+    );
   return (
     <SiteLayout>
       <PageContainer>
@@ -280,103 +582,7 @@ export default function MisProductos() {
           }
         />
 
-        <div className="mt-8">
-          {productos.isError ? (
-            <ErrorState
-              mensaje={productos.error.message}
-              onRetry={() => void productos.refetch()}
-            />
-          ) : productos.isPending ? (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <Skeleton key={i} className="h-64 w-full rounded-xl" />
-              ))}
-            </div>
-          ) : productos.data.items.length === 0 ? (
-            <EmptyState
-              titulo="Aún no tienes productos registrados"
-              descripcion="Registra tu primera pieza y publícala para empezar a recibir solicitudes."
-              accion={
-                <Button className="touch-target" onClick={() => abrir()}>
-                  Registrar producto
-                </Button>
-              }
-            />
-          ) : (
-            <>
-              <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {productos.data.items.map((p) => (
-                  <li key={p.id} className="overflow-hidden rounded-xl border bg-card">
-                    <ProductImage src={p.imagen} alt={p.nombre} className="aspect-[4/3]" />
-                    <div className="p-4">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="text-xs text-muted-foreground">{p.categoria.nombre}</p>
-                        <EstadoProductoPropio producto={p} />
-                      </div>
-                      <h2 className="mt-1 line-clamp-2 font-medium">{p.nombre}</h2>
-                      <p className="mt-1 font-semibold text-primary">{format(p.precio)}</p>
-                      <ModalidadesTexto modalidades={p.modalidades} className="mt-1 text-xs" />
-                      <AvisoModeracion producto={p} />
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <Button variant="outline" className="touch-target" onClick={() => abrir(p)}>
-                          <Pencil className="size-4" aria-hidden="true" />
-                          Editar
-                        </Button>
-                        {p.publicado ? (
-                          <ConfirmAction
-                            trigger={
-                              <Button variant="outline" disabled={publicacion.isPending}>
-                                <EyeOff className="size-4" aria-hidden="true" />
-                                Despublicar
-                              </Button>
-                            }
-                            title="¿Despublicar este producto?"
-                            description="Dejará de aparecer en el catálogo. Su foto y las referencias de pedidos se conservan."
-                            confirm="Despublicar producto"
-                            destructive
-                            busy={publicacion.isPending}
-                            onConfirm={async () => {
-                              try {
-                                await publicacion.mutateAsync(p);
-                              } catch {
-                                /* error informado por la mutación */
-                              }
-                            }}
-                          />
-                        ) : p.moderacion ? (
-                          // Backend es la autoridad (409 producto_moderado); aquí se explica.
-                          <p className="self-center text-xs text-muted-foreground">
-                            {MENSAJE_SIN_REPUBLICAR}
-                          </p>
-                        ) : (
-                          <Button
-                            disabled={publicacion.isPending}
-                            onClick={() => publicacion.mutate(p)}
-                          >
-                            <Eye className="size-4" aria-hidden="true" />
-                            Publicar
-                          </Button>
-                        )}
-                      </div>
-                      {catalogoReal ? (
-                        <Button asChild variant="ghost" className="mt-2 w-full">
-                          <Link to={`/panel/inventario/${p.id}`}>Gestionar existencias</Link>
-                        </Button>
-                      ) : null}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-
-              <ListPagination
-                page={page}
-                totalPages={productos.data.totalPages}
-                onPage={setPage}
-                busy={productos.isPlaceholderData}
-              />
-            </>
-          )}
-        </div>
+        <div className="mt-8">{listado}</div>
       </PageContainer>
 
       <Dialog
@@ -385,107 +591,90 @@ export default function MisProductos() {
           if (!guardar.isPending) setAbierto(open);
         }}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{editando ? "Editar producto" : "Nuevo producto"}</DialogTitle>
-            <DialogDescription>
-              {catalogoReal
-                ? "Se guarda en el servidor. Los pedidos ya confirmados conservan sus propios datos."
-                : "Los datos son simulados y se conservan al recargar en este navegador."}
-            </DialogDescription>
-          </DialogHeader>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg">
+          <CabeceraFormularioProducto editando={!!editando} />
 
-          <form onSubmit={enviar} noValidate className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="p-nombre">Nombre del producto *</Label>
-              <Input
-                id="p-nombre"
-                ref={nombreCampo.ref}
-                onBlur={nombreCampo.onBlur}
-                className="min-h-11"
-                maxLength={LIMITES_PRODUCTO.nombre}
-                value={nombre}
-                onChange={(e) => setNombre(e.target.value)}
-                aria-invalid={!!errores["nombre"]}
-              />
-              {errores["nombre"] ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {errores["nombre"]}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
+          <form onSubmit={enviar} noValidate className="min-w-0 space-y-5">
+            <fieldset className="min-w-0 space-y-5">
+              <legend className="mb-3 font-semibold">Datos de la pieza</legend>
               <div className="space-y-2">
-                <Label htmlFor="p-precio">Precio en córdobas *</Label>
+                <Label htmlFor="p-nombre">Nombre del producto *</Label>
                 <Input
-                  id="p-precio"
-                  ref={precioCampo.ref}
-                  onBlur={precioCampo.onBlur}
-                  type="number"
-                  inputMode="decimal"
-                  min={0.01}
-                  max={LIMITES_PRODUCTO.precioMaximo}
-                  step={0.01}
+                  id="p-nombre"
+                  ref={nombreCampo.ref}
+                  onBlur={nombreCampo.onBlur}
                   className="min-h-11"
-                  value={precio}
-                  onChange={(e) => setPrecio(e.target.value)}
-                  aria-invalid={!!errores["precio"]}
+                  maxLength={LIMITES_PRODUCTO.nombre}
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  aria-invalid={!!errores["nombre"]}
                 />
-                {errores["precio"] ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {errores["precio"]}
-                  </p>
-                ) : null}
+                <ErrorProducto mensaje={errores["nombre"]} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="p-categoria">Rubro *</Label>
-                <Select value={categoria} onValueChange={setCategoria} disabled={!categorias.data}>
-                  <SelectTrigger
-                    id="p-categoria"
-                    ref={categoriaCampo.ref}
-                    onBlur={categoriaCampo.onBlur}
+
+              <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="p-precio">Precio en córdobas *</Label>
+                  <Input
+                    id="p-precio"
+                    ref={precioCampo.ref}
+                    onBlur={precioCampo.onBlur}
+                    type="number"
+                    inputMode="decimal"
+                    min={0.01}
+                    max={LIMITES_PRODUCTO.precioMaximo}
+                    step={0.01}
                     className="min-h-11"
-                    aria-invalid={!!errores["categoria"]}
+                    value={precio}
+                    onChange={(e) => setPrecio(e.target.value)}
+                    aria-invalid={!!errores["precio"]}
+                  />
+                  <ErrorProducto mensaje={errores["precio"]} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="p-categoria">Rubro *</Label>
+                  <Select
+                    value={categoria}
+                    onValueChange={setCategoria}
+                    disabled={!categorias.data}
                   >
-                    <SelectValue placeholder="Seleccione una categoría" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categorias.data?.map((c) => (
-                      <SelectItem key={c.id} value={c.codigo}>
-                        {c.nombre}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {errores["categoria"] ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {errores["categoria"]}
-                  </p>
-                ) : null}
+                    <SelectTrigger
+                      id="p-categoria"
+                      ref={categoriaCampo.ref}
+                      onBlur={categoriaCampo.onBlur}
+                      className="min-h-11"
+                      aria-invalid={!!errores["categoria"]}
+                    >
+                      <SelectValue placeholder="Seleccione una categoría" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {categorias.data?.map((c) => (
+                        <SelectItem key={c.id} value={c.codigo}>
+                          {c.nombre}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <ErrorProducto mensaje={errores["categoria"]} />
+                </div>
               </div>
-            </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="p-descripcion">Descripción *</Label>
-              <Textarea
-                id="p-descripcion"
-                ref={descripcionCampo.ref}
-                onBlur={descripcionCampo.onBlur}
-                rows={5}
-                maxLength={LIMITES_PRODUCTO.descripcion}
-                value={descripcion}
-                onChange={(e) => setDescripcion(e.target.value)}
-                aria-invalid={!!errores["descripcion"]}
-              />
-              {errores["descripcion"] ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {errores["descripcion"]}
-                </p>
-              ) : null}
-            </div>
-
-            <fieldset className="space-y-2" aria-describedby="p-modalidades-ayuda">
+              <div className="space-y-2">
+                <Label htmlFor="p-descripcion">Descripción *</Label>
+                <Textarea
+                  id="p-descripcion"
+                  ref={descripcionCampo.ref}
+                  onBlur={descripcionCampo.onBlur}
+                  rows={5}
+                  maxLength={LIMITES_PRODUCTO.descripcion}
+                  value={descripcion}
+                  onChange={(e) => setDescripcion(e.target.value)}
+                  aria-invalid={!!errores["descripcion"]}
+                />
+                <ErrorProducto mensaje={errores["descripcion"]} />
+              </div>
+            </fieldset>
+            <fieldset className="min-w-0 space-y-2" aria-describedby="p-modalidades-ayuda">
               <legend className="text-sm font-medium">Modalidades de venta *</legend>
               <p id="p-modalidades-ayuda" className="text-xs text-muted-foreground">
                 Marca todas las que ofreces; puedes combinarlas.
@@ -493,6 +682,7 @@ export default function MisProductos() {
               {MODALIDADES.map((m) => (
                 <label key={m} className="flex min-h-11 items-start gap-3 py-1 text-sm">
                   <input
+                    id={`p-modalidad-${m}`}
                     type="checkbox"
                     className="mt-1 size-4"
                     checked={modalidades.includes(m)}
@@ -504,69 +694,21 @@ export default function MisProductos() {
                   </span>
                 </label>
               ))}
-              {errores["modalidades"] ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {errores["modalidades"]}
-                </p>
-              ) : null}
+              <ErrorProducto mensaje={errores["modalidades"]} />
             </fieldset>
 
             {pideInventario ? (
-              <fieldset className="space-y-3 rounded-lg border p-4">
-                <legend className="px-1 text-sm font-medium">
-                  Existencias (inventario simulado)
-                </legend>
-                <Label htmlFor="p-units">Tipo de unidades *</Label>
-                <select
-                  id="p-units"
-                  value={tipoActual}
-                  className="min-h-11 w-full rounded-md border bg-background px-3"
-                  onChange={(e) => {
-                    const type = e.target.value as UnitType;
-                    setTipoUnidades(type);
-                    if (type === "pieza_unica" && !editando) setExistencias("1");
-                  }}
-                >
-                  <option value="">Selecciona el tipo</option>
-                  {Object.entries(UNIT_TYPE_LABELS).map(([type, label]) => (
-                    <option key={type} value={type}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-                {errores["tipoUnidades"] ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    {errores["tipoUnidades"]}
-                  </p>
-                ) : null}
-                <Label htmlFor="p-stock">Existencias físicas *</Label>
-                <Input
-                  id="p-stock"
-                  type="number"
-                  min={editando ? 0 : 1}
-                  max={tipoActual === "pieza_unica" ? 1 : undefined}
-                  step={1}
-                  value={existenciasActuales}
-                  disabled={tipoActual === "pieza_unica" && !editando}
-                  onChange={(e) => setExistencias(e.target.value)}
-                />
-                {editando && unidades ? (
-                  <>
-                    <p className="text-sm">
-                      Reservadas: {unidades.unidadesReservadas} · Por clasificar:{" "}
-                      {unidades.unidadesPorClasificar}. No pueden quedar menos unidades que las
-                      comprometidas.
-                    </p>
-                    <Label htmlFor="p-stock-reason">Motivo del ajuste de unidades</Label>
-                    <Textarea
-                      id="p-stock-reason"
-                      maxLength={300}
-                      value={motivoAjuste}
-                      onChange={(e) => setMotivoAjuste(e.target.value)}
-                    />
-                  </>
-                ) : null}
-              </fieldset>
+              <InventarioSimuladoProducto
+                tipoActual={tipoActual}
+                editando={!!editando}
+                existenciasActuales={existenciasActuales}
+                unidades={unidades}
+                motivoAjuste={motivoAjuste}
+                errores={errores}
+                onTipoUnidades={setTipoUnidades}
+                onExistencias={setExistencias}
+                onMotivoAjuste={setMotivoAjuste}
+              />
             ) : null}
 
             {catalogoReal ? (
@@ -589,7 +731,7 @@ export default function MisProductos() {
               />
             )}
 
-            <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <div className="sticky bottom-0 flex flex-col gap-2 border-t bg-background py-3 sm:flex-row sm:justify-end">
               <Button
                 type="button"
                 variant="outline"
@@ -604,11 +746,7 @@ export default function MisProductos() {
                 className="touch-target"
                 disabled={guardar.isPending || imageBusy}
               >
-                {guardar.isPending
-                  ? "Guardando…"
-                  : editando
-                    ? "Guardar cambios"
-                    : "Registrar producto"}
+                <TextoGuardarProducto guardando={guardar.isPending} editando={!!editando} />
               </Button>
             </div>
           </form>

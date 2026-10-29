@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { MessageSquare } from "lucide-react";
+import { Check, MessageSquare } from "lucide-react";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { PageContainer, PageHeader } from "@/components/common/page";
 import { EmptyState, ErrorState, LoadingState } from "@/components/common/states";
@@ -91,11 +91,14 @@ function TarjetaConversacion({
         aria-current={activo ? "true" : undefined}
         className={cn(
           "min-h-11 w-full rounded-xl border bg-card p-3.5 text-left transition-colors hover:bg-surface",
-          activo && "border-primary/40 bg-primary/5",
+          activo && "border-2 border-primary/40 bg-primary/5",
         )}
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <span className="font-display text-base font-semibold">Pedido #{pedido.id}</span>
+          <span className="inline-flex items-center gap-2 font-display text-base font-semibold">
+            Pedido #{pedido.id}
+            {activo ? <Check className="size-4" aria-label="Conversación seleccionada" /> : null}
+          </span>
           <EstadoPedidoBadge estado={pedido.estado} />
         </div>
         <p className="mt-1.5 break-words text-sm font-medium">{resumenLineas(pedido)}</p>
@@ -207,14 +210,13 @@ function PanelConversacionActiva({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3.5">
         <div className="min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2.5">
-            <h2 className="font-display text-lg font-semibold">
-              Pedido #{actual.id} · {resumenLineas(actual)}
+            <h2 className="min-w-0 [overflow-wrap:anywhere] font-display text-lg font-semibold">
+              Pedido #{actual.id}
             </h2>
             <EstadoPedidoBadge estado={actual.estado} />
           </div>
-          <p className="break-words text-sm text-muted-foreground">
-            {etiquetaParte} · Total acordado: {mostrarImporte(actual.total)}
-          </p>
+          <p className="line-clamp-1 break-words text-sm">{resumenLineas(actual)}</p>
+          <p className="line-clamp-2 break-words text-sm text-muted-foreground">{etiquetaParte}</p>
         </div>
         <Button asChild variant="outline" size="sm" className="min-h-11 touch-target">
           <Link to={`${rutaBasePedidos}/${actual.id}`}>Ver detalle del pedido</Link>
@@ -374,7 +376,7 @@ export default function MensajesPage() {
       <PageContainer className="max-w-6xl">
         <PageHeader
           title="Mensajes"
-          description="Cada conversación privada pertenece a un pedido confirmado entre el comprador y el taller."
+          description="Elige un pedido para conversar con la otra parte sobre sus detalles y entrega."
           action={
             <Button asChild variant="outline" className="min-h-11 touch-target">
               <Link to={rutaBasePedidos}>
@@ -403,16 +405,33 @@ export default function MensajesPage() {
           />
         ) : (
           <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,21rem)_minmax(0,1fr)]">
-            <ListaConversaciones
-              conversaciones={estado.conversaciones}
-              recibido={recibido}
-              actualId={estado.actual?.id}
-              page={page}
-              totalPages={estado.pedidosQuery.data?.totalPages}
-              busy={estado.pedidosQuery.isPlaceholderData}
-              onSelect={seleccionar}
-              onPage={setPage}
-            />
+            <details className="min-w-0 rounded-xl border bg-card p-4 lg:hidden">
+              <summary className="min-h-11 cursor-pointer py-2 text-sm font-semibold">
+                Elegir conversación{estado.actual ? ` · Pedido #${estado.actual.id}` : ""}
+              </summary>
+              <ListaConversaciones
+                conversaciones={estado.conversaciones}
+                recibido={recibido}
+                actualId={estado.actual?.id}
+                page={page}
+                totalPages={estado.pedidosQuery.data?.totalPages}
+                busy={estado.pedidosQuery.isPlaceholderData}
+                onSelect={seleccionar}
+                onPage={setPage}
+              />
+            </details>
+            <div className="hidden min-w-0 lg:block">
+              <ListaConversaciones
+                conversaciones={estado.conversaciones}
+                recibido={recibido}
+                actualId={estado.actual?.id}
+                page={page}
+                totalPages={estado.pedidosQuery.data?.totalPages}
+                busy={estado.pedidosQuery.isPlaceholderData}
+                onSelect={seleccionar}
+                onPage={setPage}
+              />
+            </div>
             <ColumnaConversacion
               parametroInvalido={estado.parametroInvalido}
               cargandoDetalle={estado.cargandoDetalle}

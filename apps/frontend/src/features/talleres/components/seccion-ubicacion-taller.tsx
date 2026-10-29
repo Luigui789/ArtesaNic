@@ -90,7 +90,8 @@ export function SeccionUbicacionTaller({
         </p>
       </div>
       {error ? (
-        <p role="alert" className="text-sm text-destructive">
+        // Sin control propio: el formulario enfoca este mensaje al mostrar errores.
+        <p role="alert" tabIndex={-1} data-error-foco className="text-sm text-destructive">
           {error}
         </p>
       ) : null}

@@ -475,10 +475,10 @@ await verificar(
     assert.match(enlace, /target="_blank"/);
     assert.match(enlace, /rel="noreferrer"/);
     assert.match(texto(html), /Cómo llegar \(se abre en otra pestaña\)/);
-    // Orden: información del taller → ubicación → productos publicados.
+    // Jerarquía pública: productos primero, ubicación y contacto después.
     const i = (s) => html.indexOf(s);
-    assert.ok(i('id="contacto"') < i('id="ubicacion-taller"'));
-    assert.ok(i('id="ubicacion-taller"') < i('id="productos-taller"'));
+    assert.ok(i('id="productos-taller"') < i('id="ubicacion-taller"'));
+    assert.ok(i('id="ubicacion-taller"') < i('id="contacto"'));
     // La dirección textual sigue en el perfil y las coordenadas no se muestran como texto.
     assert.match(texto(html), /Dirección 5, Masaya/);
     assert.doesNotMatch(texto(html), /11\.971234|-86\.095678|Lat|Lng/);

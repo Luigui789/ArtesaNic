@@ -33,6 +33,7 @@ import {
   type EstadoPedidoOperativo,
   type PedidoConfirmado,
 } from "../confirmados";
+import { PedidoArtesano } from "../components/pedido-artesano";
 import { ResumenContractual } from "../components/resumen-contractual";
 import { PagoPedido } from "@/features/pagos/components/pago-pedido";
 import { CumplimientoPedido } from "../components/cumplimiento-pedido";
@@ -72,15 +73,7 @@ export function ListadoPedidosConfirmados({ recibidos = false }: { recibidos?: b
   return (
     <SiteLayout>
       <PageContainer>
-        <PageHeader
-          title={recibidos ? "Pedidos del taller" : "Mis pedidos"}
-          description="Acuerdos confirmados por el comprador, con sus productos e importes conservados."
-          action={
-            <Button asChild variant="outline">
-              <Link to={recibidos ? "/panel/solicitudes" : "/solicitudes"}>Ver solicitudes</Link>
-            </Button>
-          }
-        />
+        <EncabezadoPedidos recibidos={recibidos} />
         {query.isPending ? (
           <LoadingState />
         ) : query.isError ? (
@@ -169,6 +162,95 @@ export function ContenidoPedidoConfirmado({
 }) {
   const solicitud = recibido ? "/panel/solicitudes" : "/solicitudes";
   const vencido = p.estado === "vencido_falta_pago";
+  const productos = (
+    <Section
+      title="Productos acordados"
+      description="Estos datos se conservaron al confirmar el pedido."
+    >
+      <ol className="divide-y">
+        {p.lineas.map((l) => (
+          <li key={l.id} className="space-y-2 py-4 first:pt-0">
+            <h3 className="font-semibold">{l.producto.nombre}</h3>
+            <p className="text-sm text-muted-foreground">
+              {l.producto.categoria.nombre} · {MODALIDAD_LABELS[l.modalidad]}
+            </p>
+            <dl className="grid gap-2 text-sm sm:grid-cols-2">
+              <div>
+                <dt className="text-muted-foreground">Cantidad</dt>
+                <dd>{l.cantidad}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Precio acordado por unidad</dt>
+                <dd>{mostrarImporte(l.precioUnitario)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Subtotal</dt>
+                <dd>{mostrarImporte(l.subtotal)}</dd>
+              </div>
+              {l.modalidad === "personalizacion" ? (
+                <div>
+                  <dt className="text-muted-foreground">Cargo de personalización</dt>
+                  <dd>{mostrarImporte(l.cargoPersonalizacion)}</dd>
+                </div>
+              ) : null}
+            </dl>
+            {l.caracteristicas ? (
+              <p className="whitespace-pre-wrap text-sm">{l.caracteristicas}</p>
+            ) : null}
+            {l.origenPersonalizacion ? (
+              <p className="text-sm">
+                {l.origenPersonalizacion === "unidad_estandar"
+                  ? "Sobre una unidad estándar"
+                  : "Fabricación desde cero"}
+              </p>
+            ) : null}
+            {l.fechaComprometida ? (
+              <p className="text-sm">
+                Fecha comprometida: {formatCalendarDate(l.fechaComprometida)}
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ol>
+    </Section>
+  );
+  const entrega = (
+    <Section title="Entrega acordada">
+      <p>{ENTREGA_LABELS[p.modalidadEntrega]}</p>
+      {p.descripcionEntrega ? (
+        <p className="whitespace-pre-wrap text-sm text-muted-foreground">{p.descripcionEntrega}</p>
+      ) : null}
+    </Section>
+  );
+  const resumen = (
+    <Section title="Resumen del acuerdo">
+      <ResumenContractual datos={p} />
+      {p.otrosCargos.length ? (
+        <ul className="space-y-2 border-t pt-3 text-sm">
+          {p.otrosCargos.map((c) => (
+            <li key={c.posicion} className="flex flex-wrap justify-between gap-2">
+              <span>{c.descripcion}</span>
+              <span>{mostrarImporte(c.monto)}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Section>
+  );
+  if (recibido)
+    return (
+      <PedidoArtesano
+        pedido={p}
+        resumen={resumen}
+        productos={productos}
+        entrega={entrega}
+        pago={pago}
+        cumplimiento={cumplimiento}
+        progreso={progreso}
+        resolucion={resolucion}
+        mensajes={mensajes}
+      />
+    );
   return (
     <>
       <div className="flex flex-wrap items-center gap-3">
@@ -214,79 +296,11 @@ export function ContenidoPedidoConfirmado({
           {resolucion}
           {cumplimiento}
           {mensajes}
-          <Section
-            title="Productos acordados"
-            description="Estos datos se conservaron al confirmar el pedido."
-          >
-            <ol className="divide-y">
-              {p.lineas.map((l) => (
-                <li key={l.id} className="space-y-2 py-4 first:pt-0">
-                  <h3 className="font-semibold">{l.producto.nombre}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {l.producto.categoria.nombre} · {MODALIDAD_LABELS[l.modalidad]}
-                  </p>
-                  <dl className="grid gap-2 text-sm sm:grid-cols-2">
-                    <div>
-                      <dt className="text-muted-foreground">Cantidad</dt>
-                      <dd>{l.cantidad}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Precio acordado por unidad</dt>
-                      <dd>{mostrarImporte(l.precioUnitario)}</dd>
-                    </div>
-                    <div>
-                      <dt className="text-muted-foreground">Subtotal</dt>
-                      <dd>{mostrarImporte(l.subtotal)}</dd>
-                    </div>
-                    {l.modalidad === "personalizacion" ? (
-                      <div>
-                        <dt className="text-muted-foreground">Cargo de personalización</dt>
-                        <dd>{mostrarImporte(l.cargoPersonalizacion)}</dd>
-                      </div>
-                    ) : null}
-                  </dl>
-                  {l.caracteristicas ? (
-                    <p className="whitespace-pre-wrap text-sm">{l.caracteristicas}</p>
-                  ) : null}
-                  {l.origenPersonalizacion ? (
-                    <p className="text-sm">
-                      {l.origenPersonalizacion === "unidad_estandar"
-                        ? "Sobre una unidad estándar"
-                        : "Fabricación desde cero"}
-                    </p>
-                  ) : null}
-                  {l.fechaComprometida ? (
-                    <p className="text-sm">
-                      Fecha comprometida: {formatCalendarDate(l.fechaComprometida)}
-                    </p>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-          </Section>
-          <Section title="Entrega acordada">
-            <p>{ENTREGA_LABELS[p.modalidadEntrega]}</p>
-            {p.descripcionEntrega ? (
-              <p className="whitespace-pre-wrap text-sm text-muted-foreground">
-                {p.descripcionEntrega}
-              </p>
-            ) : null}
-          </Section>
+          {productos}
+          {entrega}
         </div>
         <div className={cn("min-w-0 space-y-6", progreso && "xl:col-start-2 xl:row-start-2")}>
-          <Section title="Resumen del acuerdo">
-            <ResumenContractual datos={p} />
-            {p.otrosCargos.length ? (
-              <ul className="space-y-2 border-t pt-3 text-sm">
-                {p.otrosCargos.map((c) => (
-                  <li key={c.posicion} className="flex flex-wrap justify-between gap-2">
-                    <span>{c.descripcion}</span>
-                    <span>{mostrarImporte(c.monto)}</span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </Section>
+          {resumen}
           <Button asChild variant="outline" className="w-full">
             <Link to={`${solicitud}/${p.solicitud}`}>Ver solicitud y propuesta</Link>
           </Button>
@@ -341,5 +355,23 @@ export function DetallePedidoConfirmado({ recibido = false }: { recibido?: boole
         )}
       </PageContainer>
     </SiteLayout>
+  );
+}
+
+function EncabezadoPedidos({ recibidos }: { recibidos: boolean }) {
+  return (
+    <PageHeader
+      title={recibidos ? "Pedidos del taller" : "Mis pedidos"}
+      description={
+        recibidos
+          ? "Abre un pedido para revisar el pago, preparar los productos y registrar su entrega."
+          : "Acuerdos confirmados por el comprador, con sus productos e importes conservados."
+      }
+      action={
+        <Button asChild variant="outline">
+          <Link to={recibidos ? "/panel/solicitudes" : "/solicitudes"}>Ver solicitudes</Link>
+        </Button>
+      }
+    />
   );
 }

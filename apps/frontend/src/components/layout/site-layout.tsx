@@ -1,22 +1,20 @@
 import type { ReactNode } from "react";
-import { NavLink, useLocation, Link } from "react-router";
+import { matchPath, useLocation, Link } from "react-router";
 import { AppHeader } from "./app-header";
 import { PublicFooter } from "./public-footer";
 import { AvisoPersistencia } from "./demo-controls";
 import { navigationFor } from "./navigation";
+import { PrivateNavigation } from "./private-navigation";
+import type { SesionUsuario } from "@/features/auth/use-session";
 import { useSession } from "@/features/auth/use-session";
 import { cn } from "@/lib/utils";
 
 export function SiteLayout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const { modo, usuario } = useSession();
-  const privado =
-    usuario &&
-    ((usuario.rol === "artesano" && pathname.startsWith("/panel")) ||
-      (usuario.rol === "comprador" && /^\/(solicitudes|solicitar|pedidos)(\/|$)/.test(pathname)) ||
-      pathname === "/mensajes" ||
-      pathname === "/notificaciones");
+  const privado = esRutaPrivada(usuario, pathname);
   const enlaces = usuario ? navigationFor(usuario.rol, modo === "real") : [];
+  const seccion = enlaces.find((n) => matchPath({ path: n.to, end: n.end ?? false }, pathname));
   const legacy = modo === "mock" && /^\/(panel\/)?pedidos/.test(pathname);
   return (
     <div className="flex min-h-screen flex-col">
@@ -29,37 +27,23 @@ export function SiteLayout({ children }: { children: ReactNode }) {
         )}
       >
         {privado ? (
-          <aside className="min-w-0 border-b bg-card/50 lg:border-b-0 lg:border-r">
-            <nav
-              aria-label={
-                usuario.rol === "artesano" ? "Navegación del taller" : "Navegación de mis compras"
-              }
-              className="flex gap-1 overflow-x-auto p-3 lg:sticky lg:top-24 lg:flex-col lg:overflow-visible"
-            >
-              <p className="hidden px-3 pb-3 pt-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:block">
-                {usuario.rol === "artesano" ? "Mi taller" : "Mis compras"}
-              </p>
-              {enlaces.map((n) => (
-                <NavLink
-                  key={n.to}
-                  to={n.to}
-                  end={n.end ?? false}
-                  className={({ isActive }) =>
-                    cn(
-                      "flex min-h-11 shrink-0 items-center whitespace-nowrap rounded-lg px-3 text-sm text-muted-foreground hover:bg-muted hover:text-foreground",
-                      isActive && "bg-primary/10 font-semibold text-primary",
-                    )
-                  }
-                >
-                  {n.label}
-                </NavLink>
-              ))}
-            </nav>
+          <aside className="hidden min-w-0 border-r bg-card/50 lg:block">
+            <div className="sticky top-20 max-h-[calc(100dvh-5rem)] overflow-y-auto p-3">
+              <PrivateNavigation rol={usuario.rol} real={modo === "real"} />
+            </div>
           </aside>
         ) : null}
         <main id="contenido" tabIndex={-1} className="min-w-0 focus:outline-none">
+          {privado && seccion ? (
+            <p className="border-b bg-card/50 px-4 py-3 text-sm sm:px-6 lg:hidden">
+              <span className="text-muted-foreground">
+                {usuario.rol === "artesano" ? "Tu taller" : "Mis compras"} ·{" "}
+              </span>
+              <span className="font-semibold">{seccion.label}</span>
+            </p>
+          ) : null}
           {legacy ? (
-            <p className="border-b bg-muted px-4 py-3 text-sm">
+            <p className="border-b bg-muted px-4 py-3 text-sm sm:px-6">
               Pedidos de la demostración, separados de tus solicitudes actuales.{" "}
               <Link
                 className="underline"
@@ -74,5 +58,15 @@ export function SiteLayout({ children }: { children: ReactNode }) {
       </div>
       <PublicFooter />
     </div>
+  );
+}
+
+function esRutaPrivada(usuario: SesionUsuario | null, pathname: string): usuario is SesionUsuario {
+  return !!(
+    usuario &&
+    ((usuario.rol === "artesano" && pathname.startsWith("/panel")) ||
+      (usuario.rol === "comprador" && /^\/(solicitudes|solicitar|pedidos)(\/|$)/.test(pathname)) ||
+      pathname === "/mensajes" ||
+      pathname === "/notificaciones")
   );
 }

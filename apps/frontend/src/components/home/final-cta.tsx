@@ -4,14 +4,17 @@ import { Button } from "@/components/ui/button";
 
 export function FinalCta() {
   return (
-    <section className="mx-auto max-w-7xl px-4 pt-16 sm:pt-20" aria-labelledby="titulo-cta-final">
-      <div className="rounded-3xl border border-primary/25 bg-linear-to-br from-primary/12 via-surface to-secondary/12 px-6 py-12 text-center sm:px-12 sm:py-16">
+    <section
+      className="mx-auto max-w-7xl px-4 pb-10 pt-4 sm:px-6"
+      aria-labelledby="titulo-cta-final"
+    >
+      <div className="rounded-2xl border border-primary/25 bg-surface px-6 py-8 text-center sm:px-8">
         <p className="text-xs font-semibold uppercase tracking-widest text-primary">
           Masaya · Cuna del folklore y la artesanía
         </p>
         <h2
           id="titulo-cta-final"
-          className="mx-auto mt-3 max-w-2xl text-balance font-display text-3xl font-bold sm:text-4xl"
+          className="mx-auto mt-3 max-w-2xl text-balance font-display text-2xl font-semibold sm:text-3xl"
         >
           Descubre el talento artesanal de Masaya
         </h2>
@@ -21,7 +24,7 @@ export function FinalCta() {
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Button asChild size="lg" className="w-full touch-target text-base sm:w-auto">
             <Link to="/catalogo">
-              Explorar marketplace
+              Explorar productos
               <ArrowRight className="size-5" aria-hidden="true" />
             </Link>
           </Button>

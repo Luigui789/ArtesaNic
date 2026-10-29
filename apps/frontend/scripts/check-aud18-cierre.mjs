@@ -274,7 +274,8 @@ await verificar(
       ruta: "/mensajes?pedido=95",
       qc,
     });
-    assert.match(html, /Pedido #95 · Vasija Bruñida #95/);
+    assert.match(html, /<h2[^>]*>Pedido #95<\/h2>/);
+    assert.match(html, /<p[^>]*>Vasija Bruñida #95<\/p>/);
     assert.match(html, /Entregado en taller/);
     assert.doesNotMatch(html, /<textarea/, "pedido entregado es solo lectura");
     assert.match(
@@ -451,23 +452,30 @@ await verificar("navegación real por rol y bloqueo de rutas privadas para anón
   assert.deepEqual(navComprador, ["/solicitudes", "/pedidos", "/mensajes", "/notificaciones"]);
 
   const navArtesano = m.nav.navigationFor("artesano", true).map((x) => x.to);
-  assert.deepEqual(navArtesano, [
-    "/panel",
-    "/panel/solicitudes",
-    "/panel/pedidos",
-    "/panel/productos",
-    "/panel/inventario",
-    "/panel/perfil",
-    "/mensajes",
-    "/notificaciones",
-  ]);
+  // El orden visual puede agruparse; ningún destino del rol se pierde o se duplica.
+  assert.deepEqual(
+    [...navArtesano].sort(),
+    [
+      "/panel",
+      "/panel/solicitudes",
+      "/panel/pedidos",
+      "/panel/productos",
+      "/panel/inventario",
+      "/panel/perfil",
+      "/mensajes",
+      "/notificaciones",
+    ].sort(),
+  );
+  const navDemo = m.nav.navigationFor("artesano", false);
+  assert.ok(!navDemo.some((n) => n.to === "/panel/inventario"));
+  assert.equal(navDemo.find((n) => n.to === "/panel/pedidos")?.label, "Pedidos de demo");
 
   // Sin NotificationsProvider montado en modo real, SiteLayout renderiza sin error.
   const layoutComprador = await renderConSesion((h) => h(m.layout.SiteLayout, null, "CONTENIDO"), {
     usuario: ANA,
     ruta: "/mensajes",
   });
-  assert.match(texto(layoutComprador), /Mis solicitudes Mis pedidos Mensajes Notificaciones/);
+  for (const destino of navComprador) assert.ok(layoutComprador.includes(`href="${destino}"`));
 
   // Guard de sesión para /mensajes con usuario anónimo: no expone el contenido privado.
   const anonimoMensajes = await renderConSesion(

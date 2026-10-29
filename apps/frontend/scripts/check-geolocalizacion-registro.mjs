@@ -18,6 +18,7 @@ const m = await cargarModulos(
     validacion: "@/features/auth/validacion",
     errores: "@/features/auth/errores",
     registro: "@/features/auth/registro",
+    pasos: "@/features/auth/registro-pasos",
     React: "react",
     servidor: "react-dom/server",
     rq: "@tanstack/react-query",
@@ -293,7 +294,10 @@ function renderizarRegistro(props = {}) {
 await verificar("11. SSR: el registro de artesano con ubicación renderiza sin navegador", () => {
   assert.equal(typeof globalThis.window, "undefined");
   assert.equal(typeof globalThis.navigator?.geolocation, "undefined");
-  const html = renderizarRegistro({ intencionInicial: "artesano" });
+  // Registro en pasos: la ubicación tiene su propio paso, sin datos personales ni contraseña.
+  const html = renderizarRegistro({ intencionInicial: "artesano", pasoInicial: "ubicacion" });
+  assert.match(texto(html), /Paso 4 de 5/);
+  assert.doesNotMatch(html, /id="registro-password"|id="taller-nombre"/);
   assert.match(texto(html), /Ubicación del taller \(opcional\)/);
   assert.match(texto(html), /hacerlo después desde tu perfil/);
   // El selector existente de GEO-02 (búsqueda, GPS, mapa diferido) está montado.
@@ -302,33 +306,42 @@ await verificar("11. SSR: el registro de artesano con ubicación renderiza sin n
   assert.match(texto(html), /La búsqueda de lugares no está disponible/);
   assert.match(html, /aria-label="Mapa para seleccionar la ubicación del taller"/);
   assert.match(texto(html), /Usar mi ubicación actual/);
-  // Sin `*`: la ubicación es opcional; la dirección sigue obligatoria.
+  // La ubicación es opcional; la dirección sigue obligatoria en el paso del taller.
   assert.doesNotMatch(texto(html), /Ubicación del taller \*/);
-  assert.match(texto(html), /Dirección completa \*/);
+  const taller = renderizarRegistro({ intencionInicial: "artesano", pasoInicial: "taller" });
+  assert.match(
+    taller,
+    /id="taller-direccion"[^>]*required=""|required=""[^>]*id="taller-direccion"/,
+  );
   // Sin inputs de latitud/longitud.
   assert.doesNotMatch(html, /name="(latitud|longitud)"|id="[^"]*(latitud|longitud)[^"]*"/i);
 });
 
 await verificar("12. comprador: sin «Ubicación del taller» ni selector", () => {
-  const html = renderizarRegistro();
+  // Ningún paso del comprador incluye taller ni ubicación (pasos ajenos vuelven al inicio).
+  const html = ["tipo", "datos", "revision", "taller", "ubicacion"]
+    .map((pasoInicial) => renderizarRegistro({ pasoInicial }))
+    .join("");
   assert.doesNotMatch(texto(html), /Ubicación del taller/);
   assert.doesNotMatch(html, /ubicacion-busqueda|registro-ubicacion|Mapa para seleccionar/);
   assert.doesNotMatch(texto(html), /Nombre del taller/);
 });
 
-await verificar("13. orden: dirección → ubicación → historia y contactos", () => {
-  const html = renderizarRegistro({ intencionInicial: "artesano" });
-  const pos = (s) => {
-    const i = html.indexOf(s);
-    assert.ok(i >= 0, s);
-    return i;
-  };
-  assert.ok(pos('id="taller-direccion"') < pos('id="registro-ubicacion-titulo"'));
-  assert.ok(pos('id="registro-ubicacion-titulo"') < pos("Historia y contactos públicos"));
+await verificar("13. orden: taller (dirección, historia y contactos) → ubicación", () => {
+  const taller = renderizarRegistro({ intencionInicial: "artesano", pasoInicial: "taller" });
+  assert.ok(
+    taller.indexOf('id="taller-direccion"') < taller.indexOf("Historia y contactos públicos"),
+  );
+  assert.doesNotMatch(taller, /registro-ubicacion-titulo/);
+  const ubicacion = renderizarRegistro({ intencionInicial: "artesano", pasoInicial: "ubicacion" });
+  assert.match(ubicacion, /id="registro-ubicacion-titulo"/);
+  const { PASOS_POR_ROL } = m.pasos;
+  const pasos = PASOS_POR_ROL.artesano;
+  assert.ok(pasos.indexOf("taller") < pasos.indexOf("ubicacion"));
 });
 
 await verificar("14. switch de publicación: apagado, deshabilitado y con ayuda", () => {
-  const html = renderizarRegistro({ intencionInicial: "artesano" });
+  const html = renderizarRegistro({ intencionInicial: "artesano", pasoInicial: "ubicacion" });
   const sw = html.match(/<button[^>]*id="registro-ubicacion-publica"[^>]*>/)?.[0];
   assert.ok(sw, "switch");
   assert.match(sw, /aria-checked="false"/);

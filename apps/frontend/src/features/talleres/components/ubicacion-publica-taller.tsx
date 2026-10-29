@@ -13,15 +13,18 @@ import { marcadoresDeTalleres } from "@/features/talleres/ubicacion";
 export function UbicacionPublicaTaller({ taller }: { taller: PerfilTaller }) {
   if (!taller.ubicacionMapa) return null;
   return (
-    <section className="mt-12 space-y-4" aria-labelledby="ubicacion-taller">
+    <section className="min-w-0 scroll-mt-24 space-y-4" aria-labelledby="ubicacion-taller">
       <h2 id="ubicacion-taller" className="font-display text-xl font-bold">
         Dónde encontrarnos
       </h2>
+      <p className="break-words text-sm leading-relaxed text-muted-foreground">
+        {taller.direccion}
+      </p>
       <MapaTalleresPublico
         marcadores={marcadoresDeTalleres([taller])}
         etiqueta={`Mapa con la ubicación del taller ${taller.nombre}`}
         mensajeError={`No pudimos cargar el mapa en este momento. La dirección del taller es: ${taller.direccion}.`}
-        className="h-72 sm:h-96"
+        className="h-64 sm:h-80"
       />
       <Button asChild variant="outline" className="touch-target">
         <a href={urlComoLlegar(taller.ubicacionMapa)} target="_blank" rel="noreferrer">

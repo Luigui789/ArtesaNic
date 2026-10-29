@@ -12,9 +12,7 @@ import { cn } from "@/lib/utils";
  * guardado en `/cuenta`.
  */
 export function MenuSesion({ compacto = false }: { compacto?: boolean }) {
-  const { modo, estado, usuario, cerrarSesion } = useSession();
-  const navigate = useNavigate();
-  const [cerrando, setCerrando] = useState(false);
+  const { modo, estado, usuario } = useSession();
 
   if (modo === "real" && estado === "autenticada" && usuario)
     return (
@@ -25,7 +23,7 @@ export function MenuSesion({ compacto = false }: { compacto?: boolean }) {
           className={({ isActive }) =>
             cn(
               "flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2 text-sm text-muted-foreground hover:bg-surface hover:text-foreground",
-              isActive && "bg-surface text-foreground",
+              isActive && "bg-surface font-semibold text-foreground ring-1 ring-input",
             )
           }
         >
@@ -34,27 +32,9 @@ export function MenuSesion({ compacto = false }: { compacto?: boolean }) {
             {usuario.nombre}
           </span>
         </NavLink>
-        <Button
-          variant="outline"
-          className="touch-target"
-          aria-label="Cerrar sesión"
-          disabled={cerrando}
-          onClick={async () => {
-            setCerrando(true);
-            try {
-              await cerrarSesion();
-              toast.success("Sesión cerrada");
-              void navigate("/", { replace: true });
-            } catch {
-              toast.error("No pudimos cerrar la sesión. Revisa tu conexión e inténtalo de nuevo.");
-            } finally {
-              setCerrando(false);
-            }
-          }}
-        >
-          <LogOut className="size-4" aria-hidden="true" />
-          <span className={compacto ? "hidden sm:inline" : undefined}>Cerrar sesión</span>
-        </Button>
+        <div className={compacto ? "hidden lg:block" : undefined}>
+          <CerrarSesion />
+        </div>
       </div>
     );
 
@@ -65,13 +45,43 @@ export function MenuSesion({ compacto = false }: { compacto?: boolean }) {
       to="/auth"
       className={({ isActive }) =>
         cn(
-          "flex min-h-11 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-surface hover:text-foreground",
-          isActive && "bg-surface text-foreground",
+          "flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-3 text-sm font-medium text-muted-foreground hover:bg-surface hover:text-foreground",
+          isActive && "bg-surface font-semibold text-foreground ring-1 ring-input",
         )
       }
     >
       <LogIn className="size-4" aria-hidden="true" />
-      Acceso
+      <span className={compacto ? "sr-only sm:not-sr-only" : undefined}>Acceso</span>
     </NavLink>
+  );
+}
+
+/** Misma acción de salida para desktop y el menú móvil. */
+export function CerrarSesion() {
+  const { cerrarSesion } = useSession();
+  const navigate = useNavigate();
+  const [cerrando, setCerrando] = useState(false);
+  return (
+    <Button
+      variant="outline"
+      className="touch-target"
+      aria-label="Cerrar sesión"
+      disabled={cerrando}
+      onClick={async () => {
+        setCerrando(true);
+        try {
+          await cerrarSesion();
+          toast.success("Sesión cerrada");
+          void navigate("/", { replace: true });
+        } catch {
+          toast.error("No pudimos cerrar la sesión. Revisa tu conexión e inténtalo de nuevo.");
+        } finally {
+          setCerrando(false);
+        }
+      }}
+    >
+      <LogOut className="size-4" aria-hidden="true" />
+      Cerrar sesión
+    </Button>
   );
 }

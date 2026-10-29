@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { PageContainer, PageHeader } from "@/components/common/page";
-import { EmptyState } from "@/components/common/states";
+import { EmptyState, ErrorState, LoadingState } from "@/components/common/states";
 import { StatusBadge } from "@/components/common/status-badge";
 import { Button } from "@/components/ui/button";
 import { useSession } from "@/features/auth/use-session";
@@ -11,6 +12,9 @@ import { formatDateTime } from "@/lib/format";
 import { claves } from "@/lib/query-keys";
 import { listarNotificaciones, marcarLeida, marcarTodasLeidas } from "../http";
 import { rutaNotificacion } from "../rutas";
+import { agruparAvisos } from "../presentacion";
+import { mensajeDominio } from "@/lib/errores-dominio";
+import { cn } from "@/lib/utils";
 
 export default function Notificaciones() {
   const { usuario } = useSession();
@@ -25,8 +29,20 @@ export default function Notificaciones() {
     void cliente.invalidateQueries({ queryKey: ["notificaciones-reales", usuario?.id] });
     void cliente.invalidateQueries({ queryKey: claves.notificacionesResumen(usuario?.id) });
   };
-  const leer = useMutation({ mutationFn: marcarLeida, onSuccess: actualizar });
-  const todas = useMutation({ mutationFn: marcarTodasLeidas, onSuccess: actualizar });
+  const leer = useMutation({
+    mutationFn: marcarLeida,
+    onSuccess: () => {
+      actualizar();
+      toast.success("Notificación marcada como leída");
+    },
+  });
+  const todas = useMutation({
+    mutationFn: marcarTodasLeidas,
+    onSuccess: () => {
+      actualizar();
+      toast.success("Todas las notificaciones se marcaron como leídas");
+    },
+  });
   return (
     <SiteLayout>
       <PageContainer>
@@ -40,63 +56,92 @@ export default function Notificaciones() {
           }
         />
         {lista.isPending ? (
-          <p>Cargando notificaciones…</p>
+          <LoadingState label="Cargando notificaciones…" />
         ) : lista.isError ? (
-          <div role="alert">
-            No se pudieron cargar las notificaciones.{" "}
-            <Button variant="outline" onClick={() => void lista.refetch()}>
-              Reintentar
-            </Button>
-          </div>
+          <ErrorState
+            mensaje="No se pudieron cargar las notificaciones."
+            onRetry={() => void lista.refetch()}
+          />
         ) : lista.data.results.length ? (
-          <ul className="space-y-3">
-            {lista.data.results.map((n) => (
-              <li key={n.id} className="space-y-3 rounded-xl border bg-card p-4">
-                <div className="flex flex-wrap justify-between gap-2">
-                  <h2 className="font-semibold">{n.titulo}</h2>
-                  <StatusBadge tone={n.leida ? "neutral" : "pending"}>
-                    {n.leida ? "Leída" : "Sin leer"}
-                  </StatusBadge>
-                </div>
-                <p className="break-words text-sm">{n.detalle}</p>
-                <time dateTime={n.creadaEn} className="text-xs text-muted-foreground">
-                  {formatDateTime(n.creadaEn)}
-                </time>
-                <div className="flex flex-wrap gap-2">
-                  <Button asChild variant="outline">
-                    <Link
-                      to={rutaNotificacion(
-                        n,
-                        usuario?.rol === "artesano" ? "artesano" : "comprador",
+          <div className="min-w-0 space-y-6">
+            <p className="text-sm text-muted-foreground">
+              Avisos de esta página, agrupados por fecha.
+            </p>
+            {agruparAvisos(lista.data.results).map((grupo) => (
+              <section key={grupo.titulo} aria-label={grupo.titulo} className="space-y-3">
+                <h2 className="font-display text-xl font-semibold">{grupo.titulo}</h2>
+                <ul className="space-y-3">
+                  {grupo.items.map((n) => (
+                    <li
+                      key={n.id}
+                      className={cn(
+                        "min-w-0 space-y-3 rounded-xl border bg-card p-4",
+                        !n.leida && "border-l-4 border-l-primary bg-primary/5",
                       )}
-                      onClick={() => {
-                        if (!n.leida) leer.mutate(n.id);
-                      }}
                     >
-                      Abrir
-                    </Link>
-                  </Button>
-                  {!n.leida && (
-                    <Button
-                      variant="ghost"
-                      disabled={leer.isPending}
-                      onClick={() => leer.mutate(n.id)}
-                    >
-                      Marcar como leída
-                    </Button>
-                  )}
-                </div>
-              </li>
+                      <div className="flex flex-wrap justify-between gap-2">
+                        <h3
+                          className={cn(
+                            "min-w-0 break-words",
+                            n.leida ? "font-medium" : "font-semibold",
+                          )}
+                        >
+                          {n.titulo}
+                        </h3>
+                        <StatusBadge tone={n.leida ? "neutral" : "pending"}>
+                          {n.leida ? "Leída" : "Sin leer"}
+                        </StatusBadge>
+                      </div>
+                      <p className="break-words text-sm">{n.detalle}</p>
+                      <p className="text-sm font-medium">
+                        {n.pedidoId ? `Pedido #${n.pedidoId}` : `Solicitud #${n.solicitudId}`}
+                      </p>
+                      <time dateTime={n.creadaEn} className="text-xs text-muted-foreground">
+                        {formatDateTime(n.creadaEn)}
+                      </time>
+                      <div className="flex flex-wrap gap-2">
+                        <Button asChild variant="outline">
+                          <Link
+                            to={rutaNotificacion(
+                              n,
+                              usuario?.rol === "artesano" ? "artesano" : "comprador",
+                            )}
+                            onClick={() => {
+                              if (!n.leida) leer.mutate(n.id);
+                            }}
+                          >
+                            {n.pedidoId ? "Ver pedido" : "Ver solicitud"}
+                          </Link>
+                        </Button>
+                        {!n.leida && (
+                          <Button
+                            variant="ghost"
+                            disabled={leer.isPending}
+                            onClick={() => leer.mutate(n.id)}
+                          >
+                            Marcar como leída
+                          </Button>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
             ))}
-          </ul>
+          </div>
         ) : (
           <EmptyState titulo="Estás al día" descripcion="No tienes notificaciones pendientes." />
         )}
         {(leer.isError || todas.isError) && (
-          <p role="alert">No se pudo actualizar la lectura. Inténtalo de nuevo.</p>
+          <p role="alert">
+            No se pudo actualizar la lectura. {mensajeDominio(leer.error ?? todas.error)}
+          </p>
         )}
         {lista.data && (
-          <div className="mt-4 flex items-center gap-3">
+          <nav
+            aria-label="Paginación de notificaciones"
+            className="mt-4 flex flex-wrap items-center gap-3"
+          >
             <Button
               variant="outline"
               disabled={!lista.data.previous}
@@ -104,7 +149,7 @@ export default function Notificaciones() {
             >
               Anterior
             </Button>
-            <span>Página {pagina}</span>
+            <span aria-live="polite">Página {pagina}</span>
             <Button
               variant="outline"
               disabled={!lista.data.next}
@@ -112,7 +157,7 @@ export default function Notificaciones() {
             >
               Siguiente
             </Button>
-          </div>
+          </nav>
         )}
       </PageContainer>
     </SiteLayout>
