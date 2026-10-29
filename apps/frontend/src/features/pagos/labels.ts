@@ -1,4 +1,28 @@
 import type { EstadoPago, MetodoPago, OrigenIntento } from "./types";
+import type { PagoPedido } from "./types";
+
+/** Orientación visual: no habilita acciones ni calcula plazos. */
+export function siguientePasoPago(pago: PagoPedido, recibido: boolean, cerrado: boolean): string {
+  if (cerrado) return "Solo consulta: este pedido ya no admite cambios en el pago.";
+  if (pago.estado === "confirmado")
+    return "Pago resuelto: el taller confirmó que recibió el dinero.";
+  if (pago.estado === "registrado")
+    return recibido
+      ? "Tu turno: revisá el comprobante y verificá el dinero antes de confirmar."
+      : "Le toca al taller: revisar tu comprobante y verificar que recibió el dinero.";
+  if (pago.plazoVencido) return "El plazo para registrar o corregir el pago ya terminó.";
+  if (pago.estado === "observado")
+    return recibido
+      ? "Le toca al comprador: corregir el comprobante según tu observación."
+      : "Tu turno: revisá el motivo y enviá la corrección del comprobante.";
+  if (pago.estado === "no_recibido")
+    return recibido
+      ? "Le toca al comprador: revisar el motivo y registrar un nuevo pago."
+      : "Tu turno: revisá el motivo antes de registrar un nuevo pago.";
+  return recibido
+    ? "Le toca al comprador: realizar el pago y registrar su comprobante."
+    : "Tu turno: realizá el pago fuera de ArtesaNic y registrá el comprobante.";
+}
 
 export const ESTADO_PAGO_LABELS: Record<EstadoPago, string> = {
   pendiente: "Pendiente de pago",

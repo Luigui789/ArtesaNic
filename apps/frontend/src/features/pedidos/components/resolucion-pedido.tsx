@@ -673,6 +673,13 @@ function TarjetaReembolso({
           {ESTADO_REEMBOLSO_LABELS[r.estado]}
         </StatusBadge>
       </div>
+      <p className="text-sm leading-relaxed text-muted-foreground">
+        {r.estado === "realizado"
+          ? "El taller registró la devolución realizada fuera de ArtesaNic. La plataforma no mueve el dinero."
+          : recibido
+            ? "Te corresponde devolver este importe fuera de ArtesaNic y después registrar la devolución."
+            : "El taller debe devolverte este importe fuera de ArtesaNic. La devolución todavía no está registrada."}
+      </p>
       <dl className="grid gap-2 text-sm sm:grid-cols-2">
         <div className="min-w-0">
           <dt className="text-muted-foreground">Monto</dt>
