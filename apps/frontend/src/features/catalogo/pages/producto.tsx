@@ -178,13 +178,13 @@ export default function DetalleProducto() {
         <Breadcrumb>
           <BreadcrumbList>
             <BreadcrumbItem>
-              <BreadcrumbLink asChild>
+              <BreadcrumbLink asChild className="inline-flex min-h-11 items-center">
                 <Link to="/">Inicio</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>
             <BreadcrumbSeparator />
             <BreadcrumbItem>
-              <BreadcrumbLink asChild>
+              <BreadcrumbLink asChild className="inline-flex min-h-11 items-center">
                 <Link to="/catalogo">Catálogo</Link>
               </BreadcrumbLink>
             </BreadcrumbItem>

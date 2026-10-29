@@ -334,7 +334,6 @@ function FormularioCancelacion({ pedido }: { pedido: PedidoConfirmado }) {
           variant="outline"
           className="w-full sm:w-auto"
           aria-expanded={false}
-          aria-controls={`${id}-form`}
           onClick={() => setAbierto(true)}
         >
           Cancelar pedido
@@ -442,7 +441,6 @@ function FormularioCierre({
           variant="outline"
           className="w-full sm:w-auto"
           aria-expanded={false}
-          aria-controls={`${id}-form`}
           onClick={() => setAbierto(true)}
         >
           Proponer cierre parcial
