@@ -18,7 +18,7 @@ export function ArtisanCard({ artisan }: { artisan: PerfilTaller }) {
           <h3 className="line-clamp-2 break-words text-base font-semibold">{artisan.nombre}</h3>
           <Badge
             variant="outline"
-            className="max-w-full break-words border-secondary/40 text-secondary"
+            className="max-w-full [overflow-wrap:anywhere] border-secondary/40 text-secondary"
           >
             {artisan.rubro}
           </Badge>
@@ -27,9 +27,9 @@ export function ArtisanCard({ artisan }: { artisan: PerfilTaller }) {
               {artisan.historia}
             </p>
           ) : null}
-          <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <p className="flex w-full min-w-0 items-start gap-1.5 text-sm text-muted-foreground">
             <MapPin className="size-4 shrink-0" aria-hidden="true" />
-            <span className="truncate">{artisan.direccion}</span>
+            <span className="line-clamp-2 min-w-0 break-words">{artisan.direccion}</span>
           </p>
           <span className="mt-auto inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary">
             Ver taller <ArrowRight className="size-4" aria-hidden="true" />

@@ -9,19 +9,22 @@ import {
   MapPin,
   MessageCircle,
   Phone,
-  Store,
+  ArrowRight,
 } from "lucide-react";
 import { SiteLayout } from "@/components/layout/site-layout";
-import { ProductCard, ProductCardSkeleton } from "@/features/catalogo/components/product-card";
+import {
+  ProductCard,
+  ProductCardSkeleton,
+  ProductImage,
+} from "@/features/catalogo/components/product-card";
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
-import { getPerfilTaller } from "@/features/talleres/api";
+import { perfilTallerQuery } from "@/features/talleres/queries";
 import type { PerfilTaller } from "@/features/talleres/types";
 import { UbicacionPublicaTaller } from "@/features/talleres/components/ubicacion-publica-taller";
 import {
   ApiError,
   listCatalog,
-  reintentarSalvoErrorDelCliente,
   type CatalogProduct,
   type Paginated,
 } from "@/features/catalogo/api";
@@ -39,19 +42,22 @@ function InformacionTaller({ taller: a }: { taller: PerfilTaller }) {
     { valor: a.sitioWeb, etiqueta: "Sitio web", Icono: Globe },
   ].filter((c) => c.valor);
   return (
-    <aside className="rounded-xl border bg-card p-5" aria-labelledby="contacto">
+    <aside
+      className="min-w-0 scroll-mt-24 rounded-xl border bg-card p-5"
+      aria-labelledby="contacto"
+    >
       <h2 id="contacto" className="text-base font-semibold">
         Información del taller
       </h2>
       <ul className="mt-3 space-y-2 text-sm">
         <li className="flex items-start gap-2">
           <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <span>{a.direccion}</span>
+          <span className="min-w-0 break-words">{a.direccion}</span>
         </li>
         {a.horario ? (
           <li className="flex items-start gap-2">
             <Clock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span>{a.horario}</span>
+            <span className="min-w-0 break-words">{a.horario}</span>
           </li>
         ) : null}
         {contactos.map(({ valor, etiqueta, Icono }) => (
@@ -76,7 +82,7 @@ function ProductosTaller({
   productos: UseQueryResult<Paginated<CatalogProduct>>;
 }) {
   return (
-    <section className="mt-12 pb-4" aria-labelledby="productos-taller">
+    <section className="scroll-mt-24 space-y-4" aria-labelledby="productos-taller">
       <h2 id="productos-taller" className="font-display text-xl font-bold">
         Productos publicados
       </h2>
@@ -85,7 +91,7 @@ function ProductosTaller({
           <ErrorState onRetry={() => void productos.refetch()} />
         </div>
       ) : productos.isPending ? (
-        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <ProductCardSkeleton key={i} />
           ))}
@@ -99,12 +105,12 @@ function ProductosTaller({
         </div>
       ) : (
         <>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {productos.data.items.map((p) => (
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+            {productos.data.items.slice(0, 4).map((p) => (
               <ProductCard key={p.id} product={p} />
             ))}
           </div>
-          {productos.data.totalPages > 1 ? (
+          {productos.data.total > 4 ? (
             <Link
               to={`/catalogo?artesanoId=${id}`}
               className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
@@ -138,12 +144,7 @@ export default function PerfilArtesano() {
   });
 
   // Con VITE_CATALOGO_API=real, GET /api/v1/talleres/{id}/; si no, el taller de la demo.
-  const artesano = useQuery({
-    queryKey: ["perfil-taller", id],
-    queryFn: () => getPerfilTaller(id!),
-    enabled: id !== undefined,
-    retry: reintentarSalvoErrorDelCliente,
-  });
+  const artesano = useQuery(perfilTallerQuery(id));
   const productos = useQuery({
     queryKey: ["productos-artesano", id],
     // RF-003: el perfil público muestra el catálogo publicado del taller, paginado.
@@ -187,64 +188,110 @@ export default function PerfilArtesano() {
 
   return (
     <SiteLayout>
-      <div className="relative aspect-[2/1] overflow-hidden bg-surface sm:aspect-[4/1]">
+      <PageContainer>
         {portadaUrl ? (
-          <img
-            src={portadaUrl}
-            alt={`Portada del taller ${a.nombre}`}
-            width={1024}
-            height={768}
-            className="h-full w-full object-cover"
-          />
-        ) : null}
-      </div>
-
-      <div className="mx-auto max-w-7xl px-4">
-        <header className="relative z-10 -mt-8 grid grid-cols-[auto_minmax(0,1fr)] items-end gap-4 rounded-xl border bg-card p-5 sm:flex sm:items-center">
-          {perfilUrl ? (
-            <img
-              src={perfilUrl}
-              alt={`Imagen de perfil del taller ${a.nombre}`}
-              className="size-20 shrink-0 rounded-xl border-4 border-card object-cover"
+          <div className="overflow-hidden rounded-2xl">
+            <ProductImage
+              src={portadaUrl}
+              alt={`Portada del taller ${a.nombre}`}
+              className="h-32 sm:h-48"
             />
-          ) : (
-            <div className="flex size-20 shrink-0 items-center justify-center rounded-xl border-4 border-card bg-surface text-muted-foreground">
-              <Store className="size-8" aria-hidden="true" />
-            </div>
-          )}
-          <div className="min-w-0">
-            <h1 className="break-words font-display text-2xl font-bold sm:text-3xl">{a.nombre}</h1>
-            {a.demo ? (
-              <p className="text-sm text-muted-foreground">A cargo de {a.demo.responsable}</p>
-            ) : null}
-            <Badge variant="outline" className="mt-2 border-secondary/40 text-secondary">
+          </div>
+        ) : null}
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="w-20 shrink-0 overflow-hidden rounded-xl border">
+            <ProductImage src={perfilUrl} alt={`Taller ${a.nombre}`} className="aspect-square" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <Badge
+              variant="outline"
+              className="max-w-full [overflow-wrap:anywhere] border-secondary/40 text-secondary"
+            >
               {a.rubro}
             </Badge>
-          </div>
-        </header>
-
-        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <section aria-labelledby="historia">
-            <h2 id="historia" className="font-display text-xl font-bold">
-              Nuestra historia
-            </h2>
-            <p className="mt-3 whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-              {a.historia || "Este taller todavía no ha contado su historia."}
-            </p>
+            <h1 className="mt-2 break-words font-display text-3xl font-semibold sm:text-4xl">
+              {a.nombre}
+            </h1>
             {a.demo ? (
-              <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-                {a.demo.descripcion}
+              <p className="mt-1 break-words text-sm text-muted-foreground">
+                A cargo de {a.demo.responsable}
               </p>
             ) : null}
-          </section>
-
+            <p className="mt-2 flex items-start gap-2 text-sm text-muted-foreground">
+              <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+              <span className="min-w-0 break-words">{a.direccion}</span>
+            </p>
+          </div>
+        </header>
+        <nav aria-label="Explorar este taller" className="flex flex-wrap gap-2 border-b pb-4">
+          <a
+            href="#productos-taller"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground"
+          >
+            Ver productos <ArrowRight className="size-4" aria-hidden="true" />
+          </a>
+          <a
+            href="#historia"
+            className="inline-flex min-h-11 items-center px-3 text-sm font-medium hover:underline"
+          >
+            Sobre el taller
+          </a>
+          {a.ubicacionMapa ? (
+            <a
+              href="#ubicacion-taller"
+              className="inline-flex min-h-11 items-center px-3 text-sm font-medium hover:underline"
+            >
+              Ubicación
+            </a>
+          ) : null}
+          <a
+            href="#contacto"
+            className="inline-flex min-h-11 items-center px-3 text-sm font-medium hover:underline"
+          >
+            Contacto
+          </a>
+        </nav>
+        <ProductosTaller id={id} productos={productos} />
+        <section className="scroll-mt-24 border-t pt-6" aria-labelledby="historia">
+          <h2 id="historia" className="font-display text-xl font-semibold">
+            Nuestra historia
+          </h2>
+          {a.historia.length > 240 ? (
+            <>
+              <p className="mt-3 max-w-3xl break-words text-base leading-relaxed text-muted-foreground">
+                {a.historia.slice(0, 180)}…
+              </p>
+              <details className="mt-2 max-w-3xl">
+                <summary className="min-h-11 cursor-pointer py-3 text-sm font-semibold text-primary">
+                  Conocer la historia del taller
+                </summary>
+                <p className="whitespace-pre-line break-words text-base leading-relaxed text-muted-foreground">
+                  {a.historia}
+                </p>
+              </details>
+            </>
+          ) : (
+            <p className="mt-3 max-w-3xl whitespace-pre-line break-words text-base leading-relaxed text-muted-foreground">
+              {a.historia || "Este taller todavía no ha contado su historia."}
+            </p>
+          )}
+          {a.demo ? (
+            <p className="mt-3 max-w-3xl break-words text-sm leading-relaxed text-muted-foreground">
+              {a.demo.descripcion}
+            </p>
+          ) : null}
+        </section>
+        <div
+          className={
+            a.ubicacionMapa
+              ? "grid items-start gap-6 border-t pt-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+              : "max-w-2xl border-t pt-6"
+          }
+        >
+          <UbicacionPublicaTaller taller={a} />
           <InformacionTaller taller={a} />
         </div>
-
-        <UbicacionPublicaTaller taller={a} />
-
-        <ProductosTaller id={id} productos={productos} />
-      </div>
+      </PageContainer>
     </SiteLayout>
   );
 }
