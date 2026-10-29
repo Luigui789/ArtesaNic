@@ -107,6 +107,8 @@ export function aplicarTallerActualizado(
   queryClient.setQueryData(claveMiTaller(usuarioId), taller);
   void queryClient.invalidateQueries({ queryKey: ["perfil-taller", taller.id] });
   void queryClient.invalidateQueries({ queryKey: ["talleres-catalogo"] });
+  // Home, /descubrir y el mapa público comparten esta lista (staleTime de 60 s).
+  void queryClient.invalidateQueries({ queryKey: ["talleres-publicos"] });
   void queryClient.invalidateQueries({ queryKey: ["catalogo"] });
   void queryClient.invalidateQueries({ queryKey: ["productos-artesano", taller.id] });
 }
