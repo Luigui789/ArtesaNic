@@ -3,7 +3,7 @@ import { PageContainer } from "@/components/common/page";
 import { useSearchParams } from "react-router";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Filter, Search } from "lucide-react";
+import { Filter, Search, X } from "lucide-react";
 import { PageHeader } from "@/components/common/page";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { ProductCard, ProductCardSkeleton } from "@/features/catalogo/components/product-card";
@@ -25,8 +25,10 @@ import {
   SheetTitle,
   SheetTrigger,
   SheetDescription,
+  SheetClose,
 } from "@/components/ui/sheet";
-import { listCatalog, listCategories, listTalleresCatalogo } from "@/features/catalogo/api";
+import { listCatalog, listTalleresCatalogo } from "@/features/catalogo/api";
+import { categoriasQuery } from "@/features/catalogo/queries";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { parseRouteId } from "@/lib/route-id";
 
@@ -96,7 +98,7 @@ export default function Catalogo() {
     canonical: "/catalogo",
   });
 
-  const categorias = useQuery({ queryKey: ["categorias"], queryFn: listCategories });
+  const categorias = useQuery(categoriasQuery);
   const talleres = useQuery({ queryKey: ["talleres-catalogo"], queryFn: listTalleresCatalogo });
   const productos = useQuery({
     queryKey: ["catalogo", search],
@@ -123,6 +125,23 @@ export default function Catalogo() {
     setSearchParams(buildSearchParams({}));
   };
 
+  const activos: { clave: keyof CatalogSearch; texto: string }[] = [];
+  if (search.q) activos.push({ clave: "q", texto: `Búsqueda: ${search.q}` });
+  if (search.categoria)
+    activos.push({
+      clave: "categoria",
+      texto: `Categoría: ${categorias.data?.find((c) => c.codigo === search.categoria)?.nombre ?? search.categoria}`,
+    });
+  if (search.artesanoId)
+    activos.push({
+      clave: "artesanoId",
+      texto: `Taller: ${talleres.data?.find((t) => t.id === search.artesanoId)?.nombre ?? search.artesanoId}`,
+    });
+  if (search.precioMin != null)
+    activos.push({ clave: "precioMin", texto: `Desde C$ ${search.precioMin}` });
+  if (search.precioMax != null)
+    activos.push({ clave: "precioMax", texto: `Hasta C$ ${search.precioMax}` });
+
   const filtros = (prefix: string) => (
     <div className="space-y-6">
       <div className="space-y-2">
@@ -146,10 +165,10 @@ export default function Catalogo() {
         </Select>
       </div>
 
-      <fieldset className="space-y-2">
+      <fieldset className="min-w-0 space-y-2">
         <legend className="text-sm font-medium">Precio en córdobas</legend>
         <div className="flex items-center gap-2">
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <Label htmlFor={`${prefix}-precio-min`} className="text-xs text-muted-foreground">
               Desde
             </Label>
@@ -166,7 +185,7 @@ export default function Catalogo() {
               }
             />
           </div>
-          <div className="flex-1">
+          <div className="min-w-0 flex-1">
             <Label htmlFor={`${prefix}-precio-max`} className="text-xs text-muted-foreground">
               Hasta
             </Label>
@@ -207,6 +226,21 @@ export default function Catalogo() {
         </Select>
       </div>
 
+      {categorias.isError || talleres.isError ? (
+        <p role="status" className="text-sm text-muted-foreground">
+          No pudimos cargar algunas opciones. Podés seguir buscando productos o reintentar.
+          <Button
+            type="button"
+            variant="link"
+            onClick={() => {
+              if (categorias.isError) void categorias.refetch();
+              if (talleres.isError) void talleres.refetch();
+            }}
+          >
+            Reintentar opciones
+          </Button>
+        </p>
+      ) : null}
       <Button variant="outline" className="w-full touch-target" onClick={limpiar}>
         Limpiar filtros
       </Button>
@@ -217,18 +251,18 @@ export default function Catalogo() {
     <SiteLayout>
       <PageContainer>
         <PageHeader
-          title="Catálogo"
+          title="Artesanías para vos"
           description="Encuentra tu próxima pieza. Artesanías hechas por talleres de Masaya."
         />
         <form
-          className="mt-6 flex flex-col gap-3 sm:flex-row"
+          className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 sm:gap-3"
           onSubmit={(e) => {
             e.preventDefault();
             set({ q: texto.trim() || undefined });
           }}
           role="search"
         >
-          <div className="relative flex-1">
+          <div className="relative min-w-0">
             <Search
               className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
               aria-hidden="true"
@@ -238,8 +272,9 @@ export default function Catalogo() {
             </Label>
             <Input
               id="buscador"
+              type="search"
               className="min-h-11 pl-9"
-              placeholder="Buscar productos artesanales…"
+              placeholder="Buscar productos"
               value={texto}
               onChange={(e) => setTexto(e.target.value)}
             />
@@ -252,7 +287,7 @@ export default function Catalogo() {
             <SheetTrigger asChild>
               <Button type="button" variant="outline" className="touch-target lg:hidden">
                 <Filter className="size-4" aria-hidden="true" />
-                Filtros
+                Filtros{activos.length ? ` (${activos.length})` : ""}
               </Button>
             </SheetTrigger>
             <SheetContent side="bottom" className="max-h-[85vh] overflow-y-auto">
@@ -262,22 +297,57 @@ export default function Catalogo() {
                   Busca por categoría, precio y taller. Los resultados se actualizan al elegir.
                 </SheetDescription>
               </SheetHeader>
-              <div className="px-4 pb-6">{filtros("movil")}</div>
+              <div className="space-y-4 px-4 pb-6">
+                {filtros("movil")}
+                <SheetClose asChild>
+                  <Button className="w-full touch-target">Ver productos</Button>
+                </SheetClose>
+              </div>
             </SheetContent>
           </Sheet>
         </form>
 
-        <div className="mt-6 grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
+        {activos.length ? (
+          <div
+            role="group"
+            aria-label="Filtros activos"
+            className="flex flex-wrap items-center gap-2"
+          >
+            {activos.map((filtro) => (
+              <Button
+                key={filtro.clave}
+                variant="outline"
+                className="h-auto min-h-11 max-w-full whitespace-normal text-left"
+                aria-label={`Quitar ${filtro.texto}`}
+                onClick={() => set({ [filtro.clave]: undefined })}
+              >
+                <span className="min-w-0 break-words">{filtro.texto}</span>
+                <X className="size-4 shrink-0" aria-hidden="true" />
+              </Button>
+            ))}
+            <Button variant="link" className="touch-target" onClick={limpiar}>
+              Limpiar filtros
+            </Button>
+          </div>
+        ) : null}
+
+        <div className="grid gap-6 lg:grid-cols-[224px_minmax(0,1fr)]">
           <aside className="hidden lg:block" aria-label="Filtros del catálogo">
             <div className="sticky top-24 rounded-xl border bg-card p-5">
               {filtros("escritorio")}
             </div>
           </aside>
 
-          <div>
+          <div className="min-w-0" aria-busy={productos.isFetching}>
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground" role="status">
-                {productos.data ? `${productos.data.total} productos encontrados` : "Cargando…"}
+                {productos.isError
+                  ? "Productos no disponibles"
+                  : productos.isFetching
+                    ? "Buscando productos…"
+                    : productos.data
+                      ? `${productos.data.total} ${productos.data.total === 1 ? "producto encontrado" : "productos encontrados"}`
+                      : "Cargando…"}
               </p>
               <div className="flex items-center gap-2">
                 <Label htmlFor="orden" className="text-sm">
@@ -287,7 +357,7 @@ export default function Catalogo() {
                   value={search.orden ?? "recientes"}
                   onValueChange={(v) => set({ orden: v as CatalogSearch["orden"] })}
                 >
-                  <SelectTrigger id="orden" className="min-h-11 w-48">
+                  <SelectTrigger id="orden" className="min-h-11 w-48 max-w-full">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -305,7 +375,11 @@ export default function Catalogo() {
                 <ErrorState onRetry={() => void productos.refetch()} />
               </div>
             ) : productos.isPending ? (
-              <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div
+                role="status"
+                aria-label="Cargando productos"
+                className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3"
+              >
                 {Array.from({ length: 6 }).map((_, i) => (
                   <ProductCardSkeleton key={i} />
                 ))}
@@ -314,17 +388,23 @@ export default function Catalogo() {
               <div className="mt-6">
                 <EmptyState
                   titulo="No encontramos productos"
-                  descripcion="Prueba con otra palabra, cambia de categoría o limpia los filtros."
+                  descripcion={
+                    activos.length
+                      ? "La búsqueda o los filtros no encontraron productos. Probá otra palabra o quitá un filtro."
+                      : "Todavía no hay productos publicados. Volvé más adelante para conocer nuevas piezas."
+                  }
                   accion={
-                    <Button variant="outline" className="touch-target" onClick={limpiar}>
-                      Limpiar filtros
-                    </Button>
+                    activos.length ? (
+                      <Button variant="outline" className="touch-target" onClick={limpiar}>
+                        Limpiar filtros
+                      </Button>
+                    ) : undefined
                   }
                 />
               </div>
             ) : (
               <>
-                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="mt-5 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
                   {productos.data.items.map((p) => (
                     <ProductCard key={p.id} product={p} />
                   ))}

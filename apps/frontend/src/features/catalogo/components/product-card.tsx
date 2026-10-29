@@ -26,25 +26,22 @@ export function ProductCard({ product }: { product: CatalogProduct }) {
           className="aspect-[4/3] transition-transform duration-300 group-hover:scale-[1.03]"
         />
         <div className="flex flex-1 flex-col gap-2 p-3 sm:p-4">
-          <Badge
-            variant="outline"
-            className="max-w-full w-fit break-words border-secondary/40 text-secondary"
-          >
-            {product.categoria.nombre}
-          </Badge>
           <h3 className="line-clamp-2 break-words text-sm font-semibold leading-snug sm:text-base">
             {product.nombre}
           </h3>
-          <ModalidadesTexto modalidades={product.modalidades} />
+          <p className="text-base font-bold text-primary sm:text-lg">{format(product.precio)}</p>
           {product.taller.nombre ? (
             <p className="line-clamp-1 text-xs text-muted-foreground sm:text-sm">
               {product.taller.nombre}
             </p>
           ) : null}
-          <p className="mt-auto pt-1 text-base font-bold text-primary sm:text-lg">
-            {format(product.precio)}
-          </p>
-          <span className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary">
+          <Badge
+            variant="outline"
+            className="max-w-full [overflow-wrap:anywhere] border-secondary/40 text-secondary"
+          >
+            {product.categoria.nombre}
+          </Badge>
+          <span className="mt-auto inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary">
             Ver producto <ArrowRight className="size-4" aria-hidden="true" />
           </span>
         </div>
