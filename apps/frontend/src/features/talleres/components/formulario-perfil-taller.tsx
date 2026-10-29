@@ -12,19 +12,23 @@ import { erroresDeValidacion, esquemaTaller } from "@/features/auth/validacion";
 import { ApiError } from "@/features/catalogo/api";
 import { FOTOGRAFIA_ACCEPT, errorFotografia } from "@/features/catalogo/imagenes";
 import { actualizarMiTaller, type TallerPropio } from "@/features/talleres/api";
+import { SeccionUbicacionTaller } from "@/features/talleres/components/seccion-ubicacion-taller";
 import {
   aplicarTallerActualizado,
-  cambiosDelPerfil,
+  cambiosDelFormulario,
   erroresDelPerfil,
   perfilEditableDe,
 } from "@/features/talleres/perfil-propio";
 import type { PerfilTallerEntrada } from "@/features/talleres/types";
+import { estadoUbicacionDe, type EstadoUbicacion } from "@/features/talleres/ubicacion";
 
 type Props = { taller: TallerPropio; onTerminar: () => void };
 
 /**
  * Edición del perfil público del taller (RF-008) con `PATCH /talleres/mi-taller/`.
- * Permite actualizar también `imagen_perfil` e `imagen_portada` de forma independiente.
+ * Permite actualizar también `imagen_perfil` e `imagen_portada` de forma independiente,
+ * y la ubicación del taller en el mapa (FEAT-GEO-02): mover el pin solo cambia el estado
+ * local; todo viaja en el mismo `PATCH` al guardar, y «Cancelar» lo descarta.
  * Estado, motivo y revisión son de solo lectura y no forman parte del formulario.
  */
 export function FormularioPerfilTaller({ taller, onTerminar }: Props) {
@@ -39,6 +43,11 @@ export function FormularioPerfilTaller({ taller, onTerminar }: Props) {
   const [previewPortada, setPreviewPortada] = useState<string | undefined>(undefined);
   const [errorLocalPerfil, setErrorLocalPerfil] = useState<string | undefined>(undefined);
   const [errorLocalPortada, setErrorLocalPortada] = useState<string | undefined>(undefined);
+  const ubicacionGuardada = estadoUbicacionDe(taller);
+  const [ubicacion, setUbicacion] = useState<EstadoUbicacion>(() => ({
+    ubicacion: ubicacionGuardada.ubicacion,
+    publica: ubicacionGuardada.publica,
+  }));
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
 
@@ -92,12 +101,14 @@ export function FormularioPerfilTaller({ taller, onTerminar }: Props) {
       return;
     }
     setErrores({});
-    const cambios = cambiosDelPerfil(original, perfil);
-    const payload = {
-      ...cambios,
-      ...(imagenPerfil ? { imagenPerfil } : {}),
-      ...(imagenPortada ? { imagenPortada } : {}),
-    };
+    const payload = cambiosDelFormulario({
+      original,
+      editado: perfil,
+      ubicacionGuardada,
+      ubicacion,
+      imagenPerfil,
+      imagenPortada,
+    });
     if (Object.keys(payload).length === 0) {
       onTerminar();
       return;
@@ -226,6 +237,13 @@ export function FormularioPerfilTaller({ taller, onTerminar }: Props) {
           autoComplete="street-address"
           {...comun("direccionCompleta", "direccion")}
         />
+        <SeccionUbicacionTaller
+          value={ubicacion}
+          onChange={setUbicacion}
+          invalida={ubicacionGuardada.invalida}
+          error={errores["ubicacion"]}
+          disabled={guardar.isPending}
+        />
         <Campo etiqueta="Historia del taller" multilinea {...comun("historia", "historia")} />
         <Campo etiqueta="Horario de atención" {...comun("horario", "horario")} />
         <p className="text-sm text-muted-foreground">
@@ -248,11 +266,33 @@ export function FormularioPerfilTaller({ taller, onTerminar }: Props) {
         <Campo etiqueta="Instagram" type="url" {...comun("instagramUrl", "instagram")} />
         <Campo etiqueta="Sitio web" type="url" {...comun("sitioWeb", "sitio-web")} />
       </fieldset>
-      {guardar.isPending ? (
+      <PieFormulario
+        guardando={guardar.isPending}
+        conImagenes={!!(imagenPerfil || imagenPortada)}
+        general={general}
+        onCancelar={onTerminar}
+      />
+    </form>
+  );
+}
+
+/** Estado del guardado, error general y acciones del formulario. */
+function PieFormulario({
+  guardando,
+  conImagenes,
+  general,
+  onCancelar,
+}: {
+  guardando: boolean;
+  conImagenes: boolean;
+  general: string | null;
+  onCancelar: () => void;
+}) {
+  return (
+    <>
+      {guardando ? (
         <p role="status" className="text-sm text-muted-foreground">
-          {imagenPerfil || imagenPortada
-            ? "Subiendo imágenes y guardando cambios…"
-            : "Guardando cambios…"}
+          {conImagenes ? "Subiendo imágenes y guardando cambios…" : "Guardando cambios…"}
         </p>
       ) : null}
       {general ? (
@@ -261,19 +301,19 @@ export function FormularioPerfilTaller({ taller, onTerminar }: Props) {
         </p>
       ) : null}
       <div className="flex flex-wrap gap-2">
-        <Button type="submit" className="touch-target" disabled={guardar.isPending}>
-          {guardar.isPending ? "Guardando…" : "Guardar cambios"}
+        <Button type="submit" className="touch-target" disabled={guardando}>
+          {guardando ? "Guardando…" : "Guardar cambios"}
         </Button>
         <Button
           type="button"
           variant="outline"
           className="touch-target"
-          onClick={onTerminar}
-          disabled={guardar.isPending}
+          onClick={onCancelar}
+          disabled={guardando}
         >
           Cancelar
         </Button>
       </div>
-    </form>
+    </>
   );
 }

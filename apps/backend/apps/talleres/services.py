@@ -73,12 +73,16 @@ def crear_taller_pendiente(
     facebook_url: str = "",
     instagram_url: str = "",
     sitio_web: str = "",
+    latitud=None,
+    longitud=None,
+    ubicacion_publica: bool = False,
 ) -> Taller:
     """Crea el taller del artesano en estado pendiente.
 
     Lo invoca el registro del artesano dentro de su misma transacción
     (``accounts.services.registrar_artesano``). Los contactos públicos se toman solo
     de los datos recibidos: el teléfono de acceso de la cuenta no se copia nunca.
+    La ubicación es opcional y, sin decisión expresa del artesano, no se publica.
     """
     if propietario.rol != Rol.ARTESANO:
         raise PropietarioNoValido
@@ -95,6 +99,9 @@ def crear_taller_pendiente(
         facebook_url=facebook_url,
         instagram_url=instagram_url,
         sitio_web=sitio_web,
+        latitud=latitud,
+        longitud=longitud,
+        ubicacion_publica=ubicacion_publica,
     )
     taller.full_clean()
     with transaction.atomic():
@@ -103,7 +110,7 @@ def crear_taller_pendiente(
 
 
 def actualizar_perfil(taller: Taller, **datos) -> Taller:
-    """Modifica los datos públicos del perfil (RF-008.4) sin tocar estado ni revisión."""
+    """Modifica el perfil (RF-008.4) y la ubicación sin tocar estado ni revisión."""
     desconocidos = set(datos) - set(CAMPOS_ACTUALIZABLES_PERFIL)
     if desconocidos:
         raise ValueError(f"Campos que no pertenecen al perfil: {sorted(desconocidos)}")

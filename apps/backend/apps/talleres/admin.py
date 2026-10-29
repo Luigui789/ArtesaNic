@@ -57,6 +57,7 @@ class TallerAdmin(admin.ModelAdmin):
                 )
             },
         ),
+        ("Ubicación", {"fields": ("latitud", "longitud", "ubicacion_publica")}),
         ("Revisión", {"fields": ("estado", "motivo_rechazo", "revisado_por", "revisado_en")}),
         ("Fechas", {"fields": ("creado_en", "actualizado_en")}),
     )

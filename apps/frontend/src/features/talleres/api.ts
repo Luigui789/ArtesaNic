@@ -26,6 +26,8 @@ function aPerfilTallerDemo(a: Artisan): PerfilTaller {
     facebook: a.redes.facebook ?? "",
     instagram: a.redes.instagram ?? "",
     sitioWeb: "",
+    // La demo no inventa posiciones: sus talleres no publican ubicación en el mapa.
+    ubicacionMapa: null,
     demo: {
       responsable: a.responsable,
       descripcion: a.descripcion,
@@ -53,6 +55,20 @@ export const getMiTaller = http.getMiTaller;
 /** Edición del perfil propio (RF-008). Solo API real: la demo usa `updateArtisan`. */
 export const actualizarMiTaller = http.actualizarMiTaller;
 
+/** Selector de ubicación (FEAT-GEO-02): búsqueda explícita y posición del dispositivo. */
+export {
+  busquedaDisponible,
+  buscarLugar,
+  ErrorGeocodificacion,
+  MENSAJE_SIN_PROVEEDOR,
+  type ResultadoLugar,
+} from "./geocoding";
+export {
+  MENSAJES_GEOLOCALIZACION,
+  obtenerUbicacionActual,
+  type FalloGeolocalizacion,
+} from "./geolocation";
+
 export { featuredArtisans, getArtisan, listArtisans, updateArtisan } from "@/mocks/talleres";
 export type {
   ActualizarPerfilTallerInput,
@@ -60,4 +76,5 @@ export type {
   PerfilTaller,
   PerfilTallerEntrada,
   TallerPropio,
+  UbicacionTaller,
 } from "./types";

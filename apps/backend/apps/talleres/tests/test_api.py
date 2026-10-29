@@ -1,6 +1,7 @@
 """API de talleres: perfil público solo si está aprobado y taller propio del artesano
 (RF-008, RN-002, RN-006, RNF-004, RNF-013)."""
 
+from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -14,7 +15,7 @@ from apps.accounts.api.tokens import emitir_tokens
 from apps.accounts.models import Rol
 from apps.accounts.tests.base import crear_usuario
 from apps.talleres import services
-from apps.talleres.models import CAMPOS_PERFIL, EstadoTaller, Taller
+from apps.talleres.models import CAMPOS_PERFIL, CAMPOS_UBICACION, EstadoTaller, Taller
 
 from .base import (
     URL_MI_TALLER,
@@ -24,7 +25,13 @@ from .base import (
     url_taller,
 )
 
-CAMPOS_PUBLICOS = {"id", *CAMPOS_PERFIL, "imagen_perfil_url", "imagen_portada_url"}
+CAMPOS_PUBLICOS = {
+    "id",
+    *CAMPOS_PERFIL,
+    "imagen_perfil_url",
+    "imagen_portada_url",
+    "ubicacion_mapa",
+}
 
 
 def imagen_prueba_taller(formato="PNG", nombre="original.png"):
@@ -315,3 +322,203 @@ class ImagenesTallerTests(TalleresAPITestCase):
                     self.assertEqual(r.status_code, 400, r.content)
                     self.assertIn(campo, r.json())
         self.assertEqual(list(Path(self.temporal.name).rglob("*")), [])
+
+
+LATITUD = Decimal("11.971234")
+LONGITUD = Decimal("-86.095678")
+
+
+def ubicar(taller, *, publica):
+    services.actualizar_perfil(
+        taller, latitud=LATITUD, longitud=LONGITUD, ubicacion_publica=publica
+    )
+
+
+class UbicacionMiTallerTests(TalleresAPITestCase):
+    """El artesano gestiona la ubicación de su taller con el contrato existente."""
+
+    def setUp(self):
+        super().setUp()
+        self.autenticar(self.aprobado.propietario)
+
+    def patch(self, datos):
+        return self.client.patch(URL_MI_TALLER, datos, format="json")
+
+    def test_consulta_devuelve_la_ubicacion_aunque_sea_privada(self):
+        cuerpo = self.client.get(URL_MI_TALLER).json()
+        self.assertEqual(
+            {campo: cuerpo[campo] for campo in CAMPOS_UBICACION},
+            {"latitud": None, "longitud": None, "ubicacion_publica": False},
+        )
+        ubicar(self.aprobado, publica=False)
+        cuerpo = self.client.get(URL_MI_TALLER).json()
+        self.assertEqual(
+            {campo: cuerpo[campo] for campo in CAMPOS_UBICACION},
+            {"latitud": "11.971234", "longitud": "-86.095678", "ubicacion_publica": False},
+        )
+
+    def test_guarda_la_ubicacion(self):
+        revision = (self.aprobado.revisado_por_id, self.aprobado.revisado_en)
+        respuesta = self.patch(
+            {"latitud": 11.971234, "longitud": -86.095678, "ubicacion_publica": True}
+        )
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+        self.assertEqual(respuesta.json()["latitud"], "11.971234")
+        self.assertEqual(respuesta.json()["longitud"], "-86.095678")
+        self.assertTrue(respuesta.json()["ubicacion_publica"])
+        self.aprobado.refresh_from_db()
+        self.assertEqual((self.aprobado.latitud, self.aprobado.longitud), (LATITUD, LONGITUD))
+        self.assertEqual(self.aprobado.estado, EstadoTaller.APROBADO)
+        self.assertEqual((self.aprobado.revisado_por_id, self.aprobado.revisado_en), revision)
+
+    def test_parcial_modifica_una_coordenada_si_la_otra_existe(self):
+        ubicar(self.aprobado, publica=True)
+        respuesta = self.patch({"latitud": "11.971"})
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+        self.aprobado.refresh_from_db()
+        self.assertEqual(self.aprobado.latitud, Decimal("11.971"))
+        self.assertEqual(self.aprobado.longitud, LONGITUD)
+        self.assertTrue(self.aprobado.ubicacion_publica)
+
+    def test_parcial_publica_una_ubicacion_ya_registrada(self):
+        ubicar(self.aprobado, publica=False)
+        respuesta = self.patch({"ubicacion_publica": True})
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+        self.aprobado.refresh_from_db()
+        self.assertTrue(self.aprobado.ubicacion_publica)
+
+    def test_pareja_incompleta(self):
+        for datos, campo in [
+            ({"latitud": 11.97}, "longitud"),
+            ({"longitud": -86.09}, "latitud"),
+            ({"latitud": 11.97, "longitud": None}, "longitud"),
+        ]:
+            with self.subTest(datos=datos):
+                respuesta = self.patch(datos)
+                self.assertEqual(respuesta.status_code, 400)
+                self.assertEqual(set(respuesta.json()), {campo})
+        self.aprobado.refresh_from_db()
+        self.assertIsNone(self.aprobado.latitud)
+        self.assertIsNone(self.aprobado.longitud)
+
+    def test_parcial_no_deja_media_pareja(self):
+        ubicar(self.aprobado, publica=False)
+        respuesta = self.patch({"longitud": None})
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertEqual(set(respuesta.json()), {"longitud"})
+        self.aprobado.refresh_from_db()
+        self.assertEqual(self.aprobado.longitud, LONGITUD)
+
+    def test_rango_y_formato_invalidos(self):
+        for datos, campo in [
+            ({"latitud": 90.000001, "longitud": 0}, "latitud"),
+            ({"latitud": -91, "longitud": 0}, "latitud"),
+            ({"latitud": 0, "longitud": 180.5}, "longitud"),
+            ({"latitud": 0, "longitud": -181}, "longitud"),
+            ({"latitud": "norte", "longitud": 0}, "latitud"),
+            ({"latitud": "11.1234567", "longitud": 0}, "latitud"),
+        ]:
+            with self.subTest(datos=datos):
+                respuesta = self.patch(datos)
+                self.assertEqual(respuesta.status_code, 400)
+                self.assertIn(campo, respuesta.json())
+        self.aprobado.refresh_from_db()
+        self.assertIsNone(self.aprobado.latitud)
+
+    def test_publica_sin_coordenadas(self):
+        for datos in (
+            {"ubicacion_publica": True},
+            {"latitud": None, "longitud": None, "ubicacion_publica": True},
+        ):
+            with self.subTest(datos=datos):
+                respuesta = self.patch(datos)
+                self.assertEqual(respuesta.status_code, 400)
+                self.assertEqual(set(respuesta.json()), {"ubicacion_publica"})
+        self.aprobado.refresh_from_db()
+        self.assertFalse(self.aprobado.ubicacion_publica)
+
+    def test_limpiar_la_ubicacion(self):
+        ubicar(self.aprobado, publica=True)
+        respuesta = self.patch({"latitud": None, "longitud": None, "ubicacion_publica": False})
+        self.assertEqual(respuesta.status_code, 200, respuesta.content)
+        self.assertEqual(
+            {campo: respuesta.json()[campo] for campo in CAMPOS_UBICACION},
+            {"latitud": None, "longitud": None, "ubicacion_publica": False},
+        )
+        self.aprobado.refresh_from_db()
+        self.assertIsNone(self.aprobado.latitud)
+        self.assertIsNone(self.aprobado.longitud)
+        self.assertIsNone(self.client.get(url_taller(self.aprobado.pk)).json()["ubicacion_mapa"])
+
+    def test_no_acepta_la_ubicacion_publica_como_entrada(self):
+        respuesta = self.patch({"ubicacion_mapa": {"latitud": 1, "longitud": 1}})
+        self.assertEqual(respuesta.status_code, 400)
+        self.assertEqual(respuesta.json(), {"ubicacion_mapa": ["Campo no permitido."]})
+
+    def test_solo_el_artesano_propietario_edita_la_ubicacion(self):
+        datos = {"latitud": 11.97, "longitud": -86.09, "ubicacion_publica": True}
+        self.autenticar(crear_usuario("81111111", rol=Rol.COMPRADOR))
+        self.assertEqual(self.patch(datos).status_code, 403)
+        # Las cuentas de administración no usan la API (política de autenticación vigente).
+        self.autenticar(self.admin)
+        self.assertEqual(self.patch(datos).status_code, 401)
+        self.client.credentials()
+        self.assertEqual(self.patch(datos).status_code, 401)
+        self.assertFalse(Taller.objects.filter(latitud__isnull=False).exists())
+
+
+class UbicacionPublicaTests(TalleresAPITestCase):
+    """La API pública solo entrega coordenadas autorizadas de talleres aprobados."""
+
+    def ubicacion_en_lista(self, taller):
+        (cuerpo,) = [t for t in self.client.get(URL_TALLERES).json() if t["id"] == taller.pk]
+        return cuerpo["ubicacion_mapa"]
+
+    def test_aprobado_con_ubicacion_publica(self):
+        ubicar(self.aprobado, publica=True)
+        esperado = {"latitud": "11.971234", "longitud": "-86.095678"}
+        self.assertEqual(self.ubicacion_en_lista(self.aprobado), esperado)
+        detalle = self.client.get(url_taller(self.aprobado.pk)).json()
+        self.assertEqual(detalle["ubicacion_mapa"], esperado)
+
+    def test_aprobado_con_ubicacion_privada(self):
+        ubicar(self.aprobado, publica=False)
+        self.assertIsNone(self.ubicacion_en_lista(self.aprobado))
+        respuesta = self.client.get(url_taller(self.aprobado.pk))
+        self.assertIsNone(respuesta.json()["ubicacion_mapa"])
+        # Las coordenadas privadas no se filtran por ningún otro campo.
+        for contenido in (respuesta.content, self.client.get(URL_TALLERES).content):
+            self.assertNotIn("11.971234", contenido.decode())
+            self.assertNotIn("86.095678", contenido.decode())
+
+    def test_aprobado_sin_ubicacion(self):
+        self.assertIsNone(self.ubicacion_en_lista(self.aprobado))
+        self.assertIsNone(self.client.get(url_taller(self.aprobado.pk)).json()["ubicacion_mapa"])
+
+    def test_no_expone_las_coordenadas_sueltas(self):
+        ubicar(self.aprobado, publica=True)
+        for cuerpo in (
+            self.client.get(url_taller(self.aprobado.pk)).json(),
+            self.client.get(URL_TALLERES).json()[0],
+        ):
+            self.assertEqual(set(cuerpo), CAMPOS_PUBLICOS)
+            for campo in CAMPOS_UBICACION:
+                self.assertNotIn(campo, cuerpo)
+
+    def test_pendientes_y_rechazados_siguen_ocultos(self):
+        for taller in (self.pendiente, self.rechazado):
+            ubicar(taller, publica=True)
+        ids = [t["id"] for t in self.client.get(URL_TALLERES).json()]
+        self.assertEqual(ids, [self.aprobado.pk])
+        for taller in (self.pendiente, self.rechazado):
+            with self.subTest(estado=taller.estado):
+                self.assertEqual(self.client.get(url_taller(taller.pk)).status_code, 404)
+
+    def test_solo_un_taller_aprobado_publica_su_posicion(self):
+        for taller in (self.pendiente, self.rechazado):
+            ubicar(taller, publica=True)
+            taller.refresh_from_db()
+            self.assertFalse(taller.publica_ubicacion)
+        ubicar(self.aprobado, publica=True)
+        self.aprobado.refresh_from_db()
+        self.assertTrue(self.aprobado.publica_ubicacion)

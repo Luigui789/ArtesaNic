@@ -1,6 +1,6 @@
 import { PageContainer } from "@/components/common/page";
 import { Link, useParams } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import {
   Clock,
   Facebook,
@@ -16,10 +16,107 @@ import { ProductCard, ProductCardSkeleton } from "@/features/catalogo/components
 import { EmptyState, ErrorState } from "@/components/common/states";
 import { Badge } from "@/components/ui/badge";
 import { getPerfilTaller } from "@/features/talleres/api";
-import { ApiError, listCatalog, reintentarSalvoErrorDelCliente } from "@/features/catalogo/api";
+import type { PerfilTaller } from "@/features/talleres/types";
+import { UbicacionPublicaTaller } from "@/features/talleres/components/ubicacion-publica-taller";
+import {
+  ApiError,
+  listCatalog,
+  reintentarSalvoErrorDelCliente,
+  type CatalogProduct,
+  type Paginated,
+} from "@/features/catalogo/api";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { parseRouteId } from "@/lib/route-id";
 import { NotFound } from "@/app/not-found";
+
+/** «Información del taller»: dirección textual, horario y contactos publicados. */
+function InformacionTaller({ taller: a }: { taller: PerfilTaller }) {
+  const contactos = [
+    { valor: a.telefono, etiqueta: "Teléfono", Icono: Phone },
+    { valor: a.whatsapp, etiqueta: "WhatsApp", Icono: MessageCircle },
+    { valor: a.facebook, etiqueta: "Facebook", Icono: Facebook },
+    { valor: a.instagram, etiqueta: "Instagram", Icono: Instagram },
+    { valor: a.sitioWeb, etiqueta: "Sitio web", Icono: Globe },
+  ].filter((c) => c.valor);
+  return (
+    <aside className="rounded-xl border bg-card p-5" aria-labelledby="contacto">
+      <h2 id="contacto" className="text-base font-semibold">
+        Información del taller
+      </h2>
+      <ul className="mt-3 space-y-2 text-sm">
+        <li className="flex items-start gap-2">
+          <MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <span>{a.direccion}</span>
+        </li>
+        {a.horario ? (
+          <li className="flex items-start gap-2">
+            <Clock className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span>{a.horario}</span>
+          </li>
+        ) : null}
+        {contactos.map(({ valor, etiqueta, Icono }) => (
+          <li key={etiqueta} className="flex items-start gap-2">
+            <Icono className="mt-0.5 size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+            <span className="break-all">
+              {etiqueta}: {valor}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </aside>
+  );
+}
+
+/** «Productos publicados» del taller (RF-003), con la consulta que lanza la página. */
+function ProductosTaller({
+  id,
+  productos,
+}: {
+  id: number;
+  productos: UseQueryResult<Paginated<CatalogProduct>>;
+}) {
+  return (
+    <section className="mt-12 pb-4" aria-labelledby="productos-taller">
+      <h2 id="productos-taller" className="font-display text-xl font-bold">
+        Productos publicados
+      </h2>
+      {productos.isError ? (
+        <div className="mt-4">
+          <ErrorState onRetry={() => void productos.refetch()} />
+        </div>
+      ) : productos.isPending ? (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <ProductCardSkeleton key={i} />
+          ))}
+        </div>
+      ) : productos.data.items.length === 0 ? (
+        <div className="mt-4">
+          <EmptyState
+            titulo="Este taller aún no tiene productos publicados"
+            descripcion="Vuelve más adelante o explora otros talleres del catálogo."
+          />
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {productos.data.items.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+          {productos.data.totalPages > 1 ? (
+            <Link
+              to={`/catalogo?artesanoId=${id}`}
+              className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
+            >
+              Ver los {productos.data.total} productos en el catálogo
+            </Link>
+          ) : null}
+        </>
+      )}
+    </section>
+  );
+}
 
 export default function PerfilArtesano() {
   const { id: idParam } = useParams<{ id: string }>();
@@ -87,13 +184,6 @@ export default function PerfilArtesano() {
   const a = artesano.data;
   const portadaUrl = a.imagenPortada ?? a.demo?.portadaUrl;
   const perfilUrl = a.imagenPerfil ?? a.demo?.fotoUrl;
-  const contactos = [
-    { valor: a.telefono, etiqueta: "Teléfono", Icono: Phone },
-    { valor: a.whatsapp, etiqueta: "WhatsApp", Icono: MessageCircle },
-    { valor: a.facebook, etiqueta: "Facebook", Icono: Facebook },
-    { valor: a.instagram, etiqueta: "Instagram", Icono: Instagram },
-    { valor: a.sitioWeb, etiqueta: "Sitio web", Icono: Globe },
-  ].filter((c) => c.valor);
 
   return (
     <SiteLayout>
@@ -148,81 +238,12 @@ export default function PerfilArtesano() {
             ) : null}
           </section>
 
-          <aside className="rounded-xl border bg-card p-5" aria-labelledby="contacto">
-            <h2 id="contacto" className="text-base font-semibold">
-              Información del taller
-            </h2>
-            <ul className="mt-3 space-y-2 text-sm">
-              <li className="flex items-start gap-2">
-                <MapPin
-                  className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <span>{a.direccion}</span>
-              </li>
-              {a.horario ? (
-                <li className="flex items-start gap-2">
-                  <Clock
-                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <span>{a.horario}</span>
-                </li>
-              ) : null}
-              {contactos.map(({ valor, etiqueta, Icono }) => (
-                <li key={etiqueta} className="flex items-start gap-2">
-                  <Icono
-                    className="mt-0.5 size-4 shrink-0 text-muted-foreground"
-                    aria-hidden="true"
-                  />
-                  <span className="break-all">
-                    {etiqueta}: {valor}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </aside>
+          <InformacionTaller taller={a} />
         </div>
 
-        <section className="mt-12 pb-4" aria-labelledby="productos-taller">
-          <h2 id="productos-taller" className="font-display text-xl font-bold">
-            Productos publicados
-          </h2>
-          {productos.isError ? (
-            <div className="mt-4">
-              <ErrorState onRetry={() => void productos.refetch()} />
-            </div>
-          ) : productos.isPending ? (
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <ProductCardSkeleton key={i} />
-              ))}
-            </div>
-          ) : productos.data.items.length === 0 ? (
-            <div className="mt-4">
-              <EmptyState
-                titulo="Este taller aún no tiene productos publicados"
-                descripcion="Vuelve más adelante o explora otros talleres del catálogo."
-              />
-            </div>
-          ) : (
-            <>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {productos.data.items.map((p) => (
-                  <ProductCard key={p.id} product={p} />
-                ))}
-              </div>
-              {productos.data.totalPages > 1 ? (
-                <Link
-                  to={`/catalogo?artesanoId=${id}`}
-                  className="mt-4 inline-flex min-h-11 items-center text-sm font-medium text-primary hover:underline"
-                >
-                  Ver los {productos.data.total} productos en el catálogo
-                </Link>
-              ) : null}
-            </>
-          )}
-        </section>
+        <UbicacionPublicaTaller taller={a} />
+
+        <ProductosTaller id={id} productos={productos} />
       </div>
     </SiteLayout>
   );
