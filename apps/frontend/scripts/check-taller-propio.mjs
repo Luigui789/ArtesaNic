@@ -341,8 +341,10 @@ await verificar("2. el formulario carga los datos actuales y no edita el estado"
   assert.match(texto(html), /no cambia el estado de aprobación/);
   assert.match(html, /id="perfil-imagen-perfil"/);
   assert.match(html, /id="perfil-imagen-portada"/);
-  assert.match(texto(html), /Cambiar imagen de perfil/);
-  assert.match(texto(html), /Cambiar imagen de portada/);
+  // Foto del taller y portada se distinguen; cambiar es una acción con texto.
+  assert.match(texto(html), /Foto del taller/);
+  assert.match(texto(html), /Imagen de portada/);
+  assert.match(texto(html), /Elegir (otra )?imagen/);
   const archivo = new File([new Uint8Array([1, 2, 3])], "logo.png", { type: "image/png" });
   const form = m.http.cuerpoPerfilTaller({ imagenPerfil: archivo });
   assert.ok(form instanceof FormData);
