@@ -1,11 +1,21 @@
 import { useForm } from "react-hook-form";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useSession, type SesionUsuario } from "@/features/auth/use-session";
 import { interpretarFallo } from "@/features/auth/errores";
-import { UBICACION_REGISTRO_INICIAL, solicitudDeRegistro } from "@/features/auth/registro";
+import {
+  UBICACION_REGISTRO_INICIAL,
+  solicitudDeRegistro,
+  type CuentaFormulario,
+} from "@/features/auth/registro";
+import {
+  CAMPO_ACEPTACION,
+  PASOS_POR_ROL,
+  erroresDelPaso,
+  erroresDelRegistro,
+  primerPasoConError,
+  type PasoRegistro,
+} from "@/features/auth/registro-pasos";
 import {
   CAMPO_UBICACION_TALLER,
   TALLER_VACIO,
@@ -13,8 +23,10 @@ import {
 } from "@/features/auth/validacion";
 import { SeccionUbicacionTaller } from "@/features/talleres/components/seccion-ubicacion-taller";
 import type { EstadoUbicacion } from "@/features/talleres/ubicacion";
+import { useEnfocarPrimerError } from "@/hooks/use-enfocar-primer-error";
 import type { Role } from "@/types";
-import { Campo } from "./campo";
+import { IndicadorPasos, PasoDatos, PasoTaller, PasoTipoCuenta } from "./registro-pasos";
+import { PasoRevision } from "./registro-revision";
 
 const CAMPOS_CUENTA = ["nombre", "telefono", "password", "confirmacion"];
 /** Inputs de texto del taller + el campo virtual de errores de la ubicación. */
@@ -24,22 +36,29 @@ const CAMPOS_TALLER = [
 ];
 
 /**
- * Registro público. La intención elegida decide **qué endpoint** se usa
+ * Registro público en pasos. La intención elegida decide **qué endpoint** se usa
  * (`registro/comprador/` o `registro/artesano/`); el cuerpo nunca lleva `rol`. El
  * artesano envía además los datos iniciales de su taller, que queda pendiente de
  * aprobación, y opcionalmente su ubicación (FEAT-GEO-03) en el mismo `POST`. No existe
  * registro de administradores.
+ *
+ * Los pasos solo dividen la presentación: los valores viven aquí (React Hook Form y
+ * estado), así que avanzar, retroceder o cambiar de rol no los pierde; nada se envía
+ * hasta «Crear cuenta». La aceptación de términos no forma parte del contrato.
  */
 export function FormularioRegistro({
   onExito,
   intencionInicial = "comprador",
+  pasoInicial = "tipo",
 }: {
   onExito: (usuario: SesionUsuario) => void;
   intencionInicial?: Role;
+  /** Paso con el que abre; por defecto, la elección del tipo de cuenta. */
+  pasoInicial?: PasoRegistro;
 }) {
   const { registrarComprador, registrarArtesano } = useSession();
   const [intencion, setIntencion] = useState<Role>(intencionInicial);
-  const cuentaForm = useForm({
+  const cuentaForm = useForm<CuentaFormulario>({
     defaultValues: { nombre: "", telefono: "", password: "", confirmacion: "" },
   });
   const tallerForm = useForm<TallerFormulario>({ defaultValues: TALLER_VACIO });
@@ -47,28 +66,79 @@ export function FormularioRegistro({
   const [ubicacionTaller, setUbicacionTaller] = useState<EstadoUbicacion>(
     UBICACION_REGISTRO_INICIAL,
   );
+  const [aceptacion, setAceptacion] = useState(false);
   const cuenta = cuentaForm.watch();
   const taller = tallerForm.watch();
   const bloqueo = useRef(false);
+  const [pasoElegido, setPaso] = useState<PasoRegistro>(pasoInicial);
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [general, setGeneral] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  const campoCuenta = (k: keyof typeof cuenta) => (v: string) =>
-    cuentaForm.setValue(k, v, { shouldDirty: true });
-  const campoTaller = (k: keyof TallerFormulario) => (v: string) =>
-    tallerForm.setValue(k, v, { shouldDirty: true });
-  const artesano = intencion === "artesano";
+  const formulario = useRef<HTMLFormElement>(null);
+  const titulo = useRef<HTMLHeadingElement>(null);
+  const enfocarError = useEnfocarPrimerError(formulario);
+  const [cambiosDePaso, setCambiosDePaso] = useState(0);
+  useEffect(() => {
+    if (cambiosDePaso > 0) titulo.current?.focus();
+  }, [cambiosDePaso]);
 
-  const enviar = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (bloqueo.current) return;
+  const pasos = PASOS_POR_ROL[intencion];
+  // Un paso que no corresponde al rol (p. ej. «taller» para comprador) vuelve al inicio.
+  const paso = pasos.includes(pasoElegido) ? pasoElegido : "tipo";
+  const indice = pasos.indexOf(paso);
+  const datos = { intencion, cuenta, taller, ubicacion: ubicacionTaller, aceptacion };
+
+  const quitarError = (campo: string) =>
+    setErrores((actuales) => {
+      if (!(campo in actuales)) return actuales;
+      const { [campo]: _quitado, ...resto } = actuales;
+      return resto;
+    });
+  const campoCuenta = (k: keyof CuentaFormulario) => (v: string) => {
+    cuentaForm.setValue(k, v, { shouldDirty: true });
+    quitarError(k);
+  };
+  const campoTaller = (k: keyof TallerFormulario) => (v: string) => {
+    tallerForm.setValue(k, v, { shouldDirty: true });
+    quitarError(`taller.${k}`);
+  };
+
+  const irA = (destino: PasoRegistro) => {
     setGeneral(null);
-    const solicitud = solicitudDeRegistro(intencion, cuenta, taller, ubicacionTaller);
-    if (!solicitud.valida) {
-      setErrores(solicitud.errores);
+    setPaso(destino);
+    setCambiosDePaso((n) => n + 1);
+  };
+
+  /** Muestra los errores, vuelve al primer paso que tenga alguno y enfoca su campo. */
+  const mostrarErrores = (nuevos: Record<string, string>) => {
+    setErrores(nuevos);
+    const destino = primerPasoConError(pasos, nuevos);
+    if (destino) setPaso(destino);
+    enfocarError();
+  };
+
+  const continuar = () => {
+    const delPaso = erroresDelPaso(paso, datos);
+    if (Object.keys(delPaso).length) {
+      setErrores((actuales) => ({ ...actuales, ...delPaso }));
+      enfocarError();
       return;
     }
+    const siguiente = pasos[indice + 1];
+    if (siguiente) irA(siguiente);
+  };
+
+  const crearCuenta = async () => {
+    if (bloqueo.current) return;
+    setGeneral(null);
+    const delCliente = erroresDelRegistro(datos);
+    if (Object.keys(delCliente).length) {
+      mostrarErrores(delCliente);
+      return;
+    }
+    const solicitud = solicitudDeRegistro(intencion, cuenta, taller, ubicacionTaller);
+    if (!solicitud.valida) return;
     setErrores({});
     bloqueo.current = true;
     setEnviando(true);
@@ -81,116 +151,46 @@ export function FormularioRegistro({
       onExito(usuario);
     } catch (error) {
       const fallo = interpretarFallo(error, [...CAMPOS_CUENTA, ...CAMPOS_TALLER]);
-      setErrores(fallo.campos);
       setGeneral(fallo.general);
+      mostrarErrores(fallo.campos);
     } finally {
       bloqueo.current = false;
       setEnviando(false);
     }
   };
 
+  // Enter en un campo avanza de paso; solo la revisión crea la cuenta.
+  const enviar = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (paso === "revision") void crearCuenta();
+    else continuar();
+  };
+
+  const cambiarIntencion = (nueva: Role) => {
+    setIntencion(nueva);
+    setErrores({});
+    setGeneral(null);
+  };
+
   return (
     <form
-      onSubmit={(e) => void enviar(e)}
+      ref={formulario}
+      onSubmit={enviar}
       noValidate
       aria-label="Crear cuenta"
-      className="space-y-5 rounded-xl border bg-card p-5"
+      className="space-y-6 rounded-xl border bg-card p-5"
     >
-      <fieldset disabled={enviando} className="space-y-5">
-        <fieldset className="space-y-2">
-          <legend className="text-sm font-medium">¿Qué quieres hacer en ArtesaNic?</legend>
-          <RadioGroup
-            value={intencion}
-            onValueChange={(v) => setIntencion(v as Role)}
-            className="gap-2"
-          >
-            <div className="flex min-h-11 items-center gap-2">
-              <RadioGroupItem id="intencion-comprador" value="comprador" />
-              <Label htmlFor="intencion-comprador" className="font-normal">
-                Quiero comprar
-              </Label>
-            </div>
-            <div className="flex min-h-11 items-center gap-2">
-              <RadioGroupItem id="intencion-artesano" value="artesano" />
-              <Label htmlFor="intencion-artesano" className="font-normal">
-                Quiero vender mis artesanías
-              </Label>
-            </div>
-          </RadioGroup>
-          <p className="text-xs text-muted-foreground">
-            Cada cuenta tiene un único rol, que no se puede cambiar después.
-          </p>
-        </fieldset>
-
-        <Campo
-          id="registro-nombre"
-          etiqueta="Nombre completo *"
-          autoComplete="name"
-          valor={cuenta.nombre}
-          onCambio={campoCuenta("nombre")}
-          error={errores["nombre"]}
-        />
-        <Campo
-          id="registro-telefono"
-          etiqueta="Teléfono *"
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          placeholder="8555 1234"
-          ayuda="Lo usarás para iniciar sesión. Es privado: no se publica."
-          valor={cuenta.telefono}
-          onCambio={campoCuenta("telefono")}
-          error={errores["telefono"]}
-        />
-        <Campo
-          id="registro-password"
-          etiqueta="Contraseña *"
-          type="password"
-          autoComplete="new-password"
-          ayuda="Al menos 8 caracteres, no solo números ni parecida a tu nombre o teléfono."
-          valor={cuenta.password}
-          onCambio={campoCuenta("password")}
-          error={errores["password"]}
-        />
-        <Campo
-          id="registro-confirmacion"
-          etiqueta="Confirma la contraseña *"
-          type="password"
-          autoComplete="new-password"
-          valor={cuenta.confirmacion}
-          onCambio={campoCuenta("confirmacion")}
-          error={errores["confirmacion"]}
-        />
-
-        {artesano ? (
-          <fieldset className="space-y-4 border-t pt-4">
-            <legend className="pt-4 font-semibold">Datos de tu taller</legend>
-            <p className="text-sm text-muted-foreground">
-              La administración revisará estos datos antes de aprobar tu taller.
-            </p>
-            <Campo
-              id="taller-nombre"
-              etiqueta="Nombre del taller *"
-              valor={taller.nombre}
-              onCambio={campoTaller("nombre")}
-              error={errores["taller.nombre"]}
-            />
-            <Campo
-              id="taller-rubro"
-              etiqueta="Rubro *"
-              placeholder="Cerámica, hamacas, madera…"
-              valor={taller.rubro}
-              onCambio={campoTaller("rubro")}
-              error={errores["taller.rubro"]}
-            />
-            <Campo
-              id="taller-direccion"
-              etiqueta="Dirección completa *"
-              autoComplete="street-address"
-              valor={taller.direccionCompleta}
-              onCambio={campoTaller("direccionCompleta")}
-              error={errores["taller.direccionCompleta"]}
-            />
+      <IndicadorPasos pasos={pasos} paso={paso} tituloRef={titulo} />
+      <fieldset disabled={enviando} aria-labelledby="registro-paso-titulo" className="min-w-0">
+        {paso === "tipo" ? (
+          <PasoTipoCuenta intencion={intencion} onCambio={cambiarIntencion} />
+        ) : paso === "datos" ? (
+          <PasoDatos cuenta={cuenta} errores={errores} onCambio={campoCuenta} />
+        ) : paso === "taller" ? (
+          <PasoTaller taller={taller} errores={errores} onCambio={campoTaller} />
+        ) : paso === "ubicacion" ? (
+          <div className="space-y-3">
+            <DireccionIndicada direccion={taller.direccionCompleta} />
             <SeccionUbicacionTaller
               contexto="registro"
               value={ubicacionTaller}
@@ -198,89 +198,96 @@ export function FormularioRegistro({
               error={errores[CAMPO_UBICACION_TALLER]}
               disabled={enviando}
             />
-            <details className="rounded-lg border p-3">
-              <summary className="cursor-pointer py-2 text-sm font-medium">
-                Historia y contactos públicos (opcional)
-              </summary>
-              <div className="mt-3 space-y-4">
-                {" "}
-                <Campo
-                  id="taller-historia"
-                  etiqueta="Historia del taller"
-                  multilinea
-                  valor={taller.historia ?? ""}
-                  onCambio={campoTaller("historia")}
-                  error={errores["taller.historia"]}
-                />
-                <Campo
-                  id="taller-horario"
-                  etiqueta="Horario de atención"
-                  valor={taller.horario ?? ""}
-                  onCambio={campoTaller("horario")}
-                  error={errores["taller.horario"]}
-                />
-                <p className="text-sm text-muted-foreground">
-                  Contactos públicos (opcionales). Solo se publica lo que escribas aquí; tu teléfono
-                  de acceso no se muestra.
-                </p>
-                <Campo
-                  id="taller-telefono-publico"
-                  etiqueta="Teléfono público"
-                  type="tel"
-                  inputMode="tel"
-                  valor={taller.telefonoPublico ?? ""}
-                  onCambio={campoTaller("telefonoPublico")}
-                  error={errores["taller.telefonoPublico"]}
-                />
-                <Campo
-                  id="taller-whatsapp-publico"
-                  etiqueta="WhatsApp público"
-                  type="tel"
-                  inputMode="tel"
-                  valor={taller.whatsappPublico ?? ""}
-                  onCambio={campoTaller("whatsappPublico")}
-                  error={errores["taller.whatsappPublico"]}
-                />
-                <Campo
-                  id="taller-facebook"
-                  etiqueta="Facebook"
-                  type="url"
-                  placeholder="https://facebook.com/…"
-                  valor={taller.facebookUrl ?? ""}
-                  onCambio={campoTaller("facebookUrl")}
-                  error={errores["taller.facebookUrl"]}
-                />
-                <Campo
-                  id="taller-instagram"
-                  etiqueta="Instagram"
-                  type="url"
-                  placeholder="https://instagram.com/…"
-                  valor={taller.instagramUrl ?? ""}
-                  onCambio={campoTaller("instagramUrl")}
-                  error={errores["taller.instagramUrl"]}
-                />
-                <Campo
-                  id="taller-sitio-web"
-                  etiqueta="Sitio web"
-                  type="url"
-                  placeholder="https://…"
-                  valor={taller.sitioWeb ?? ""}
-                  onCambio={campoTaller("sitioWeb")}
-                  error={errores["taller.sitioWeb"]}
-                />
-              </div>
-            </details>
-          </fieldset>
-        ) : null}
+          </div>
+        ) : (
+          <PasoRevision
+            intencion={intencion}
+            cuenta={cuenta}
+            taller={taller}
+            ubicacion={ubicacionTaller}
+            aceptacion={aceptacion}
+            error={errores[CAMPO_ACEPTACION]}
+            onAceptar={(acepta) => {
+              setAceptacion(acepta);
+              if (acepta) quitarError(CAMPO_ACEPTACION);
+            }}
+            onEditar={irA}
+          />
+        )}
       </fieldset>
       {general ? (
         <p role="alert" className="text-sm text-destructive">
           {general}
         </p>
       ) : null}
-      <Button type="submit" className="w-full touch-target" disabled={enviando}>
-        {enviando ? "Creando cuenta…" : "Crear cuenta"}
-      </Button>
+      <AccionesRegistro
+        hayAnterior={indice > 0}
+        final={paso === "revision"}
+        enviando={enviando}
+        aceptacion={aceptacion}
+        onAtras={() => irA(pasos[indice - 1] ?? "tipo")}
+      />
     </form>
+  );
+}
+
+/** Referencia escrita en el paso anterior, para ubicar el taller en el mapa. */
+function DireccionIndicada({ direccion }: { direccion: string }) {
+  if (!direccion.trim()) return null;
+  return (
+    <p className="text-sm">
+      <span className="text-muted-foreground">Dirección indicada: </span>
+      <span className="break-words">{direccion.trim()}</span>
+    </p>
+  );
+}
+
+/**
+ * «Atrás» y la acción principal. «Crear cuenta» solo existe en el último paso; sin la
+ * aceptación queda `aria-disabled` pero enfocable, y pulsarlo explica qué falta.
+ */
+function AccionesRegistro({
+  hayAnterior,
+  final,
+  enviando,
+  aceptacion,
+  onAtras,
+}: {
+  hayAnterior: boolean;
+  final: boolean;
+  enviando: boolean;
+  aceptacion: boolean;
+  onAtras: () => void;
+}) {
+  return (
+    <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+      {hayAnterior ? (
+        <Button
+          type="button"
+          variant="outline"
+          className="touch-target"
+          disabled={enviando}
+          onClick={onAtras}
+        >
+          Atrás
+        </Button>
+      ) : (
+        <span aria-hidden="true" className="hidden sm:block" />
+      )}
+      {final ? (
+        <Button
+          type="submit"
+          className="touch-target aria-disabled:opacity-60 sm:min-w-40"
+          disabled={enviando}
+          aria-disabled={!aceptacion || undefined}
+        >
+          {enviando ? "Creando cuenta…" : "Crear cuenta"}
+        </Button>
+      ) : (
+        <Button type="submit" className="touch-target sm:min-w-40">
+          Continuar
+        </Button>
+      )}
+    </div>
   );
 }

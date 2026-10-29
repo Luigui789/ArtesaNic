@@ -105,20 +105,29 @@ await verificar("12. login: solo teléfono y contraseña, sin selector de rol", 
 });
 
 await verificar("13. registro: intención comprador/artesano y datos del taller", async () => {
+  // Paso 1: solo la intención, como tarjetas que siguen siendo un radiogroup.
   const comprador = await renderizar(real, (h) =>
     h(real.registro.FormularioRegistro, { onExito: noop }),
   );
+  assert.match(texto(comprador), /Paso 1 de 3 Tipo de cuenta/);
   assert.match(texto(comprador), /Quiero comprar/);
   assert.match(texto(comprador), /Quiero vender mis artesanías/);
   assert.match(comprador, /role="radiogroup"/);
   assert.doesNotMatch(texto(comprador), /Nombre del taller/);
   assert.doesNotMatch(texto(comprador), /Administrador/i);
+  assert.doesNotMatch(texto(comprador), /Crear cuenta/);
+  // El artesano tiene más pasos; los datos del taller van en el suyo.
   const artesano = await renderizar(real, (h) =>
-    h(real.registro.FormularioRegistro, { onExito: noop, intencionInicial: "artesano" }),
+    h(real.registro.FormularioRegistro, {
+      onExito: noop,
+      intencionInicial: "artesano",
+      pasoInicial: "taller",
+    }),
   );
-  for (const etiqueta of ["Nombre del taller *", "Rubro *", "Dirección completa *"])
-    assert.ok(texto(artesano).includes(etiqueta), etiqueta);
-  for (const opcional of ["Historia del taller", "Horario de atención", "WhatsApp público"])
+  assert.match(texto(artesano), /Paso 3 de 5 Datos de tu taller/);
+  for (const id of ["taller-nombre", "taller-rubro", "taller-direccion"])
+    assert.match(artesano, new RegExp(`id="${id}"[^>]*required=""`), id);
+  for (const opcional of ["Historia del taller", "Horario de atención", "WhatsApp"])
     assert.ok(texto(artesano).includes(opcional), opcional);
   assert.match(texto(artesano), /tu teléfono de acceso no se muestra/);
   // El registro de la página completa se abre con ?modo=registro.
