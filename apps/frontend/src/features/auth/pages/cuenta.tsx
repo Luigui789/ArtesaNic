@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Store, UserRound } from "lucide-react";
+import { Lock, Store, UserRound } from "lucide-react";
 import { toast } from "sonner";
 import { PageContainer } from "@/components/common/page";
 import { FormMessage } from "@/components/common/form-field";
@@ -37,7 +37,7 @@ export default function Cuenta() {
         <header>
           <h1 className="font-display text-3xl font-bold">Mi cuenta</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Tus datos personales y tu teléfono para iniciar sesión.
+            Tus datos personales y el teléfono con el que inicias sesión.
           </p>
         </header>
         {usuario ? (
@@ -62,6 +62,8 @@ export function FormularioCuenta({
 }) {
   const { actualizarPerfil } = useSession();
   const [general, setGeneral] = useState<string | null>(null);
+  // Resultado del último envío: confirmación del servidor o «sin cambios».
+  const [aviso, setAviso] = useState<string | null>(null);
   const [mostrarPassword, setMostrarPassword] = useState(false);
   // El servidor puede pedir la contraseña aunque aquí el teléfono pareciera igual.
   const [passwordPedida, setPasswordPedida] = useState(false);
@@ -75,9 +77,10 @@ export function FormularioCuenta({
 
   const enviar = form.handleSubmit(async (valores) => {
     setGeneral(null);
+    setAviso(null);
     const entrada = entradaDeCambios(usuario, valores);
     if (Object.keys(entrada).length === 0) {
-      setGeneral("No hay cambios que guardar.");
+      setAviso("No hay cambios que guardar.");
       return;
     }
     try {
@@ -86,6 +89,7 @@ export function FormularioCuenta({
       form.reset(valoresDeCuenta(actualizado));
       setPasswordPedida(false);
       setMostrarPassword(false);
+      setAviso("Cambios guardados.");
       toast.success("Datos actualizados");
     } catch (error) {
       const fallo = interpretarFallo(error, Object.keys(CAMPOS_SERVIDOR_CUENTA));
@@ -123,12 +127,39 @@ export function FormularioCuenta({
         <p className="text-xs text-muted-foreground">El rol de una cuenta no se puede cambiar.</p>
       </section>
 
+      {usuario.rol === "artesano" ? (
+        <aside
+          aria-label="Mi taller"
+          className="flex flex-col gap-3 rounded-xl border bg-surface p-5 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div className="flex min-w-0 items-start gap-3">
+            <Store className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
+            <p className="text-sm">
+              <span className="font-semibold">Mi taller</span> es aparte: el nombre del taller, sus
+              fotos, su ubicación y sus contactos públicos se editan en el perfil del taller.
+            </p>
+          </div>
+          <Button asChild variant="outline" className="touch-target shrink-0">
+            <Link to="/panel/perfil">Editar Mi taller</Link>
+          </Button>
+        </aside>
+      ) : null}
+
       <form
         onSubmit={(e) => void enviar(e)}
         noValidate
-        aria-label="Datos personales"
+        aria-labelledby="cuenta-datos"
         className="space-y-5 rounded-xl border bg-card p-5"
       >
+        <div className="space-y-1">
+          <h2 id="cuenta-datos" className="font-semibold">
+            Datos personales
+          </h2>
+          <p className="flex items-start gap-2 text-sm text-muted-foreground">
+            <Lock className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+            Son datos privados de tu cuenta: no aparecen en catálogos ni en perfiles públicos.
+          </p>
+        </div>
         <Controller
           control={form.control}
           name="nombre"
@@ -137,6 +168,8 @@ export function FormularioCuenta({
               id="cuenta-nombre"
               etiqueta="Nombre"
               autoComplete="name"
+              requerido
+              ayuda="Lo verán las personas con quienes tengas solicitudes, pedidos o mensajes."
               maxLength={150}
               valor={field.value}
               onCambio={field.onChange}
@@ -156,11 +189,11 @@ export function FormularioCuenta({
               type="tel"
               inputMode="tel"
               autoComplete="tel"
-              placeholder="8555 1234"
+              requerido
               ayuda={
                 usuario.rol === "artesano"
-                  ? "Es tu identificador para iniciar sesión. Cambiarlo no modifica los contactos públicos de tu taller."
-                  : "Es tu identificador para iniciar sesión."
+                  ? "Lo usas para iniciar sesión y no se muestra a otras personas. Cambiarlo no modifica los contactos públicos de tu taller."
+                  : "Lo usas para iniciar sesión y no se muestra a otras personas."
               }
               valor={field.value}
               onCambio={field.onChange}
@@ -204,6 +237,11 @@ export function FormularioCuenta({
           </div>
         ) : null}
         <FormMessage>{general}</FormMessage>
+        {aviso && !form.formState.isDirty ? (
+          <p role="status" className="text-sm font-medium text-secondary">
+            {aviso}
+          </p>
+        ) : null}
         <Button
           type="submit"
           className="touch-target w-full sm:w-auto"
@@ -212,24 +250,6 @@ export function FormularioCuenta({
           {form.formState.isSubmitting ? "Guardando…" : "Guardar cambios"}
         </Button>
       </form>
-
-      {usuario.rol === "artesano" ? (
-        <aside
-          aria-label="Mi taller"
-          className="flex flex-col gap-3 rounded-xl border bg-surface p-5 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div className="flex min-w-0 items-start gap-3">
-            <Store className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
-            <p className="text-sm">
-              <span className="font-semibold">Mi taller</span> es aparte: el nombre del taller y sus
-              contactos públicos se editan en el perfil del taller.
-            </p>
-          </div>
-          <Button asChild variant="outline" className="touch-target shrink-0">
-            <Link to="/panel/perfil">Perfil del taller</Link>
-          </Button>
-        </aside>
-      ) : null}
     </div>
   );
 }
