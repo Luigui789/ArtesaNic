@@ -73,19 +73,7 @@ export function ListadoPedidosConfirmados({ recibidos = false }: { recibidos?: b
   return (
     <SiteLayout>
       <PageContainer>
-        <PageHeader
-          title={recibidos ? "Pedidos del taller" : "Mis pedidos"}
-          description={
-            recibidos
-              ? "Abrí un pedido para revisar el pago, preparar los productos y registrar su entrega."
-              : "Acuerdos confirmados por el comprador, con sus productos e importes conservados."
-          }
-          action={
-            <Button asChild variant="outline">
-              <Link to={recibidos ? "/panel/solicitudes" : "/solicitudes"}>Ver solicitudes</Link>
-            </Button>
-          }
-        />
+        <EncabezadoPedidos recibidos={recibidos} />
         {query.isPending ? (
           <LoadingState />
         ) : query.isError ? (
@@ -367,5 +355,23 @@ export function DetallePedidoConfirmado({ recibido = false }: { recibido?: boole
         )}
       </PageContainer>
     </SiteLayout>
+  );
+}
+
+function EncabezadoPedidos({ recibidos }: { recibidos: boolean }) {
+  return (
+    <PageHeader
+      title={recibidos ? "Pedidos del taller" : "Mis pedidos"}
+      description={
+        recibidos
+          ? "Abrí un pedido para revisar el pago, preparar los productos y registrar su entrega."
+          : "Acuerdos confirmados por el comprador, con sus productos e importes conservados."
+      }
+      action={
+        <Button asChild variant="outline">
+          <Link to={recibidos ? "/panel/solicitudes" : "/solicitudes"}>Ver solicitudes</Link>
+        </Button>
+      }
+    />
   );
 }

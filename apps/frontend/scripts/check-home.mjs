@@ -149,28 +149,32 @@ assert.match(pending, /Cargando categorías/);
 assert.match(pending, /Cargando talleres/);
 
 // El fallo de una sección no suprime las otras ni la navegación pública.
-for (const options of [
-  m.catalogo.productosRecientesQuery,
-  m.catalogo.categoriasQuery,
-  m.talleres.talleresPublicosQuery,
-]) {
-  const previous = qc.getQueryData(options.queryKey);
-  qc.removeQueries({ queryKey: options.queryKey, exact: true });
-  await assert.rejects(
-    qc.fetchQuery({
-      ...options,
-      queryFn: async () => {
-        throw new Error("Sin conexión");
-      },
-    }),
-  );
-  const errorHtml = await render(qc);
-  assert.match(errorHtml, /role="alert"/);
-  assert.match(errorHtml, /Reintentar/);
-  assert.match(errorHtml, /Explorar productos/);
-  assert.match(errorHtml, /id="como-funciona"/);
-  qc.setQueryData(options.queryKey, previous);
-}
+// Cada escenario usa una copia de la caché; pueden verificarse independientemente.
+await Promise.all(
+  [
+    m.catalogo.productosRecientesQuery,
+    m.catalogo.categoriasQuery,
+    m.talleres.talleresPublicosQuery,
+  ].map(async (options) => {
+    const caso = client();
+    for (const query of qc.getQueryCache().getAll())
+      caso.setQueryData(query.queryKey, query.state.data);
+    caso.removeQueries({ queryKey: options.queryKey, exact: true });
+    await assert.rejects(
+      caso.fetchQuery({
+        ...options,
+        queryFn: async () => {
+          throw new Error("Sin conexión");
+        },
+      }),
+    );
+    const errorHtml = await render(caso);
+    assert.match(errorHtml, /role="alert"/);
+    assert.match(errorHtml, /Reintentar/);
+    assert.match(errorHtml, /Explorar productos/);
+    assert.match(errorHtml, /id="como-funciona"/);
+  }),
+);
 console.log(
   "check-home: contratos públicos, límites, enlaces, categorías nuevas, caché compartida, loading/empty/error y contenido conservado OK",
 );

@@ -128,27 +128,10 @@ export function VistaCumplimiento({
   const operable = c.estado === "confirmado" || c.estado === "en_cumplimiento";
   const acciones = recibido && operable && pagoConfirmado === true && !cierrePendiente;
   const entregables = c.lineas.filter((l) => l.iniciadoEn !== null && l.cantidadPendiente > 0);
+  const nota = mensajeSeguimiento(c.estado, recibido, cierrePendiente, pagoConfirmado);
   return (
     <div className="min-w-0 space-y-5">
-      {c.estado === "vencido_falta_pago" ? (
-        <Nota>El pedido venció por falta de pago: no admite trabajo ni entregas.</Nota>
-      ) : c.estado === "entregado" ? (
-        <Nota>Se entregaron todas las cantidades acordadas.</Nota>
-      ) : c.estado === "cancelado_artesano" ? (
-        <Nota>El taller canceló el pedido: el seguimiento queda como historial.</Nota>
-      ) : c.estado === "cerrado_parcial" ? (
-        <Nota>
-          El pedido se cerró parcialmente: no admite más trabajo ni entregas. El historial se
-          conserva.
-        </Nota>
-      ) : recibido && cierrePendiente ? (
-        <Nota>
-          Hay una propuesta de cierre parcial esperando la respuesta del comprador: no puedes
-          iniciar ni registrar entregas mientras tanto.
-        </Nota>
-      ) : recibido && pagoConfirmado === false ? (
-        <Nota>Podrás iniciar el trabajo y registrar entregas cuando confirmes el pago.</Nota>
-      ) : null}
+      {nota ? <Nota>{nota}</Nota> : null}
       <ol className="space-y-3" aria-label="Avance por producto">
         {c.lineas.map((l) => (
           <LineaAvance
@@ -660,4 +643,24 @@ function RespuestaRecepcion({ pedido, entrega }: { pedido: number; entrega: Entr
       ) : null}
     </div>
   );
+}
+
+function mensajeSeguimiento(
+  estado: Cumplimiento["estado"],
+  recibido: boolean,
+  cierrePendiente: boolean,
+  pagoConfirmado: boolean | undefined,
+) {
+  if (estado === "vencido_falta_pago")
+    return "El pedido venció por falta de pago: no admite trabajo ni entregas.";
+  if (estado === "entregado") return "Se entregaron todas las cantidades acordadas.";
+  if (estado === "cancelado_artesano")
+    return "El taller canceló el pedido: el seguimiento queda como historial.";
+  if (estado === "cerrado_parcial")
+    return "El pedido se cerró parcialmente: no admite más trabajo ni entregas. El historial se conserva.";
+  if (recibido && cierrePendiente)
+    return "Hay una propuesta de cierre parcial esperando la respuesta del comprador: no puedes iniciar ni registrar entregas mientras tanto.";
+  if (recibido && pagoConfirmado === false)
+    return "Podrás iniciar el trabajo y registrar entregas cuando confirmes el pago.";
+  return null;
 }

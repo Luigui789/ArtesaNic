@@ -468,7 +468,7 @@ await verificar("navegación real por rol y bloqueo de rutas privadas para anón
   );
   const navDemo = m.nav.navigationFor("artesano", false);
   assert.ok(!navDemo.some((n) => n.to === "/panel/inventario"));
-  assert.equal(navDemo.find((n) => n.to === "/panel/pedidos").label, "Pedidos de demo");
+  assert.equal(navDemo.find((n) => n.to === "/panel/pedidos")?.label, "Pedidos de demo");
 
   // Sin NotificationsProvider montado en modo real, SiteLayout renderiza sin error.
   const layoutComprador = await renderConSesion((h) => h(m.layout.SiteLayout, null, "CONTENIDO"), {

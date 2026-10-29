@@ -24,7 +24,7 @@ import {
   reintentarSalvoErrorDelCliente,
   solicitudesReales,
 } from "../api";
-import type { EstadoSolicitud, Solicitud } from "../api";
+import type { EstadoSolicitud, RenglonSolicitud, Solicitud, SolicitudArtesano } from "../api";
 
 const ESTADO: Record<EstadoSolicitud, string> = {
   pendiente_revision: "Pendiente de revisión",
@@ -154,20 +154,6 @@ export function DetalleSolicitud({ recibidas = false }: { recibidas?: boolean })
   if (id === undefined || (solicitud.error instanceof ApiError && solicitud.error.status === 404))
     return <NotFound />;
   const s = solicitud.data;
-  const metadata = s ? (
-    <>
-      {" "}
-      <p>
-        {s.taller.nombre} · {ESTADO[s.estado]}
-      </p>
-      {"comprador" in s ? <p>Comprador: {s.comprador.nombre}</p> : null}
-      <p>
-        Entrega preferida: {ENTREGA[s.modalidadEntregaPreferida]}
-        {s.descripcionEntregaPreferida ? ` — ${s.descripcionEntregaPreferida}` : ""}
-      </p>
-      <p className="rounded-lg border p-4 text-sm">{AVISO[s.estado]}</p>
-    </>
-  ) : null;
   return (
     <SiteLayout>
       <PageContainer>
@@ -200,117 +186,161 @@ export function DetalleSolicitud({ recibidas = false }: { recibidas?: boolean })
             onRetry={() => void solicitud.refetch()}
           />
         ) : s ? (
-          <>
-            {recibidas && solicitudesReales ? (
-              <section
-                aria-label="Próximo paso de la solicitud"
-                className="space-y-2 rounded-xl border bg-card p-4"
-              >
-                <h2 className="font-semibold">
-                  {s.estado === "pendiente_revision"
-                    ? "Revisá cada producto solicitado"
-                    : s.estado === "lista_propuesta"
-                      ? "Prepará la propuesta para el comprador"
-                      : s.estado === "propuesta_emitida"
-                        ? "Consultá la propuesta y la decisión del comprador"
-                        : "Solicitud finalizada"}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {s.estado === "pendiente_revision"
-                    ? "Aceptá o rechazá cada producto. Después preparás la propuesta."
-                    : s.estado === "lista_propuesta"
-                      ? "Definí precios y entrega. El comprador confirma el pedido al aceptar tu propuesta."
-                      : s.estado === "propuesta_emitida"
-                        ? "Consultá las condiciones enviadas y la respuesta del comprador."
-                        : "Conservamos los productos y sus motivos de rechazo."}
-                </p>
-              </section>
-            ) : null}
-            {recibidas ? (
-              <details className="rounded-lg border p-4">
-                <summary className="list-item min-h-11 cursor-pointer py-3 font-medium">
-                  Entrega y condiciones de la solicitud
-                </summary>
-                <div className="space-y-3">{metadata}</div>
-              </details>
-            ) : (
-              metadata
-            )}
-            <ol className="space-y-4">
-              {s.renglones.map((r) => (
-                <li key={r.id} className="space-y-2 rounded-xl border p-4">
-                  <h2 className="font-semibold">
-                    {r.posicion}. {r.producto.nombre}
-                  </h2>
-                  <p>
-                    {MODALIDAD_LABELS[r.modalidad]} · Cantidad: {r.cantidad}
-                  </p>
-                  {r.fechaSolicitada ? (
-                    <p>Fecha solicitada: {formatCalendarDate(r.fechaSolicitada)}</p>
-                  ) : null}
-                  {r.caracteristicas ? (
-                    <p className="whitespace-pre-wrap break-words">
-                      Características: {r.caracteristicas}
-                    </p>
-                  ) : null}
-                  {r.origenPersonalizacion ? (
-                    <p>
-                      {r.origenPersonalizacion === "desde_cero"
-                        ? "Fabricación desde cero"
-                        : "Unidad estándar como base"}
-                    </p>
-                  ) : null}
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span>Resolución: {RESOLUCION[r.resolucion]}</span>
-                    <StatusBadge
-                      tone={
-                        r.resolucion === "rechazado"
-                          ? "danger"
-                          : r.resolucion === "aceptado"
-                            ? "success"
-                            : "pending"
-                      }
-                    >
-                      {r.resolucion === "rechazado"
-                        ? "Producto rechazado"
-                        : r.resolucion === "aceptado"
-                          ? "Producto aceptado"
-                          : "Pendiente de revisión"}
-                    </StatusBadge>
-                  </div>
-                  {solicitudesReales &&
-                  recibidas &&
-                  r.resolucion === "pendiente" &&
-                  s.estado === "pendiente_revision" ? (
-                    <RevisionRenglon solicitud={s.id} renglon={r.id} />
-                  ) : null}
-                  {r.resolucion === "rechazado" && r.motivoRechazo ? (
-                    <div
-                      role="note"
-                      aria-label={`Motivo del rechazo del producto ${r.posicion}`}
-                      className="mt-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3"
-                    >
-                      <div className="flex items-center gap-2 font-semibold text-destructive">
-                        <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
-                        <h3>Motivo del rechazo</h3>
-                      </div>
-                      <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
-                        {r.motivoRechazo}
-                      </p>
-                    </div>
-                  ) : null}
-                </li>
-              ))}
-            </ol>
-            {solicitudesReales && recibidas && s.estado === "lista_propuesta" ? (
-              <FormularioPropuesta solicitud={s} />
-            ) : null}
-            {solicitudesReales && s.estado === "propuesta_emitida" ? (
-              <PropuestaFinal solicitud={s.id} recibida={recibidas} />
-            ) : null}
-          </>
+          <ContenidoSolicitud solicitud={s} recibidas={recibidas} />
         ) : null}
       </PageContainer>
     </SiteLayout>
+  );
+}
+
+function ContenidoSolicitud({
+  solicitud: s,
+  recibidas,
+}: {
+  solicitud: Solicitud | SolicitudArtesano;
+  recibidas: boolean;
+}) {
+  const metadata = <MetadataSolicitud solicitud={s} />;
+  return (
+    <>
+      {recibidas && solicitudesReales ? <ProximoPasoSolicitud estado={s.estado} /> : null}
+      {recibidas ? (
+        <details className="rounded-lg border p-4">
+          <summary className="list-item min-h-11 cursor-pointer py-3 font-medium">
+            Entrega y condiciones de la solicitud
+          </summary>
+          <div className="space-y-3">{metadata}</div>
+        </details>
+      ) : (
+        metadata
+      )}
+      <ol className="space-y-4">
+        {s.renglones.map((r) => (
+          <DetalleRenglon key={r.id} renglon={r} solicitud={s} recibidas={recibidas} />
+        ))}
+      </ol>
+      {solicitudesReales && recibidas && s.estado === "lista_propuesta" ? (
+        <FormularioPropuesta solicitud={s} />
+      ) : null}
+      {solicitudesReales && s.estado === "propuesta_emitida" ? (
+        <PropuestaFinal solicitud={s.id} recibida={recibidas} />
+      ) : null}
+    </>
+  );
+}
+
+function MetadataSolicitud({ solicitud: s }: { solicitud: Solicitud | SolicitudArtesano }) {
+  return (
+    <>
+      {" "}
+      <p>
+        {s.taller.nombre} · {ESTADO[s.estado]}
+      </p>
+      {"comprador" in s ? <p>Comprador: {s.comprador.nombre}</p> : null}
+      <p>
+        Entrega preferida: {ENTREGA[s.modalidadEntregaPreferida]}
+        {s.descripcionEntregaPreferida ? ` — ${s.descripcionEntregaPreferida}` : ""}
+      </p>
+      <p className="rounded-lg border p-4 text-sm">{AVISO[s.estado]}</p>
+    </>
+  );
+}
+
+function ProximoPasoSolicitud({ estado }: { estado: EstadoSolicitud }) {
+  return (
+    <section
+      aria-label="Próximo paso de la solicitud"
+      className="space-y-2 rounded-xl border bg-card p-4"
+    >
+      <h2 className="font-semibold">
+        {estado === "pendiente_revision"
+          ? "Revisá cada producto solicitado"
+          : estado === "lista_propuesta"
+            ? "Prepará la propuesta para el comprador"
+            : estado === "propuesta_emitida"
+              ? "Consultá la propuesta y la decisión del comprador"
+              : "Solicitud finalizada"}
+      </h2>
+      <p className="text-sm text-muted-foreground">
+        {estado === "pendiente_revision"
+          ? "Aceptá o rechazá cada producto. Después preparás la propuesta."
+          : estado === "lista_propuesta"
+            ? "Definí precios y entrega. El comprador confirma el pedido al aceptar tu propuesta."
+            : estado === "propuesta_emitida"
+              ? "Consultá las condiciones enviadas y la respuesta del comprador."
+              : "Conservamos los productos y sus motivos de rechazo."}
+      </p>
+    </section>
+  );
+}
+
+function DetalleRenglon({
+  renglon: r,
+  solicitud: s,
+  recibidas,
+}: {
+  renglon: RenglonSolicitud;
+  solicitud: Solicitud;
+  recibidas: boolean;
+}) {
+  return (
+    <li className="space-y-2 rounded-xl border p-4">
+      <h2 className="font-semibold">
+        {r.posicion}. {r.producto.nombre}
+      </h2>
+      <p>
+        {MODALIDAD_LABELS[r.modalidad]} · Cantidad: {r.cantidad}
+      </p>
+      {r.fechaSolicitada ? <p>Fecha solicitada: {formatCalendarDate(r.fechaSolicitada)}</p> : null}
+      {r.caracteristicas ? (
+        <p className="whitespace-pre-wrap break-words">Características: {r.caracteristicas}</p>
+      ) : null}
+      {r.origenPersonalizacion ? (
+        <p>
+          {r.origenPersonalizacion === "desde_cero"
+            ? "Fabricación desde cero"
+            : "Unidad estándar como base"}
+        </p>
+      ) : null}
+      <div className="flex flex-wrap items-center gap-2">
+        <span>Resolución: {RESOLUCION[r.resolucion]}</span>
+        <StatusBadge
+          tone={
+            r.resolucion === "rechazado"
+              ? "danger"
+              : r.resolucion === "aceptado"
+                ? "success"
+                : "pending"
+          }
+        >
+          {r.resolucion === "rechazado"
+            ? "Producto rechazado"
+            : r.resolucion === "aceptado"
+              ? "Producto aceptado"
+              : "Pendiente de revisión"}
+        </StatusBadge>
+      </div>
+      {solicitudesReales &&
+      recibidas &&
+      r.resolucion === "pendiente" &&
+      s.estado === "pendiente_revision" ? (
+        <RevisionRenglon solicitud={s.id} renglon={r.id} />
+      ) : null}
+      {r.resolucion === "rechazado" && r.motivoRechazo ? (
+        <div
+          role="note"
+          aria-label={`Motivo del rechazo del producto ${r.posicion}`}
+          className="mt-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3"
+        >
+          <div className="flex items-center gap-2 font-semibold text-destructive">
+            <AlertCircle className="size-4 shrink-0" aria-hidden="true" />
+            <h3>Motivo del rechazo</h3>
+          </div>
+          <p className="mt-1 whitespace-pre-wrap break-words text-sm text-foreground">
+            {r.motivoRechazo}
+          </p>
+        </div>
+      ) : null}
+    </li>
   );
 }

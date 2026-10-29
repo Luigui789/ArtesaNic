@@ -12,6 +12,9 @@ import { reintentarSalvoErrorDelCliente } from "@/lib/http";
 import { mostrarImporte } from "@/lib/importes";
 import { formatDate, formatDateTime } from "@/lib/format";
 import { ESTADO_PEDIDO_LABELS, type PedidoConfirmado } from "../confirmados";
+import type { PagoPedido } from "@/features/pagos/types";
+import type { Cumplimiento } from "../cumplimiento";
+import type { Resolucion } from "../resolucion";
 import { consultarCumplimiento } from "../cumplimiento";
 import { consultarResolucion } from "../resolucion";
 
@@ -70,48 +73,10 @@ export function PedidoArtesano({
     "cancelado_artesano",
     "cerrado_parcial",
   ].includes(p.estado);
-  const avisos: string[] = [];
-  if (p.estado === "vencido_falta_pago")
-    avisos.push(
-      "El pedido venció por falta de pago. Consultá su historial; no admite nuevas operaciones.",
-    );
-  if (payment.data?.revisionPendiente)
-    avisos.push("Hay un comprobante que requiere tu revisión antes de continuar.");
-  if (payment.data?.estado === "observado")
-    avisos.push("El comprobante necesita corrección por parte del comprador.");
-  if (payment.data?.estado === "no_recibido")
-    avisos.push("El pago figura como no recibido. Consultá el intento y su plazo.");
-  if (payment.data?.registrableHasta)
-    avisos.push(
-      `Plazo para registrar o corregir el pago: ${formatDateTime(payment.data.registrableHasta)}.`,
-    );
-  if (resolution.data?.cancelacion)
-    avisos.push(`Cancelado por el taller: ${resolution.data.cancelacion.motivo}`);
-  if (resolution.data?.cierresParciales.some((c) => c.estado === "pendiente"))
-    avisos.push(
-      "Hay un cierre parcial pendiente de respuesta. Revisá Cambios y cierre antes de continuar.",
-    );
-  if (resolution.data?.cierresParciales.some((c) => c.estado === "objetado"))
-    avisos.push(
-      "El historial contiene un cierre objetado por el comprador. Consultá Cambios y cierre.",
-    );
-  if (resolution.data?.reembolso?.estado === "pendiente")
-    avisos.push("Hay un reembolso pendiente. Consultá Cambios y cierre.");
-  if (work.data?.entregas.some((e) => e.recepcion?.resultado === "discrepancia"))
-    avisos.push("Hay una discrepancia registrada en una entrega. Consultá Preparación y entrega.");
+  const avisos = avisosDelPedido(p, payment.data, work.data, resolution.data);
   const cargando = payment.isPending || work.isPending || resolution.isPending;
   const fallo = payment.isError || work.isError || resolution.isError;
-  const accion =
-    resolution.data?.reembolso?.estado === "pendiente" ||
-    resolution.data?.cierresParciales.some((c) => c.estado === "pendiente")
-      ? { tab: "resolucion", texto: "Revisar cambios y cierre" }
-      : payment.data?.revisionPendiente
-        ? { tab: "pago", texto: "Revisar comprobante" }
-        : cerrado
-          ? { tab: "resolucion", texto: "Consultar historial y cierre" }
-          : payment.data?.estado === "confirmado"
-            ? { tab: "trabajo", texto: "Ver preparación y entregas" }
-            : { tab: "pago", texto: "Consultar pago" };
+  const accion = accionDelPedido(payment.data, resolution.data, cerrado);
   return (
     <div className="min-w-0 space-y-5">
       <section
@@ -177,18 +142,13 @@ export function PedidoArtesano({
             ))}
           </ul>
         ) : null}
-        {!cargando && !fallo ? (
-          <div className="space-y-2">
-            <p className="text-sm">
-              {cerrado
-                ? "El pedido finalizó. Los acuerdos y registros se conservan."
-                : payment.data?.estado === "confirmado"
-                  ? "Cada producto avanza por separado. Revisá lo que falta preparar o entregar."
-                  : "Consultá el comprobante y el plazo para saber qué falta antes de continuar."}
-            </p>
-            <Button onClick={() => setSeccion(accion.tab)}>{accion.texto}</Button>
-          </div>
-        ) : null}
+        <ProximoPaso
+          visible={!cargando && !fallo}
+          cerrado={cerrado}
+          confirmado={payment.data?.estado === "confirmado"}
+          accion={accion}
+          onNavigate={setSeccion}
+        />
       </section>
       <Tabs value={seccion} onValueChange={setSeccion}>
         <TabsList
@@ -242,6 +202,87 @@ export function PedidoArtesano({
           {resolucion}
         </TabsContent>
       </Tabs>
+    </div>
+  );
+}
+
+function avisosDelPedido(
+  p: PedidoConfirmado,
+  payment: PagoPedido | undefined,
+  work: Cumplimiento | undefined,
+  resolution: Resolucion | undefined,
+) {
+  const avisos: string[] = [];
+  if (p.estado === "vencido_falta_pago")
+    avisos.push(
+      "El pedido venció por falta de pago. Consultá su historial; no admite nuevas operaciones.",
+    );
+  if (payment?.revisionPendiente)
+    avisos.push("Hay un comprobante que requiere tu revisión antes de continuar.");
+  if (payment?.estado === "observado")
+    avisos.push("El comprobante necesita corrección por parte del comprador.");
+  if (payment?.estado === "no_recibido")
+    avisos.push("El pago figura como no recibido. Consultá el intento y su plazo.");
+  if (payment?.registrableHasta)
+    avisos.push(
+      `Plazo para registrar o corregir el pago: ${formatDateTime(payment.registrableHasta)}.`,
+    );
+  if (resolution?.cancelacion)
+    avisos.push(`Cancelado por el taller: ${resolution.cancelacion.motivo}`);
+  if (resolution?.cierresParciales.some((c) => c.estado === "pendiente"))
+    avisos.push(
+      "Hay un cierre parcial pendiente de respuesta. Revisá Cambios y cierre antes de continuar.",
+    );
+  if (resolution?.cierresParciales.some((c) => c.estado === "objetado"))
+    avisos.push(
+      "El historial contiene un cierre objetado por el comprador. Consultá Cambios y cierre.",
+    );
+  if (resolution?.reembolso?.estado === "pendiente")
+    avisos.push("Hay un reembolso pendiente. Consultá Cambios y cierre.");
+  if (work?.entregas.some((e) => e.recepcion?.resultado === "discrepancia"))
+    avisos.push("Hay una discrepancia registrada en una entrega. Consultá Preparación y entrega.");
+  return avisos;
+}
+function accionDelPedido(
+  payment: PagoPedido | undefined,
+  resolution: Resolucion | undefined,
+  cerrado: boolean,
+) {
+  return resolution?.reembolso?.estado === "pendiente" ||
+    resolution?.cierresParciales.some((c) => c.estado === "pendiente")
+    ? { tab: "resolucion", texto: "Revisar cambios y cierre" }
+    : payment?.revisionPendiente
+      ? { tab: "pago", texto: "Revisar comprobante" }
+      : cerrado
+        ? { tab: "resolucion", texto: "Consultar historial y cierre" }
+        : payment?.estado === "confirmado"
+          ? { tab: "trabajo", texto: "Ver preparación y entregas" }
+          : { tab: "pago", texto: "Consultar pago" };
+}
+function ProximoPaso({
+  visible,
+  cerrado,
+  confirmado,
+  accion,
+  onNavigate,
+}: {
+  visible: boolean;
+  cerrado: boolean;
+  confirmado: boolean;
+  accion: { tab: string; texto: string };
+  onNavigate: (tab: string) => void;
+}) {
+  if (!visible) return null;
+  return (
+    <div className="space-y-2">
+      <p className="text-sm">
+        {cerrado
+          ? "El pedido finalizó. Los acuerdos y registros se conservan."
+          : confirmado
+            ? "Cada producto avanza por separado. Revisá lo que falta preparar o entregar."
+            : "Consultá el comprobante y el plazo para saber qué falta antes de continuar."}
+      </p>
+      <Button onClick={() => onNavigate(accion.tab)}>{accion.texto}</Button>
     </div>
   );
 }

@@ -5,18 +5,14 @@ import { PublicFooter } from "./public-footer";
 import { AvisoPersistencia } from "./demo-controls";
 import { navigationFor } from "./navigation";
 import { PrivateNavigation } from "./private-navigation";
+import type { SesionUsuario } from "@/features/auth/use-session";
 import { useSession } from "@/features/auth/use-session";
 import { cn } from "@/lib/utils";
 
 export function SiteLayout({ children }: { children: ReactNode }) {
   const { pathname } = useLocation();
   const { modo, usuario } = useSession();
-  const privado =
-    usuario &&
-    ((usuario.rol === "artesano" && pathname.startsWith("/panel")) ||
-      (usuario.rol === "comprador" && /^\/(solicitudes|solicitar|pedidos)(\/|$)/.test(pathname)) ||
-      pathname === "/mensajes" ||
-      pathname === "/notificaciones");
+  const privado = esRutaPrivada(usuario, pathname);
   const enlaces = usuario ? navigationFor(usuario.rol, modo === "real") : [];
   const seccion = enlaces.find((n) => matchPath({ path: n.to, end: n.end ?? false }, pathname));
   const legacy = modo === "mock" && /^\/(panel\/)?pedidos/.test(pathname);
@@ -62,5 +58,15 @@ export function SiteLayout({ children }: { children: ReactNode }) {
       </div>
       <PublicFooter />
     </div>
+  );
+}
+
+function esRutaPrivada(usuario: SesionUsuario | null, pathname: string): usuario is SesionUsuario {
+  return !!(
+    usuario &&
+    ((usuario.rol === "artesano" && pathname.startsWith("/panel")) ||
+      (usuario.rol === "comprador" && /^\/(solicitudes|solicitar|pedidos)(\/|$)/.test(pathname)) ||
+      pathname === "/mensajes" ||
+      pathname === "/notificaciones")
   );
 }

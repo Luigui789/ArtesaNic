@@ -162,20 +162,23 @@ await verificar("33. modo real: sin «Vista de demostración» ni cambio de rol"
   assert.match(navegacion, /Otras consultas/);
   assert.match(artesano, /aria-current="page"[^>]*href="\/panel"/);
   // Una ruta profunda conserva visible el contexto de su sección, sin activar Inicio.
-  for (const [ruta, padre] of [
-    ["/panel/pedidos/123", "/panel/pedidos"],
-    ["/panel/inventario/42", "/panel/inventario"],
-    ["/panel/solicitudes/7", "/panel/solicitudes"],
-  ]) {
-    const detalle = await renderizar(real, (h) => h(real.layout.SiteLayout, null, ""), {
-      usuario: ARTURO,
-      ruta,
-    });
-    const nav = detalle.match(/<nav aria-label="Navegación del taller".*?<\/nav>/s)[0];
-    assert.equal((nav.match(/aria-current="page"/g) ?? []).length, 1);
-    assert.ok(nav.includes(`href="${padre}"`));
-    assert.ok(nav.match(/<a[^>]*aria-current="page"[^>]*>/)[0].includes(`href="${padre}"`));
-  }
+  await Promise.all(
+    [
+      ["/panel/pedidos/123", "/panel/pedidos"],
+      ["/panel/inventario/42", "/panel/inventario"],
+      ["/panel/solicitudes/7", "/panel/solicitudes"],
+    ].map(async ([ruta, padre]) => {
+      const detalle = await renderizar(real, (h) => h(real.layout.SiteLayout, null, ""), {
+        usuario: ARTURO,
+        ruta,
+      });
+      const nav = detalle.match(/<nav aria-label="Navegación del taller".*?<\/nav>/s)?.[0];
+      assert.ok(nav, "La navegación del taller está presente");
+      assert.equal((nav.match(/aria-current="page"/g) ?? []).length, 1);
+      assert.ok(nav.includes(`href="${padre}"`));
+      assert.ok(nav.match(/<a[^>]*aria-current="page"[^>]*>/)?.[0]?.includes(`href="${padre}"`));
+    }),
+  );
 });
 
 await verificar(

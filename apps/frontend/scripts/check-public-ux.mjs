@@ -79,23 +79,28 @@ async function render(qc, ruta, Page, patron = ruta) {
 const qc = client();
 qc.setQueryData(["perfil-taller", 71], taller);
 qc.setQueryData(["producto", 901], pieza);
-for (const [modalidades, disponibleStock, esperado] of [
-  [["stock"], 3, /3 unidades disponibles/],
-  [["produccion"], undefined, /Pieza estándar elaborada por cantidad/],
-  [["personalizacion"], undefined, /Personalizado:/],
-  [["stock", "personalizacion"], 0, /Sin unidades disponibles ahora/],
-]) {
-  qc.setQueryData(["producto", 901], { ...pieza, modalidades, disponibleStock });
-  const html = await render(qc, "/producto/901", m.producto.default, "/producto/:id");
-  assert.match(html, esperado);
-  assert.match(html, /href="\/solicitar\/901"/);
-  assert.match(html, /Solicitar producto/);
-  assert.match(html, /href="\/artesano\/71"/);
-  assert.match(html, /Talla/);
-  assert.ok(html.indexOf("Solicitar producto") < html.indexOf('id="descripcion-producto"'));
-  assert.ok(html.includes(pieza.descripcion));
-  assert.doesNotMatch(html, /role="region"/);
-}
+// Caché independiente por modalidad: no se pisan los datos de otro escenario.
+await Promise.all(
+  [
+    [["stock"], 3, /3 unidades disponibles/],
+    [["produccion"], undefined, /Pieza estándar elaborada por cantidad/],
+    [["personalizacion"], undefined, /Personalizado:/],
+    [["stock", "personalizacion"], 0, /Sin unidades disponibles ahora/],
+  ].map(async ([modalidades, disponibleStock, esperado]) => {
+    const caso = client();
+    caso.setQueryData(["perfil-taller", 71], taller);
+    caso.setQueryData(["producto", 901], { ...pieza, modalidades, disponibleStock });
+    const html = await render(caso, "/producto/901", m.producto.default, "/producto/:id");
+    assert.match(html, esperado);
+    assert.match(html, /href="\/solicitar\/901"/);
+    assert.match(html, /Solicitar producto/);
+    assert.match(html, /href="\/artesano\/71"/);
+    assert.match(html, /Talla/);
+    assert.ok(html.indexOf("Solicitar producto") < html.indexOf('id="descripcion-producto"'));
+    assert.ok(html.includes(pieza.descripcion));
+    assert.doesNotMatch(html, /role="region"/);
+  }),
+);
 qc.setQueryData(["productos-artesano", 71], {
   items: Array.from({ length: 8 }, (_, i) => ({ ...pieza, id: 901 + i })),
   total: 8,

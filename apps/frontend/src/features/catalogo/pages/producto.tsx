@@ -1,6 +1,6 @@
 import { PageContainer } from "@/components/common/page";
 import { Link, useParams } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { ArrowRight, MapPin } from "lucide-react";
 import { SiteLayout } from "@/components/layout/site-layout";
 import { CurrencySwitcher } from "@/components/common/currency-switcher";
@@ -26,6 +26,88 @@ import { useCurrency } from "@/hooks/use-currency";
 import { useDocumentHead } from "@/hooks/use-document-head";
 import { parseRouteId } from "@/lib/route-id";
 import { NotFound } from "@/app/not-found";
+import type { CatalogProduct } from "@/features/catalogo/types";
+import type { getPerfilTaller } from "@/features/talleres/api";
+
+function stockAvailability(stock: CatalogProduct["disponibleStock"]) {
+  if (typeof stock !== "number") return "";
+  if (!(stock > 0)) return " Sin unidades disponibles ahora.";
+  return ` ${stock} ${stock === 1 ? "unidad disponible" : "unidades disponibles"}.`;
+}
+
+function ProductOptions({ p }: { p: CatalogProduct }) {
+  return (
+    <section className="mt-5 space-y-2" aria-labelledby="opciones-producto">
+      <h2 id="opciones-producto" className="text-base font-semibold">
+        Cómo podés solicitarlo
+      </h2>
+      <ul className="space-y-1 text-sm leading-relaxed text-muted-foreground">
+        {p.modalidades.includes("stock") ? (
+          <li>
+            Pieza estándar ya elaborada.
+            {stockAvailability(p.disponibleStock)}
+          </li>
+        ) : null}
+        {p.modalidades.includes("produccion") ? (
+          <li>Pieza estándar elaborada por cantidad, según lo que acordés con el taller.</li>
+        ) : null}
+        {p.modalidades.includes("personalizacion") ? (
+          <li>Personalizado: podés indicar los detalles que querés al preparar tu solicitud.</li>
+        ) : null}
+      </ul>
+    </section>
+  );
+}
+
+function ProductWorkshop({
+  p,
+  artesano,
+}: {
+  p: CatalogProduct;
+  artesano: UseQueryResult<Awaited<ReturnType<typeof getPerfilTaller>>>;
+}) {
+  return (
+    <section className="mt-6 border-t pt-5" aria-labelledby="taller">
+      <h2 id="taller" className="text-base font-semibold">
+        Elaborado por
+      </h2>
+      <div className="mt-3 flex items-start gap-3">
+        {artesano.data ? (
+          <div className="w-16 shrink-0 overflow-hidden rounded-lg">
+            <ProductImage
+              src={artesano.data.imagenPerfil ?? artesano.data.demo?.fotoUrl}
+              alt={`Taller ${artesano.data.nombre}`}
+              className="aspect-square"
+            />
+          </div>
+        ) : null}
+        <div className="min-w-0">
+          <p className="break-words font-semibold">{p.taller.nombre}</p>
+          {artesano.data ? (
+            <>
+              <p className="break-words text-sm text-muted-foreground">{artesano.data.rubro}</p>
+              <p className="mt-1 flex items-start gap-1.5 text-sm text-muted-foreground">
+                <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                <span className="min-w-0 break-words">{artesano.data.direccion}</span>
+              </p>
+            </>
+          ) : null}
+          <Link
+            to={`/artesano/${p.taller.id}`}
+            className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary hover:underline"
+          >
+            Ver taller <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+          {artesano.isError ? (
+            <p className="text-sm text-muted-foreground">
+              No pudimos cargar los datos adicionales. Podés visitar el taller para reintentar.
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 export default function DetalleProducto() {
   const { id: idParam } = useParams<{ id: string }>();
@@ -147,31 +229,7 @@ export default function DetalleProducto() {
               </p>
             ) : null}
 
-            <section className="mt-5 space-y-2" aria-labelledby="opciones-producto">
-              <h2 id="opciones-producto" className="text-base font-semibold">
-                Cómo podés solicitarlo
-              </h2>
-              <ul className="space-y-1 text-sm leading-relaxed text-muted-foreground">
-                {p.modalidades.includes("stock") ? (
-                  <li>
-                    Pieza estándar ya elaborada.
-                    {typeof p.disponibleStock === "number"
-                      ? ` ${p.disponibleStock > 0 ? `${p.disponibleStock} ${p.disponibleStock === 1 ? "unidad disponible" : "unidades disponibles"}` : "Sin unidades disponibles ahora"}.`
-                      : ""}
-                  </li>
-                ) : null}
-                {p.modalidades.includes("produccion") ? (
-                  <li>
-                    Pieza estándar elaborada por cantidad, según lo que acordés con el taller.
-                  </li>
-                ) : null}
-                {p.modalidades.includes("personalizacion") ? (
-                  <li>
-                    Personalizado: podés indicar los detalles que querés al preparar tu solicitud.
-                  </li>
-                ) : null}
-              </ul>
-            </section>
+            <ProductOptions p={p} />
 
             <div className="mt-5">
               <Button asChild size="lg" className="w-full touch-target text-base sm:w-auto">
@@ -195,48 +253,7 @@ export default function DetalleProducto() {
             >
               Leer descripción completa
             </a>
-            <section className="mt-6 border-t pt-5" aria-labelledby="taller">
-              <h2 id="taller" className="text-base font-semibold">
-                Elaborado por
-              </h2>
-              <div className="mt-3 flex items-start gap-3">
-                {artesano.data ? (
-                  <div className="w-16 shrink-0 overflow-hidden rounded-lg">
-                    <ProductImage
-                      src={artesano.data.imagenPerfil ?? artesano.data.demo?.fotoUrl}
-                      alt={`Taller ${artesano.data.nombre}`}
-                      className="aspect-square"
-                    />
-                  </div>
-                ) : null}
-                <div className="min-w-0">
-                  <p className="break-words font-semibold">{p.taller.nombre}</p>
-                  {artesano.data ? (
-                    <>
-                      <p className="break-words text-sm text-muted-foreground">
-                        {artesano.data.rubro}
-                      </p>
-                      <p className="mt-1 flex items-start gap-1.5 text-sm text-muted-foreground">
-                        <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
-                        <span className="min-w-0 break-words">{artesano.data.direccion}</span>
-                      </p>
-                    </>
-                  ) : null}
-                  <Link
-                    to={`/artesano/${p.taller.id}`}
-                    className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-primary hover:underline"
-                  >
-                    Ver taller <ArrowRight className="size-4" aria-hidden="true" />
-                  </Link>
-                  {artesano.isError ? (
-                    <p className="text-sm text-muted-foreground">
-                      No pudimos cargar los datos adicionales. Podés visitar el taller para
-                      reintentar.
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-            </section>
+            <ProductWorkshop p={p} artesano={artesano} />
           </div>
         </div>
         <section className="max-w-3xl border-t pt-6" aria-labelledby="descripcion-producto">
