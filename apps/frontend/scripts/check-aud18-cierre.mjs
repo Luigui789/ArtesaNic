@@ -274,7 +274,8 @@ await verificar(
       ruta: "/mensajes?pedido=95",
       qc,
     });
-    assert.match(html, /Pedido #95 · Vasija Bruñida #95/);
+    assert.match(html, /<h2[^>]*>Pedido #95<\/h2>/);
+    assert.match(html, /<p[^>]*>Vasija Bruñida #95<\/p>/);
     assert.match(html, /Entregado en taller/);
     assert.doesNotMatch(html, /<textarea/, "pedido entregado es solo lectura");
     assert.match(
