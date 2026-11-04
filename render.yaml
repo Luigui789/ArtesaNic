@@ -1,0 +1,98 @@
+# Aplicar como Blueprint desde dashboard.render.com. NO crea recursos al fusionar el PR.
+# Primera etapa: una sola URL para React, API, CSRF y cookies.
+services:
+  - type: web
+    name: artesanic-web
+    runtime: docker
+    repo: https://github.com/Luigui789/ArtesaNic
+    branch: main
+    region: ohio
+    plan: starter
+    dockerContext: .
+    dockerfilePath: ./infra/docker/render.Dockerfile
+    autoDeployTrigger: checksPass
+    healthCheckPath: /api/v1/salud/
+    preDeployCommand: python manage.py migrate --noinput
+    disk:
+      name: artesanic-uploads
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.production
+      - key: DJANGO_DEBUG
+        value: "false"
+      # Nginx envía una sola IP validada por Cloudflare en X-Forwarded-For.
+      # 1 proxy de aplicación (Nginx), sin confiar en cadenas arbitrarias.
+      - key: DJANGO_NUM_PROXIES
+        value: "1"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DJANGO_MEDIA_ROOT
+        value: /var/data/media
+      - key: DJANGO_PRIVATE_MEDIA_ROOT
+        value: /var/data/private_media
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: artesanic-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: artesanic-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: artesanic-db
+          property: password
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: artesanic-db
+          property: host
+      - key: POSTGRES_PORT
+        value: "5432"
+
+  - type: cron
+    name: artesanic-vencimientos
+    runtime: docker
+    repo: https://github.com/Luigui789/ArtesaNic
+    branch: main
+    region: ohio
+    plan: starter
+    schedule: "*/5 * * * *"
+    dockerContext: .
+    dockerfilePath: ./infra/docker/backend.Dockerfile
+    dockerCommand: python manage.py procesar_vencimientos_pago --once
+    autoDeployTrigger: checksPass
+    envVars:
+      - key: DJANGO_SETTINGS_MODULE
+        value: config.settings.base
+      - key: DJANGO_DEBUG
+        value: "false"
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: POSTGRES_DB
+        fromDatabase:
+          name: artesanic-db
+          property: database
+      - key: POSTGRES_USER
+        fromDatabase:
+          name: artesanic-db
+          property: user
+      - key: POSTGRES_PASSWORD
+        fromDatabase:
+          name: artesanic-db
+          property: password
+      - key: POSTGRES_HOST
+        fromDatabase:
+          name: artesanic-db
+          property: host
+      - key: POSTGRES_PORT
+        value: "5432"
+
+databases:
+  - name: artesanic-db
+    region: ohio
+    plan: 0.1c-256mb
+    diskSizeGB: 1
+    postgresMajorVersion: "17"
+    ipAllowList: []
