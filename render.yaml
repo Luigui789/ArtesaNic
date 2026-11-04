@@ -22,6 +22,10 @@ services:
         value: config.settings.production
       - key: DJANGO_DEBUG
         value: "false"
+      # Nginx envía una sola IP validada por Cloudflare en X-Forwarded-For.
+      # 1 proxy de aplicación (Nginx), sin confiar en cadenas arbitrarias.
+      - key: DJANGO_NUM_PROXIES
+        value: "1"
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DJANGO_MEDIA_ROOT
