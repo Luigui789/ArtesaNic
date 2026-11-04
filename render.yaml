@@ -61,11 +61,9 @@ services:
     autoDeployTrigger: checksPass
     envVars:
       - key: DJANGO_SETTINGS_MODULE
-        value: config.settings.production
+        value: config.settings.base
       - key: DJANGO_DEBUG
         value: "false"
-      - key: RENDER_EXTERNAL_HOSTNAME
-        value: artesanic-web.onrender.com
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: POSTGRES_DB
