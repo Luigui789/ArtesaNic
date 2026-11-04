@@ -57,12 +57,25 @@ estrictos, antes de retirar el disco.
 - Las cookies JWT/CSRF permanecen en origen único, `Secure` y `SameSite=Lax`.
 - La variable `DJANGO_SECRET_KEY` se genera en Render y nunca va al repositorio.
 - No exponer directorios privados por Nginx ni acceso externo a PostgreSQL.
+- Render utiliza el hostname público de `onrender.com` en sus peticiones
+  HTTP de salud y considera sanas las respuestas 2xx y 3xx. Si la sonda llega
+  en HTTP, Django puede responder 301 hacia HTTPS y eso **es aceptado** por
+  Render. Un Host desconocido sí produce 400: validar el hostname real
+  durante el primer despliegue, sobre todo al usar dominios personalizados.
 - El endpoint de salud es de disponibilidad del proceso, no verifica conexión
   a la base de datos: monitorizar la BD por separado.
 - La configuración valida el dominio automático de Render. Antes de agregar
   dominio propio, extender explícitamente ALLOWED_HOSTS, CORS y CSRF.
-- Los limitadores de intentos usan caché local; para múltiples workers o
-  instancias se debe incorporar caché compartida para que el control sea global.
+- Para que el rate limiting identifique al cliente, Nginx descarta la cadena
+  `X-Forwarded-For` entrante y transmite solo `CF-Connecting-IP` (cabecera que
+  Cloudflare sobrescribe en Render). El servicio web fija
+  `DJANGO_NUM_PROXIES=1`; así DRF usa ese valor en lugar de la IP local de Nginx.
+  Si la cabecera falta, Nginx omite XFF y DRF usa `REMOTE_ADDR` como reserva.
+  Verificar en Render dos clientes reales con IP distinta y el caso de una
+  cabecera XFF falsificada antes de habilitar usuarios.
+- Los limitadores de intentos usan caché local; con dos workers Gunicorn
+  los contadores NO se comparten entre procesos. Para aplicar límites globales
+  debe incorporarse caché compartida (por ejemplo, Render Key Value).
 
 ## Validación local de la configuración de producción
 
@@ -79,5 +92,7 @@ El archivo `infra/docker/render.Dockerfile` está separado del
   en la URL final antes de abrir acceso a usuarios.
 - Verificar en el panel que el cron job use su propio build Docker y no ejecute
   servidores HTTP.
-- Confirmar precio y disponibilidad del plan de disco/Postgres antes de activar.
+- El ID `0.1c-256mb` figura como plan válido de PostgreSQL en la documentación
+  oficial de Render; esto **no sustituye** validar el Blueprint y confirmar
+  precio, región y disponibilidad antes de activarlo.
 - Validar la configuración de dominios personalizados si se agrega uno.
