@@ -6,6 +6,13 @@ set -euo pipefail
 : "${DJANGO_PRIVATE_MEDIA_ROOT:=/var/data/private_media}"
 
 mkdir -p "$DJANGO_MEDIA_ROOT" "$DJANGO_PRIVATE_MEDIA_ROOT" /workspace/staticfiles
+
+# Render Free no tiene pre-deploy command. En staging, migrar antes de levantar Nginx.
+# La opción está desactivada por defecto; producción mantiene su pre-deploy normal.
+if [ "${RUN_MIGRATIONS_ON_START:-false}" = "true" ]; then
+    echo "Ejecutando migraciones de Django antes de iniciar el servicio..."
+    python manage.py migrate --noinput
+fi
 python manage.py collectstatic --noinput
 
 envsubst '\$PORT' < /etc/nginx/templates/artesanic.conf.template > /etc/nginx/conf.d/artesanic.conf
