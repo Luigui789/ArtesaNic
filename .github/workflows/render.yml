@@ -1,9 +1,9 @@
 name: Render production image
 on:
   push:
-    branches: [main]
+    branches: [develop, main]
   pull_request:
-    branches: [main]
+    branches: [develop, main]
 permissions:
   contents: read
 jobs:
