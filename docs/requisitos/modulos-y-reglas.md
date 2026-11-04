@@ -18,7 +18,7 @@ Esta guía organiza la especificación y remite al catálogo RN sin añadir regl
 | Mensajería y notificaciones | Conversación del pedido confirmado y avisos internos persistentes | RF-014, RF-020; RNF-004, RNF-010, RNF-013; RN-006, RN-020 |
 | Administración | Aprobación de talleres, cuentas, moderación, tasa de conversión y supervisión de estados e importes | RF-013, RF-007, RF-019; RNF-004, RNF-013; RN-002, RN-003, RN-006, RN-010 |
 
-Los 15 RNF permanecen activos. Sus criterios completos y métodos de verificación están en las [fichas RNF](requisitos.md#requisitos-no-funcionales), incluidas las obligaciones transversales de responsividad, disponibilidad, compatibilidad, respaldo, resiliencia y mantenibilidad.
+Los 15 RNF permanecen activos. Sus criterios completos y métodos de verificación están en las [fichas RNF](requisitos.md#rnf-001), incluidas las obligaciones transversales de responsividad, disponibilidad, compatibilidad, respaldo, resiliencia y mantenibilidad.
 
 ## Secuencia comercial
 
